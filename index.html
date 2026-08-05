@@ -188,30 +188,37 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .card .name{font-weight:600; font-size:1.08rem;}
 
+/* Every tool opens as a full page, not a small popup — matching iLovePDF's
+   own tool pages (dedicated page, full-width workspace), just implemented
+   as a full-viewport overlay since this app stays a single HTML page. This
+   is now the DEFAULT for all 39 tools, not an opt-in variant. */
 .overlay{
-  position:fixed; inset:0; background:rgba(10,16,13,0.55); z-index:100;
-  display:none; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto;
+  position:fixed; inset:0; background:var(--paper); z-index:100;
+  display:none; align-items:stretch; justify-content:center; padding:0; overflow:hidden;
 }
 .overlay.open{display:flex;}
 .panel{
-  background:var(--panel-bg); border-radius:16px; max-width:640px; width:100%;
-  border:1px solid var(--line); box-shadow:0 30px 60px -20px rgba(0,0,0,0.4);
-  animation:rise .18s ease-out;
+  background:var(--panel-bg); width:100%; height:100vh; height:100dvh;
+  border:none; border-radius:0; box-shadow:none;
+  animation:rise .15s ease-out;
+  display:flex; flex-direction:column;
 }
-/* Wider workspace variant for tools built around a page grid (Merge,
-   Organize, Reorder, Delete/Extract Pages) — the default 640px modal was
-   too cramped for a real thumbnail-based workspace, unlike iLovePDF's
-   full-page tool view. Not full-bleed like .panel-fullscreen (that variant
-   is shaped for TOOLS.edit's own toolbar/sidebar/canvas layout). */
-.panel.panel-lg{ max-width:960px; }
-@keyframes rise{from{transform:translateY(10px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+@keyframes rise{from{opacity:0;} to{opacity:1;}}
 .panel-head{
   display:flex; align-items:center; justify-content:space-between;
-  padding:18px 22px; border-bottom:1px solid var(--line);
+  padding:16px 24px; border-bottom:1px solid var(--line); flex:none;
 }
-.panel-head h3{margin:0; font-size:1.15rem;}
+.panel-head h3{margin:0; font-size:1.25rem;}
 .panel-close{
   background:none; border:none; font-size:1.3rem; cursor:pointer; color:var(--ink-soft); line-height:1;
+}
+/* The generic option-form layout (every tool except TOOLS.edit, which
+   overrides this via .panel-fullscreen .panel-body in editor-panel.css)
+   scrolls internally and keeps form content readable-width, centered,
+   inside the now full-height panel. */
+.panel-body{
+  flex:1; overflow-y:auto; width:100%; max-width:900px; margin:0 auto;
+  box-sizing:border-box;
 }
 .panel-body{padding:20px 22px 24px; display:flex; flex-direction:column; gap:14px;}
 .field label{font-size:0.82rem; font-weight:600; display:block; margin-bottom:5px;}
@@ -2076,7 +2083,6 @@ function closePanel(){
      innerHTML wipe, so its state/listeners survive a close+reopen. */
   overlay.classList.remove("panel-fullscreen");
   panel.classList.remove("panel-fullscreen");
-  panel.classList.remove("panel-lg");
   if (window.__editorShellEl && window.__editorShellEl.parentNode === panel){
     editorHoldingArea.appendChild(window.__editorShellEl);
   }
@@ -2672,7 +2678,6 @@ TOOLS.merge = function(){
       <button class="btn" id="go" disabled>Merge Files</button>
       <div id="out"></div>
     </div>`);
-  panel.classList.add("panel-lg");
   const refresh = ()=>{ renderFileList(files, i=>{files.splice(i,1); refresh();}); document.getElementById("go").disabled = files.length<2; };
   wireDropzone(fs=>{ files = files.concat(fs.filter(f=>f.type==="application/pdf"||f.name.endsWith(".pdf"))); refresh(); });
   document.getElementById("go").addEventListener("click", async ()=>{
@@ -2855,7 +2860,6 @@ TOOLS.deletepages = function(){
       <button class="btn" id="go" disabled>Delete Pages</button>
       <div id="out"></div>
     </div>`);
-  panel.classList.add("panel-lg");
   wireDropzone(async fs=>{
     file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
@@ -2893,7 +2897,6 @@ TOOLS.extractpages = function(){
       <button class="btn" id="go" disabled>Extract Pages</button>
       <div id="out"></div>
     </div>`);
-  panel.classList.add("panel-lg");
   wireDropzone(async fs=>{
     file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
@@ -2931,7 +2934,6 @@ TOOLS.reorder = function(){
       <button class="btn" id="go" disabled>Reorder Pages</button>
       <div id="out"></div>
     </div>`);
-  panel.classList.add("panel-lg");
   wireDropzone(async fs=>{
     file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
@@ -3249,7 +3251,6 @@ TOOLS.organize = function(){
       <button class="btn" id="go" disabled>Apply</button>
       <div id="out"></div>
     </div>`);
-  panel.classList.add("panel-lg");
   wireDropzone(async fs=>{
     file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
