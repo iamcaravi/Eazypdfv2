@@ -1,0 +1,247 @@
+/* ==========================================================================
+   EazyPDF — EDITOR WORKSPACE (editor-workspace.css)
+   ==========================================================================
+   The Edit PDF engine's application shell: Toolbar / Sidebar / Canvas /
+   Inspector / Status Bar. This is a genuinely new layout pattern — nothing
+   in the existing Design System covers a resizable three-pane app shell —
+   so it lives in its own file rather than distorting workspace.css (which
+   is the *tool-modal* internal workspace: page grids, crop viewports, result
+   cards — a different, smaller-scale pattern this file does not replace or
+   duplicate).
+
+   Every value below resolves to an existing token from tokens.css /
+   typography.css. No new color, spacing, radius, shadow, or duration is
+   introduced.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Shell — fills the viewport, column stack: toolbar / body / statusbar
+   -------------------------------------------------------------------------- */
+.editor-shell{
+  --editor-sidebar-w: 220px;
+  --editor-inspector-w: 280px;
+  --editor-sidebar-min: 160px;
+  --editor-sidebar-max: 360px;
+  --editor-inspector-min: 220px;
+  --editor-inspector-max: 420px;
+  --editor-rail-w: 52px;
+
+  display:flex; flex-direction:column;
+  height:100vh; height:100dvh;
+  background:var(--color-bg);
+  color:var(--color-text-primary);
+  font-family:var(--font-body);
+  overflow:hidden;
+}
+
+/* --------------------------------------------------------------------------
+   Top Toolbar
+   -------------------------------------------------------------------------- */
+.editor-toolbar{
+  flex:none; display:flex; align-items:center; gap:var(--sp-4);
+  height:52px; padding:0 var(--sp-3);
+  background:var(--color-surface); border-bottom:1px solid var(--color-border);
+  overflow-x:auto; overflow-y:hidden;
+}
+.editor-toolbar-group{
+  display:flex; align-items:center; gap:2px; flex:none;
+  padding-right:var(--sp-3); border-right:1px solid var(--color-border);
+}
+.editor-toolbar-group:last-child{ border-right:none; }
+.editor-toolbar-group[data-reserved="true"]{ opacity:0.55; }
+.editor-toolbar-label{
+  font-size:var(--fs-caption); color:var(--color-text-secondary); text-transform:uppercase;
+  letter-spacing:.04em; font-weight:var(--fw-semibold); margin-right:4px; white-space:nowrap;
+}
+.editor-zoom-value{
+  font-family:var(--font-mono); font-size:var(--fs-small); color:var(--color-text-secondary);
+  min-width:44px; text-align:center; user-select:none;
+}
+.editor-page-input{
+  font-family:var(--font-mono); font-size:var(--fs-small); color:var(--color-text-primary);
+  width:36px; height:28px; text-align:center; padding:0;
+  border:1px solid var(--color-border); border-radius:var(--radius-sm); background:var(--color-surface);
+}
+.editor-page-input:focus-visible{
+  outline:none; border-color:var(--color-brand-primary); box-shadow:0 0 0 3px rgba(232,41,27,0.15);
+}
+.editor-page-input:disabled{ opacity:0.5; cursor:not-allowed; background:var(--color-bg-dim); }
+.editor-page-total{
+  font-family:var(--font-mono); font-size:var(--fs-small); color:var(--color-text-secondary);
+  user-select:none; margin-right:2px;
+}
+.editor-toolbar-spacer{ flex:1; }
+.editor-doc-title{
+  font-size:var(--fs-small); font-weight:var(--fw-semibold); color:var(--color-text-secondary);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;
+}
+
+/* --------------------------------------------------------------------------
+   Body — sidebar / canvas / inspector row
+   -------------------------------------------------------------------------- */
+.editor-body{ flex:1; display:flex; min-height:0; position:relative; }
+
+/* --- Left Sidebar: page thumbnails --- */
+.editor-sidebar{
+  width:var(--editor-sidebar-w); flex:none; min-width:0;
+  display:flex; flex-direction:column;
+  background:var(--color-surface); border-right:1px solid var(--color-border);
+  transition:width var(--duration-base) var(--ease-standard);
+}
+.editor-sidebar.is-collapsed{ width:var(--editor-rail-w); }
+.editor-sidebar-head{
+  flex:none; display:flex; align-items:center; justify-content:space-between; gap:var(--sp-2);
+  height:44px; padding:0 var(--sp-3); border-bottom:1px solid var(--color-border);
+}
+.editor-sidebar-head-title{
+  font-size:var(--fs-caption); font-weight:var(--fw-semibold); text-transform:uppercase; letter-spacing:.04em;
+  color:var(--color-text-secondary); white-space:nowrap; overflow:hidden;
+}
+.editor-sidebar.is-collapsed .editor-sidebar-head-title,
+.editor-sidebar.is-collapsed .editor-thumb-list{ display:none; }
+.editor-thumb-list{
+  flex:1; overflow-y:auto; padding:var(--sp-3); display:flex; flex-direction:column; gap:var(--sp-3);
+  scroll-behavior:smooth;
+}
+.editor-thumb{
+  position:relative; border:2px solid transparent; border-radius:var(--radius-sm); padding:6px;
+  cursor:pointer; display:flex; flex-direction:column; gap:4px; align-items:center;
+  transition:border-color var(--duration-fast), background var(--duration-fast);
+}
+.editor-thumb:hover{ background:var(--color-bg-dim); }
+.editor-thumb:focus-visible{ outline:2px solid var(--color-brand-primary); outline-offset:2px; }
+.editor-thumb.is-current{ border-color:var(--color-brand-primary); background:var(--color-bg-dim); }
+/* Priority 3D: multi-page selection, visually distinct from is-current
+   (border-color above) via box-shadow so a page that's both current and
+   selected still shows both states instead of one overriding the other. */
+.editor-thumb.is-selected{ box-shadow:0 0 0 2px var(--color-brand-secondary) inset; }
+.editor-thumb-page{
+  width:100%; aspect-ratio:0.77; background:#fff; border:1px solid var(--color-border); border-radius:5px;
+  box-shadow:var(--shadow-1);
+}
+.editor-thumb-num{ font-size:var(--fs-caption); color:var(--color-text-secondary); }
+.editor-sidebar.is-collapsed .editor-thumb-rail{
+  display:flex; flex-direction:column; align-items:center; gap:var(--sp-2); padding:var(--sp-3) 0; overflow-y:auto;
+}
+.editor-thumb-rail{ display:none; }
+.editor-thumb-rail-dot{
+  width:8px; height:8px; border-radius:50%; background:var(--color-border); flex:none;
+}
+.editor-thumb-rail-dot.is-current{ background:var(--color-brand-primary); }
+
+/* --- Resize handles (Sidebar<->Canvas, Canvas<->Inspector) --- */
+.editor-resize-handle{
+  width:5px; flex:none; cursor:col-resize; background:transparent; position:relative; z-index:2;
+}
+.editor-resize-handle::after{
+  content:""; position:absolute; inset:0 2px; border-radius:var(--radius-pill);
+}
+.editor-resize-handle:hover::after, .editor-resize-handle.is-dragging::after{ background:var(--color-brand-primary); }
+.editor-resize-handle:focus-visible{ outline:2px solid var(--color-brand-primary); outline-offset:-2px; }
+
+/* --- Center Canvas --- */
+.editor-canvas{
+  flex:1; min-width:0; overflow:auto; position:relative;
+  background-color:var(--color-bg-dim);
+  background-image:
+    linear-gradient(var(--color-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
+  background-size:24px 24px;
+  display:flex; align-items:flex-start; justify-content:center;
+  padding:var(--sp-8) var(--sp-6);
+  scroll-behavior:smooth;
+}
+.editor-canvas.no-grid{ background-image:none; }
+.editor-canvas-page{
+  background:#fff; box-shadow:var(--shadow-2); border-radius:2px; flex:none;
+  width:min(620px, 100%); aspect-ratio:0.77;
+  transition:transform var(--duration-base) var(--ease-standard);
+  transform:scale(var(--editor-zoom, 1));
+}
+.editor-canvas-empty, .editor-canvas-loading{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--sp-3);
+  color:var(--color-text-secondary); text-align:center; max-width:320px; margin:auto;
+}
+.editor-canvas-empty svg{ width:48px; height:48px; opacity:0.4; }
+.editor-canvas-loading .spinner{ width:22px; height:22px; border-width:3px; }
+.editor-canvas[data-state="loading"] > .editor-canvas-page,
+.editor-canvas[data-state="empty"] > .editor-canvas-page{ display:none; }
+.editor-canvas[data-state="page"] .editor-canvas-empty,
+.editor-canvas[data-state="page"] .editor-canvas-loading,
+.editor-canvas[data-state="empty"] .editor-canvas-loading,
+.editor-canvas[data-state="loading"] .editor-canvas-empty{ display:none; }
+
+/* --- Right Inspector --- */
+.editor-inspector{
+  width:var(--editor-inspector-w); flex:none; min-width:0;
+  background:var(--color-surface); border-left:1px solid var(--color-border);
+  overflow-y:auto; transition:width var(--duration-base) var(--ease-standard);
+}
+.editor-inspector.is-collapsed{ width:var(--editor-rail-w); overflow:hidden; }
+.editor-inspector-section{ border-bottom:1px solid var(--color-border); }
+.editor-inspector-section-head{
+  width:100%; display:flex; align-items:center; justify-content:space-between; gap:var(--sp-2);
+  padding:var(--sp-3); background:none; border:none; cursor:pointer; text-align:left;
+  font-family:var(--font-body); color:var(--color-text-primary);
+}
+.editor-inspector-section-head:hover{ background:var(--color-bg-dim); }
+.editor-inspector-section-head:focus-visible{ outline:2px solid var(--color-brand-primary); outline-offset:-2px; }
+.editor-inspector-section-title{ font-size:var(--fs-small); font-weight:var(--fw-semibold); }
+.editor-inspector-chevron{ transition:transform var(--duration-base); color:var(--color-text-secondary); flex:none; }
+.editor-inspector-section.is-open .editor-inspector-chevron{ transform:rotate(180deg); }
+.editor-inspector-section-body{ padding:0 var(--sp-3) var(--sp-3); display:none; }
+.editor-inspector-section.is-open .editor-inspector-section-body{ display:block; }
+.editor-inspector-placeholder{
+  font-size:var(--fs-small); color:var(--color-text-secondary); font-style:italic;
+  border:1px dashed var(--color-border); border-radius:var(--radius-sm); padding:var(--sp-3); text-align:center;
+}
+.editor-inspector.is-collapsed .editor-inspector-section-title,
+.editor-inspector.is-collapsed .editor-inspector-section-body{ display:none; }
+
+/* --------------------------------------------------------------------------
+   Bottom Status Bar
+   -------------------------------------------------------------------------- */
+.editor-statusbar{
+  flex:none; height:32px; display:flex; align-items:center; gap:var(--sp-5);
+  padding:0 var(--sp-4); background:var(--color-surface); border-top:1px solid var(--color-border);
+  font-size:var(--fs-caption); color:var(--color-text-secondary);
+}
+.editor-statusbar-item{ display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.editor-statusbar-spacer{ flex:1; }
+.editor-statusbar-ready{ display:flex; align-items:center; gap:6px; }
+.editor-statusbar-dot{ width:7px; height:7px; border-radius:50%; background:var(--color-success); flex:none; }
+
+/* --------------------------------------------------------------------------
+   Overlay mode (used below the tablet breakpoint — sidebar/inspector float
+   over the canvas instead of squeezing it)
+   -------------------------------------------------------------------------- */
+.editor-body.is-overlay .editor-sidebar,
+.editor-body.is-overlay .editor-inspector{
+  position:absolute; top:0; bottom:0; z-index:5; box-shadow:var(--shadow-3);
+  width:min(78vw, 300px);
+}
+.editor-body.is-overlay .editor-sidebar{ left:0; transform:translateX(-100%); }
+.editor-body.is-overlay .editor-sidebar.is-open{ transform:translateX(0); }
+.editor-body.is-overlay .editor-inspector{ right:0; transform:translateX(100%); }
+.editor-body.is-overlay .editor-inspector.is-open{ transform:translateX(0); }
+.editor-body.is-overlay .editor-resize-handle{ display:none; }
+.editor-scrim{
+  position:absolute; inset:0; background:rgba(20,10,8,0.35); z-index:4;
+  opacity:0; pointer-events:none; transition:opacity var(--duration-base);
+}
+.editor-scrim.is-visible{ opacity:1; pointer-events:auto; }
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 1023px){
+  .editor-toolbar-label{ display:none; }
+}
+@media (max-width: 899px){
+  .editor-doc-title{ display:none; }
+  .editor-canvas{ padding:var(--sp-5) var(--sp-3); }
+}
+@media (max-width: 639px){
+  .editor-statusbar-item[data-optional="true"]{ display:none; }
+  .editor-canvas-page{ width:100%; }
+}

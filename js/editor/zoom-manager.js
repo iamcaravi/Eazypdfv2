@@ -1,0 +1,86 @@
+/* ==========================================================================
+   js/editor/zoom-manager.js
+   ---------------------------------------------------------------------------
+   Owns the current zoom level and the two fit modes. Every zoom change
+   calls RenderQueue.cancelAll() and PageCache.clear() before asking
+   viewport-manager to re-render at the new scale — stale in-flight renders
+   at the old scale are exactly the kind of wasted work render-queue.js
+   exists to cancel (see that file's header comment).
+   ---------------------------------------------------------------------------
+   Public surface:
+     ZoomManager.init(getContainerSize, getPageNativeSize)
+     ZoomManager.setZoom(percent)         // snaps to nearest allowed STEP
+     ZoomManager.zoomIn() / zoomOut()     // moves one STEP
+     ZoomManager.fitWidth() / fitPage()
+     ZoomManager.getScale() -> number     // e.g. 1.25 for 125%
+     ZoomManager.getPercent() -> number   // e.g. 125
+   Events emitted:
+     editor:zoomChange { zoom }  (zoom is the 0–4-ish scale factor, matching
+                                   the existing shell's convention from Phase
+                                   6.0/Editor Architecture — statusbar and
+                                   toolbar already listen for this, unchanged)
+   ========================================================================== */
+(function () {
+  const STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4]; // 25% .. 400%, per the brief
+  let scale = 1;
+  let getContainerSize = () => ({ width: 800, height: 600 });
+  let getPageNativeSize = () => ({ width: 612, height: 792 }); // US Letter default until a doc loads
+
+  function init(containerSizeFn, pageNativeSizeFn) {
+    if (containerSizeFn) getContainerSize = containerSizeFn;
+    if (pageNativeSizeFn) getPageNativeSize = pageNativeSizeFn;
+  }
+
+  function nearestStep(target) {
+    return STEPS.reduce((a, b) => (Math.abs(b - target) < Math.abs(a - target) ? b : a));
+  }
+
+  function setScale(next, { snap = false } = {}) {
+    const clamped = Math.min(STEPS[STEPS.length - 1], Math.max(STEPS[0], next));
+    scale = snap ? nearestStep(clamped) : clamped;
+    window.RenderQueue && window.RenderQueue.cancelAll();
+    window.PageCache && window.PageCache.clear();
+    window.dispatchEvent(new CustomEvent('editor:zoomChange', { detail: { zoom: scale } }));
+    return scale;
+  }
+
+  function setZoom(percent) { return setScale(percent / 100, { snap: true }); }
+  function zoomIn() {
+    const i = STEPS.findIndex((s) => s > scale + 1e-6);
+    return setScale(i === -1 ? STEPS[STEPS.length - 1] : STEPS[i]);
+  }
+  function zoomOut() {
+    const i = [...STEPS].reverse().findIndex((s) => s < scale - 1e-6);
+    return setScale(i === -1 ? STEPS[0] : [...STEPS].reverse()[i]);
+  }
+
+  function fitWidth() {
+    const { width: containerW } = getContainerSize();
+    const { width: pageW } = getPageNativeSize();
+    const padding = 48; // matches the canvas's own padding, see editor-workspace.css
+    return setScale((containerW - padding) / pageW);
+  }
+
+  function fitPage() {
+    const { width: containerW, height: containerH } = getContainerSize();
+    const { width: pageW, height: pageH } = getPageNativeSize();
+    const padding = 48;
+    const scaleW = (containerW - padding) / pageW;
+    const scaleH = (containerH - padding) / pageH;
+    return setScale(Math.min(scaleW, scaleH));
+  }
+
+  /** Ctrl+wheel zoom — call from a `wheel` listener already filtered to
+   *  e.ctrlKey (viewport-manager.js owns attaching the actual listener,
+   *  this just turns a wheel delta into a zoom step so the two concerns —
+   *  "is this a zoom gesture" and "what does zooming mean" — stay separate). */
+  function handleWheelDelta(deltaY) {
+    const factor = deltaY > 0 ? 0.9 : 1.1;
+    return setScale(scale * factor);
+  }
+
+  function getScale() { return scale; }
+  function getPercent() { return Math.round(scale * 100); }
+
+  window.ZoomManager = { init, setZoom, zoomIn, zoomOut, fitWidth, fitPage, handleWheelDelta, getScale, getPercent, STEPS };
+})();

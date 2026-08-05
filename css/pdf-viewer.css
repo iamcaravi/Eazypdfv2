@@ -1,0 +1,49 @@
+/* ==========================================================================
+   css/pdf-viewer.css
+   ---------------------------------------------------------------------------
+   Additive only — css/editor-workspace.css (frozen per FOUNDATION_FREEZE.md)
+   is not modified. Every selector below is scoped under `.editor-canvas-pages`
+   (2+ classes), which is inherently more specific than the frozen file's
+   bare `.editor-canvas-page` (1 class) — the cascade resolves correctly by
+   specificity alone, with no !important and no dependency on file load
+   order. This is the same additive-file pattern used for every previous
+   phase's new capability (seo.css, landing-page.css, editor-workspace.css
+   itself when it was new).
+   ========================================================================== */
+
+/* The frozen shell (css/editor-workspace.css) only hides its static demo
+   placeholder for the 'empty' and 'loading' states — it has no rule for
+   'page' at all, since real multi-page rendering didn't exist when it was
+   written. Without this, the demo placeholder stays visible as a phantom
+   extra "page" alongside the real ones once a document loads. Purely
+   additive: the frozen file defines zero rules for this state/selector
+   combination, so there is nothing to override or conflict with. */
+.editor-canvas[data-state="page"] > .editor-canvas-page{ display:none; }
+
+/* Real multi-page continuous-scroll container — one wrapper + <canvas> per
+   PDF page, built by viewport-manager.js. Hidden until a document is
+   actually mounted (data-state="page"), same show/hide contract the frozen
+   file's single demo placeholder already used. */
+.editor-canvas-pages{ display:none; flex-direction:column; align-items:center; gap:var(--sp-6); width:100%; }
+.editor-canvas[data-state="page"] .editor-canvas-pages{ display:flex; }
+
+.editor-canvas-pages .editor-canvas-page{
+  position:relative; background:#fff; box-shadow:var(--shadow-2); border-radius:2px; flex:none;
+  /* No CSS transform:scale here (unlike the frozen file's demo placeholder) —
+     pdf.js renders each page's canvas at the exact target pixel size for
+     the current zoom, so scaling it again would double-apply zoom. */
+}
+.editor-canvas-pages .editor-canvas-page canvas{ display:block; max-width:100%; height:auto; }
+
+/* Per-page loading state, driven by loading-manager.js */
+.editor-canvas-pages .editor-canvas-page.is-rendering canvas{ opacity:0.35; transition:opacity var(--duration-base); }
+.editor-canvas-pages .editor-canvas-page .spinner{
+  position:absolute; top:50%; left:50%; margin:-11px 0 0 -11px; width:22px; height:22px; border-width:3px;
+  display:none;
+}
+.editor-canvas-pages .editor-canvas-page.is-rendering .spinner{ display:block; }
+
+/* Pan cursor states — set as inline style by viewport-manager.js (Space-held
+   / actively dragging); documented here rather than left unstyled since it's
+   a real, testable interaction state, not a one-off. */
+.editor-canvas[style*="cursor: grab"], .editor-canvas[style*="cursor: grabbing"]{ user-select:none; }

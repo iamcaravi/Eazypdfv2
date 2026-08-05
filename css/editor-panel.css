@@ -1,0 +1,113 @@
+/* ==========================================================================
+   css/editor-panel.css
+   ---------------------------------------------------------------------------
+   Priority 3 (small milestone): integrates the existing, unmodified editor
+   shell (css/editor-workspace.css, css/pdf-viewer.css, js/editor/editor-*.js)
+   into the live SPA's TOOLS.edit panel.
+
+   This file does NOT touch editor-workspace.css or pdf-viewer.css — both are
+   reused exactly as delivered. It only supplies two things those two files
+   need from a "host" page that index.html's own inline <style> doesn't
+   provide, and does so scoped to `.editor-shell` only so nothing here can
+   affect any of the other 33 TOOLS.xxx panels:
+
+   1. The Design System token variables (--color-*, --sp-*, --fs-*, --fw-*,
+      --duration-*, --ease-*, --shadow-*, --radius-*, --font-*) that
+      editor-workspace.css/pdf-viewer.css are written against. index.html
+      has its own, differently-named token set (--red, --ink, --paper, ...)
+      — the two systems don't collide by name, so both can coexist; these
+      are just declared locally on .editor-shell instead of globally on
+      :root, which is the only reason this isn't simply <link>-ing
+      css/tokens.css directly (that file's sibling, typography.css, has
+      unscoped `body/h1/h2/h3` rules that would restyle the entire site —
+      see PROJECT_AUDIT for why the old parallel Design System was never
+      wired into index.html wholesale).
+
+   2. Two small helper classes the shell's JS renders but which don't ship
+      in editor-workspace.css/pdf-viewer.css themselves: `.btn-icon`
+      (toolbar buttons, from buttons.css) and `.spinner` (per-page loading
+      spinner, from workspace.css). Both are scoped under `.editor-shell`
+      because index.html already defines its OWN global `.status`/`.spinner`
+      classes (used by every other tool's status line) — loading the old
+      Design System files directly would silently override those globally.
+      Scoping here avoids that collision entirely.
+
+   Values below are copied as plain values (not re-linked files) from
+   css/tokens.css / css/typography.css / css/buttons.css / css/workspace.css
+   for exactly the properties editor-workspace.css / pdf-viewer.css read.
+   ========================================================================== */
+
+.editor-shell{
+  --color-bg:            #FBF9F8;
+  --color-bg-dim:        #F2ECEA;
+  --color-surface:       #FFFFFF;
+  --color-border:        rgba(26,20,20,0.12);
+  --color-text-primary:  #1A1414;
+  --color-text-secondary:#6B5D5A;
+  --color-brand-primary: #E8291B;
+  --color-success:       #1E8E5A;
+
+  --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-8:48px;
+
+  --radius-sm:8px; --radius-pill:999px;
+
+  --shadow-1: 0 1px 4px -1px rgba(20,10,8,0.10);
+  --shadow-2: 0 10px 24px -16px rgba(20,10,8,0.22);
+  --shadow-3: 0 24px 54px -30px rgba(20,10,8,0.35), 0 2px 14px rgba(20,10,8,0.06);
+
+  --duration-fast:120ms; --duration-base:150ms; --ease-standard:ease;
+
+  --font-body:'IBM Plex Sans', sans-serif;
+  --font-mono:'IBM Plex Mono', monospace;
+  --fs-small:0.85rem; --fs-caption:0.76rem; --fw-semibold:600;
+}
+
+/* --- .btn-icon (buttons.css, reused as plain values, scoped) --- */
+.editor-shell .btn-icon{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:36px; height:36px; flex:none; padding:0;
+  border:none; border-radius:var(--radius-sm); background:transparent;
+  color:var(--color-text-secondary); cursor:pointer;
+  transition:background var(--duration-base) var(--ease-standard);
+}
+.editor-shell .btn-icon:hover{ background:var(--color-bg-dim); color:var(--color-text-primary); }
+.editor-shell .btn-icon:focus-visible{ outline:2px solid var(--color-brand-primary); outline-offset:2px; }
+.editor-shell .btn-icon:disabled{ opacity:0.5; cursor:not-allowed; }
+.editor-shell .btn-icon svg{ width:18px; height:18px; }
+
+/* --- .spinner (workspace.css, reused as plain values, scoped) ---
+   Scoped so it never touches index.html's own global `.spinner` (a
+   rolling-emoji icon used site-wide) or `.status` classes. */
+.editor-shell .spinner{
+  width:14px; height:14px; border-radius:50%; border:2px solid var(--color-border);
+  border-top-color:var(--color-brand-primary); animation:editor-panel-spin var(--duration-base) linear infinite;
+  flex:none; font-size:0; display:inline-block;
+}
+@keyframes editor-panel-spin{ to{ transform:rotate(360deg); } }
+
+/* --- Small close button, added only by TOOLS.edit's own integration code
+   (not part of editor-toolbar.js, which has no close action of its own —
+   the shell is normally hosted full-page with no host chrome around it) --- */
+.editor-shell .editor-toolbar-close{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:32px; flex:none; margin-left:var(--sp-3);
+  border:none; border-radius:var(--radius-sm); background:transparent;
+  color:var(--color-text-secondary); cursor:pointer; font-size:1.1rem; line-height:1;
+}
+.editor-shell .editor-toolbar-close:hover{ background:var(--color-bg-dim); color:var(--color-text-primary); }
+
+/* ==========================================================================
+   Fullscreen panel variant
+   ---------------------------------------------------------------------------
+   The existing `.panel` (index.html) is capped at max-width:640px, sized for
+   compact option forms — every other TOOLS.xxx panel keeps using it exactly
+   as-is. `.panel-fullscreen` is an additive override applied ONLY by
+   TOOLS.edit (via classList.add, stripped again in closePanel()), never the
+   default for any other tool.
+   ========================================================================== */
+.overlay.panel-fullscreen{ padding:0; align-items:stretch; }
+.panel.panel-fullscreen{
+  max-width:none; width:100%; height:100vh; height:100dvh;
+  border-radius:0; box-shadow:none; animation:none;
+}
+.panel.panel-fullscreen .panel-body{ padding:0; height:100%; display:block; }

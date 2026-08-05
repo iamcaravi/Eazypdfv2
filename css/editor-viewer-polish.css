@@ -1,0 +1,44 @@
+/* ==========================================================================
+   css/editor-viewer-polish.css
+   ---------------------------------------------------------------------------
+   Priority 3F (Document Information Panel & View-Only Polish) — small,
+   additive follow-up file, same pattern as css/editor-inspector.css before
+   it. Does not touch css/editor-workspace.css or css/editor-panel.css
+   (both frozen); reuses their already-declared token names only.
+
+   Two unrelated small gaps found while reviewing the viewer-only shell:
+
+   1. `.editor-canvas-empty-error` — new element added inside the existing
+      `.editor-canvas-empty` block (see editor-canvas.js / index.html /
+      editor-preview.html) so a failed document load has a visible,
+      always-on-screen explanation. Previously the only feedback was a
+      console.error and a status-bar message that (a) was a genuine bug —
+      immediately overwritten by another listener in the same tick, fixed
+      this phase in editor-statusbar.js — and (b) is `data-optional` and
+      hidden below 640px regardless of that fix. Hidden by default
+      (`[hidden]`), shown only when editor-canvas.js has an actual message
+      to report.
+
+   2. `.editor-shell .editor-toolbar-close:focus-visible` — this button
+      (added by index.html's own TOOLS.edit integration code, not by any
+      editor-*.js module) had a `:hover` style in css/editor-panel.css but
+      no `:focus-visible` outline, unlike every other interactive control
+      in the shell (thumbnails, resize handles, inspector heads, the page
+      input, and `.btn-icon` generally all have one). A real, keyboard-
+      operable close button with no visible focus state is a genuine
+      accessibility gap for anyone tabbing through the shell rather than
+      using a mouse. Matches the same outline treatment `.btn-icon` already
+      uses (css/editor-panel.css) for visual consistency.
+   ========================================================================== */
+
+.editor-canvas-empty-error{
+  font-size:var(--fs-small); color:var(--color-brand-primary);
+  background:rgba(232,41,27,0.08); border:1px solid rgba(232,41,27,0.25);
+  border-radius:var(--radius-sm); padding:var(--sp-3); margin-top:var(--sp-2);
+  max-width:100%; overflow-wrap:anywhere;
+}
+.editor-canvas-empty-error[hidden]{ display:none; }
+
+.editor-shell .editor-toolbar-close:focus-visible{
+  outline:2px solid var(--color-brand-primary); outline-offset:2px;
+}

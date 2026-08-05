@@ -1,0 +1,28 @@
+/* ==========================================================================
+   css/editor-inspector.css
+   ---------------------------------------------------------------------------
+   Priority 3E (small milestone): supplies the label/value row layout the
+   Inspector's Document section needs to display real document metadata
+   (file name, size, page count, current page, page dimensions, orientation,
+   PDF version, rotation, zoom).
+
+   Additive only — does not touch css/editor-workspace.css (frozen per
+   docs/FOUNDATION_FREEZE.md) or css/pdf-viewer.css. Same pattern those two
+   files already established: a small new file, linked alongside them,
+   reusing the Design System token names already declared on `.editor-shell`
+   (css/editor-panel.css) — --sp-*, --fs-*, --color-*, --font-* — rather
+   than introducing new ones. `.editor-inspector-doc-info`/
+   `.editor-inspector-row*` are new selectors; checked against
+   editor-workspace.css/pdf-viewer.css/editor-panel.css — zero collisions.
+   ========================================================================== */
+
+.editor-inspector-doc-info{ display:flex; flex-direction:column; gap:var(--sp-2); }
+.editor-inspector-row{
+  display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-3);
+  font-size:var(--fs-small);
+}
+.editor-inspector-row-label{ color:var(--color-text-secondary); flex:none; }
+.editor-inspector-row-value{
+  color:var(--color-text-primary); font-family:var(--font-mono); text-align:right;
+  overflow-wrap:anywhere; word-break:break-word;
+}
