@@ -1,0 +1,108 @@
+/* Shared stylesheet for per-tool SEO landing pages (merge-pdf.html etc).
+   Reuses the same design tokens as index.html's <style> block so a
+   visitor can't tell they're on a different page from the app - this
+   file just needs its own copy of the tokens since it's a fully static
+   page that never loads index.html's inline <style>. */
+:root{
+  --paper:#FFFFFF;
+  --paper-dim:#F5F2FC;
+  --panel-bg:#FFFFFF;
+  --ink:#241B3D;
+  --ink-soft:#6B637F;
+  --red:#6C3CE0;
+  --orange:#7B3FE4;
+  --brand-grad: linear-gradient(135deg, #7B3FE4, #5B2FD1);
+  --teal:#17BEBB;
+  --teal-deep:#0F9E9B;
+  --line: rgba(36,27,61,0.12);
+}
+[data-theme="dark"]{
+  --paper:#16101F;
+  --paper-dim:#1E1730;
+  --panel-bg:#1C1530;
+  --ink:#F0EBFA;
+  --ink-soft:#B2A6CC;
+  --line: rgba(240,235,250,0.14);
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth; font-size:17.5px;}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{ font-family:'Plus Jakarta Sans', sans-serif; font-weight:800; letter-spacing:-0.01em; margin:0; }
+a{color:inherit;}
+.wrap{ max-width:1000px; margin:0 auto; padding:0 24px; }
+
+header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 28px; border-bottom:1px solid var(--line);
+}
+.brand{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.15rem; text-decoration:none; }
+.brand .mark{ width:28px; height:28px; border-radius:8px; background:var(--teal); position:relative; flex:none; }
+.brand .mark::after{ content:""; position:absolute; inset:7px; background:var(--paper); border-radius:2px; }
+.back-link{ font-size:.9rem; color:var(--ink-soft); text-decoration:none; }
+.back-link:hover{ color:var(--ink); }
+
+.breadcrumb{ font-size:.82rem; color:var(--ink-soft); padding:18px 0 0; }
+.breadcrumb a{ text-decoration:none; color:var(--ink-soft); }
+.breadcrumb a:hover{ color:var(--ink); }
+
+.hero{ padding:36px 0 28px; }
+.hero h1{ font-size:2.1rem; margin-bottom:12px; }
+.hero .value-prop{ font-size:1.05rem; color:var(--ink-soft); max-width:640px; line-height:1.6; margin-bottom:24px; }
+.trust-badges{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:26px; }
+.trust-badges span{
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:20px;
+  padding:6px 14px; font-size:.8rem; font-weight:600; color:var(--ink-soft);
+}
+.cta-btn{
+  display:inline-flex; align-items:center; gap:8px; background:var(--teal); color:#fff;
+  font-weight:700; font-size:1.05rem; padding:16px 32px; border-radius:12px; text-decoration:none;
+  box-shadow:0 10px 24px -10px rgba(23,190,187,0.55); transition:.15s;
+}
+.cta-btn:hover{ background:var(--teal-deep); transform:translateY(-1px); }
+
+section.section{ padding:32px 0; border-top:1px solid var(--line); }
+section.section h2{ font-size:1.3rem; margin-bottom:18px; }
+.why-grid, .features-grid, .usecase-grid{
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:20px;
+}
+.why-card, .feature-card, .usecase-card{
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:12px; padding:18px;
+}
+.why-card h3, .feature-card h3, .usecase-card h3{ font-size:.98rem; margin-bottom:8px; }
+.why-card p, .feature-card p, .usecase-card p{ margin:0; font-size:.88rem; color:var(--ink-soft); line-height:1.55; }
+.steps{ counter-reset:step; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:20px; }
+.step{ position:relative; padding-left:8px; }
+.step::before{
+  counter-increment:step; content:counter(step); display:flex; align-items:center; justify-content:center;
+  width:30px; height:30px; border-radius:50%; background:var(--red); color:#fff; font-weight:700; font-size:.9rem;
+  margin-bottom:10px;
+}
+.step h3{ font-size:.95rem; margin-bottom:6px; }
+.step p{ margin:0; font-size:.85rem; color:var(--ink-soft); line-height:1.5; }
+
+.faq-item{ border-bottom:1px solid var(--line); padding:14px 0; }
+.faq-item summary{ cursor:pointer; font-weight:700; font-size:.95rem; list-style:none; }
+.faq-item summary::-webkit-details-marker{ display:none; }
+.faq-item summary::after{ content:"+"; float:right; color:var(--ink-soft); }
+.faq-item[open] summary::after{ content:"−"; }
+.faq-item p{ margin:10px 0 0; color:var(--ink-soft); font-size:.9rem; line-height:1.6; }
+
+.related-grid{ display:flex; flex-wrap:wrap; gap:10px; }
+.related-grid a{
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:20px;
+  padding:8px 16px; font-size:.85rem; font-weight:600; text-decoration:none; color:var(--ink);
+}
+.related-grid a:hover{ border-color:var(--teal); color:var(--teal-deep); }
+
+.cta-section{ text-align:center; padding:40px 0; }
+.cta-section h2{ margin-bottom:16px; }
+
+footer{ border-top:1px solid var(--line); padding:24px 0; text-align:center; color:var(--ink-soft); font-size:.82rem; }
+
+@media (max-width:600px){
+  .hero h1{ font-size:1.6rem; }
+  .cta-btn{ width:100%; justify-content:center; }
+}

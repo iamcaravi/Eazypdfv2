@@ -1,0 +1,1190 @@
+{
+  "site": {
+    "name": "EazyPDF",
+    "domain": "https://eazypdf.in",
+    "defaultTitle": "EazyPDF — Free Online PDF Tools, No Upload Required",
+    "defaultDescription": "Edit, merge, split, compress and convert PDFs free, right in your browser. No sign-up, no file size limits, no files ever leave your device.",
+    "ogImage": "https://eazypdf.in/assets/og/eazypdf-default-og.png",
+    "logo": "https://eazypdf.in/assets/icons/eazypdf-logo.png",
+    "sameAs": []
+  },
+  "categories": {
+    "organize": {
+      "label": "Organize PDF",
+      "order": 1
+    },
+    "edit": {
+      "label": "Edit PDF",
+      "order": 2
+    },
+    "security": {
+      "label": "Security",
+      "order": 3
+    },
+    "optimize": {
+      "label": "Optimize",
+      "order": 4
+    },
+    "convert": {
+      "label": "Convert PDF",
+      "order": 5
+    }
+  },
+  "trustCards": [
+    {
+      "title": "Browser Processing",
+      "desc": "Every file is processed locally in your browser — nothing is uploaded to a server."
+    },
+    {
+      "title": "Privacy First",
+      "desc": "No file content is transmitted anywhere at any point in the process."
+    },
+    {
+      "title": "Free Forever",
+      "desc": "No paywall, no watermark, no per-file charge, on any tool."
+    },
+    {
+      "title": "Fast",
+      "desc": "No upload wait — processing starts the moment you choose a file."
+    },
+    {
+      "title": "Cross Platform",
+      "desc": "Works in any modern browser on desktop, tablet, or mobile."
+    },
+    {
+      "title": "No Registration",
+      "desc": "No account, email, or sign-up step stands between you and any tool."
+    }
+  ],
+  "featuredTools": {
+    "slugs": [
+      "merge-pdf",
+      "compress-pdf",
+      "split-pdf",
+      "edit-pdf",
+      "pdf-to-word"
+    ],
+    "popularity": {
+      "merge-pdf": "Most Popular",
+      "compress-pdf": "Trending",
+      "split-pdf": "Popular",
+      "edit-pdf": "New",
+      "pdf-to-word": "New"
+    }
+  },
+  "comparisonTable": {
+    "columns": [
+      "Tool",
+      "Best For",
+      "Output"
+    ],
+    "rows": [
+      {
+        "slug": "merge-pdf",
+        "bestFor": "Combining documents",
+        "output": "One merged PDF"
+      },
+      {
+        "slug": "compress-pdf",
+        "bestFor": "Reducing file size",
+        "output": "Smaller PDF"
+      },
+      {
+        "slug": "split-pdf",
+        "bestFor": "Extracting pages",
+        "output": "Multiple PDFs / ZIP"
+      },
+      {
+        "slug": "edit-pdf",
+        "bestFor": "Modifying content",
+        "output": "Edited PDF"
+      },
+      {
+        "slug": "pdf-to-word",
+        "bestFor": "Editable conversion",
+        "output": "Word document"
+      }
+    ]
+  },
+  "tools": [
+    {
+      "slug": "merge-pdf",
+      "file": "merge-pdf.html",
+      "status": "live",
+      "name": "Merge PDF",
+      "category": "organize",
+      "title": "Merge PDF Files Free Online — Combine PDFs | EazyPDF",
+      "description": "Combine multiple PDF files into one document in your browser. Drag to reorder, no upload to any server, no file limits, completely free.",
+      "keywords": [
+        "merge pdf",
+        "combine pdf",
+        "join pdf files",
+        "pdf merger online"
+      ],
+      "h1": "Merge PDF",
+      "shortDesc": "Combine multiple PDFs into a single file in the order you choose.",
+      "faqs": [
+        {
+          "q": "Does merging PDFs upload my files anywhere?",
+          "a": "No. Merge PDF runs entirely in your browser using pdf-lib — your files never leave your device."
+        },
+        {
+          "q": "Is there a limit on how many PDFs I can merge?",
+          "a": "No artificial limit. The only constraint is your browser's available memory for very large batches."
+        },
+        {
+          "q": "Can I reorder pages before merging?",
+          "a": "Yes, drag files into the order you want before combining them into the final PDF."
+        }
+      ],
+      "relatedSlugs": [
+        "split-pdf",
+        "organize-pdf",
+        "delete-pages",
+        "extract-pages",
+        "rotate-pdf",
+        "compress-pdf"
+      ],
+      "landing": {
+        "hero": {
+          "valueProp": "Combine PDF reports, statements, scans, and forms into one file — dragged into the order you want, processed on your own device.",
+          "trustBadges": [
+            "Browser Based",
+            "Free",
+            "Secure",
+            "No Registration"
+          ],
+          "ctaLabel": "Use Merge PDF",
+          "ctaTarget": "openMerge"
+        },
+        "whyUse": {
+          "intro": "Merging comes up whenever a single PDF needs to hold what started as several separate files.",
+          "points": [
+            {
+              "title": "One file to send instead of many",
+              "desc": "Attaching five separate scans to an email invites at least one of them to get lost or opened out of order. One merged PDF removes that risk entirely."
+            },
+            {
+              "title": "Reports built from separate sections",
+              "desc": "When a report is drafted in pieces — cover page, chapters, appendix — merging is how those pieces become the single document you actually submit."
+            },
+            {
+              "title": "Scanned pages that arrived as separate files",
+              "desc": "A scanner or phone scanning app often saves each page as its own PDF. Merge PDF turns that pile back into one ordered document."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add two or more PDF files from your device. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Arrange",
+            "desc": "Drag the files into the exact order you want them to appear in the final document."
+          },
+          {
+            "title": "Merge",
+            "desc": "pdf-lib combines every page, in order, into a single new PDF — entirely in your browser."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the merged file to your device. Your original files are untouched."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "No page limit",
+            "desc": "Merge as many files as your browser's memory allows — no artificial cap."
+          },
+          {
+            "title": "Drag-to-reorder",
+            "desc": "Set the final page order visually before merging, not after."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Merging runs the moment you drop files in — pdf-lib combines them locally, no server round-trip."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start merging — no account, no email, no waiting."
+          },
+          {
+            "title": "Works on any device",
+            "desc": "Drop files and merge from a laptop, tablet, or phone — the picker adapts to the screen."
+          },
+          {
+            "title": "Free",
+            "desc": "Combine as many PDFs as you like — no watermark, no per-merge fee."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Students",
+            "desc": "Combine scanned assignment pages or multiple research PDFs into one file before submitting."
+          },
+          {
+            "title": "Business",
+            "desc": "Merge a proposal's cover letter, pricing sheet, and terms into a single document for a client."
+          },
+          {
+            "title": "HR",
+            "desc": "Combine an offer letter, ID proofs, and policy documents into one onboarding packet."
+          },
+          {
+            "title": "Legal",
+            "desc": "Assemble exhibits or supporting documents into one file for filing."
+          },
+          {
+            "title": "Finance",
+            "desc": "Combine monthly statements or invoices into a single record for an audit or filing."
+          },
+          {
+            "title": "Teachers",
+            "desc": "Merge individual worksheet PDFs into one packet to print or share with a class."
+          }
+        ],
+        "trust": [
+          {
+            "title": "Browser Processing",
+            "desc": "Merging happens locally using pdf-lib — your files are never uploaded."
+          },
+          {
+            "title": "Privacy First",
+            "desc": "No file content is transmitted to any server at any point in the process."
+          },
+          {
+            "title": "No Registration",
+            "desc": "No account, email, or sign-up step stands between you and the tool."
+          },
+          {
+            "title": "Fast",
+            "desc": "Combining runs as fast as your browser can process the pages — no upload wait."
+          },
+          {
+            "title": "Free",
+            "desc": "Every feature of Merge PDF is free, with no usage cap."
+          },
+          {
+            "title": "Cross Platform",
+            "desc": "Works in any modern browser on desktop, tablet, or mobile."
+          }
+        ],
+        "cta": {
+          "question": "Need to reduce the merged file's size?",
+          "targetSlug": "compress-pdf",
+          "label": "Compress PDF"
+        }
+      }
+    },
+    {
+      "slug": "split-pdf",
+      "file": "split-pdf.html",
+      "status": "live",
+      "name": "Split PDF",
+      "category": "organize",
+      "title": "Split PDF Files Free Online — Extract Pages | EazyPDF",
+      "description": "Split a PDF into separate files by page range or extract every page individually. Free, browser-based, no file uploads.",
+      "keywords": [
+        "split pdf",
+        "divide pdf",
+        "separate pdf pages",
+        "pdf splitter online"
+      ],
+      "h1": "Split PDF",
+      "shortDesc": "Split one PDF into multiple files by page range, instantly.",
+      "faqs": [
+        {
+          "q": "Can I split a PDF into a specific page range?",
+          "a": "Yes, choose exact page ranges or split every page into its own file."
+        },
+        {
+          "q": "Do I get the split files as separate downloads?",
+          "a": "Yes, output files are bundled into a ZIP for download when splitting into more than one file."
+        },
+        {
+          "q": "Is my file processed on a server?",
+          "a": "No, splitting happens locally in your browser — nothing is uploaded."
+        }
+      ],
+      "relatedSlugs": [
+        "merge-pdf",
+        "extract-pages",
+        "organize-pdf",
+        "delete-pages",
+        "rotate-pdf",
+        "compress-pdf"
+      ],
+      "landing": {
+        "hero": {
+          "valueProp": "Extract pages from any PDF in seconds — pull a range into one file, or break every page out on its own.",
+          "trustBadges": [
+            "Browser Based",
+            "Free",
+            "Secure",
+            "No Registration"
+          ],
+          "ctaLabel": "Use Split PDF",
+          "ctaTarget": "openSplit"
+        },
+        "whyUse": {
+          "intro": "Splitting matters whenever a document is too long, too mixed, or only part of it is actually needed.",
+          "points": [
+            {
+              "title": "Only part of a document is relevant",
+              "desc": "A 40-page contract might only need one clause shared — split it out instead of sending the whole file."
+            },
+            {
+              "title": "One PDF holds several unrelated documents",
+              "desc": "Scanned batches often bundle multiple documents into one file. Splitting separates them back into individual files."
+            },
+            {
+              "title": "Print requires specific pages only",
+              "desc": "Printing a subset of a large PDF is easier once those pages exist as their own file."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you want to split. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Choose a range",
+            "desc": "Pick a page range, or choose to split every page into its own file."
+          },
+          {
+            "title": "Split",
+            "desc": "The document is divided locally in your browser using pdf-lib."
+          },
+          {
+            "title": "Download",
+            "desc": "Get a single file or a ZIP of every split file, depending on your choice."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Range or per-page split",
+            "desc": "Extract one range, or explode every page into its own file."
+          },
+          {
+            "title": "ZIP output",
+            "desc": "Multiple output files are bundled into one ZIP download automatically."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Splitting happens locally with pdf-lib the instant you choose a range — nothing leaves your device."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start splitting — no account, no email, no waiting."
+          },
+          {
+            "title": "Works on any device",
+            "desc": "Pick a range from a laptop, tablet, or phone — the same tool, every time."
+          },
+          {
+            "title": "Free",
+            "desc": "Split as many files as you need — no watermark, no per-split fee."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Businesses",
+            "desc": "Separate a batch of scanned invoices into individual files for filing."
+          },
+          {
+            "title": "Students",
+            "desc": "Extract just the chapters you need from a large scanned textbook PDF."
+          },
+          {
+            "title": "Printing",
+            "desc": "Pull out only the pages you actually need before sending a job to print."
+          },
+          {
+            "title": "HR",
+            "desc": "Split a bundled scan of employee documents back into individual records."
+          },
+          {
+            "title": "Legal",
+            "desc": "Separate individual exhibits that were scanned together into one PDF."
+          },
+          {
+            "title": "Admin teams",
+            "desc": "Break a long combined report back into its original standalone sections."
+          }
+        ],
+        "cta": {
+          "question": "Need to organize the remaining pages?",
+          "targetSlug": "organize-pdf",
+          "label": "Organize PDF"
+        }
+      }
+    },
+    {
+      "slug": "rotate-pdf",
+      "file": "rotate-pdf.html",
+      "status": "live",
+      "name": "Rotate PDF",
+      "category": "organize",
+      "title": "Rotate PDF Pages Free Online — Fix Orientation | EazyPDF",
+      "description": "Rotate individual pages or the entire PDF 90, 180 or 270 degrees. Free, fast, and processed entirely in your browser.",
+      "keywords": [
+        "rotate pdf",
+        "rotate pdf pages",
+        "fix pdf orientation",
+        "turn pdf pages online"
+      ],
+      "h1": "Rotate PDF",
+      "shortDesc": "Rotate any page, or all pages, to the correct orientation.",
+      "faqs": [
+        {
+          "q": "Can I rotate just one page instead of the whole document?",
+          "a": "Yes, select individual pages in the page grid and rotate only those, independently of the rest."
+        },
+        {
+          "q": "What rotation angles are supported?",
+          "a": "90°, 180°, and 270° in either direction, per page or applied to all pages at once."
+        },
+        {
+          "q": "Will rotating reduce PDF quality?",
+          "a": "No, the page content itself is untouched — only its orientation metadata changes."
+        }
+      ],
+      "relatedSlugs": [
+        "organize-pdf",
+        "delete-pages",
+        "extract-pages",
+        "crop-pdf",
+        "merge-pdf",
+        "compress-pdf"
+      ]
+    },
+    {
+      "slug": "delete-pages",
+      "file": "delete-pages.html",
+      "status": "live",
+      "name": "Delete Pages",
+      "category": "organize",
+      "title": "Delete Pages from PDF Free Online | EazyPDF",
+      "description": "Remove unwanted pages from a PDF in a few clicks. Preview every page first. Free, browser-based, no uploads.",
+      "keywords": [
+        "delete pdf pages",
+        "remove pages from pdf",
+        "delete pdf page online"
+      ],
+      "h1": "Delete Pages",
+      "shortDesc": "Remove one or more pages from a PDF, with a visual preview.",
+      "faqs": [
+        {
+          "q": "Can I preview pages before deleting them?",
+          "a": "Yes, every page renders as a thumbnail so you can confirm before removing anything."
+        },
+        {
+          "q": "Can I delete multiple non-consecutive pages at once?",
+          "a": "Yes, select any combination of pages and remove them together in one pass."
+        },
+        {
+          "q": "Is the original file changed?",
+          "a": "No, your source file is untouched — EazyPDF generates a new PDF for download."
+        }
+      ],
+      "relatedSlugs": [
+        "extract-pages",
+        "organize-pdf",
+        "split-pdf",
+        "rotate-pdf",
+        "merge-pdf",
+        "compress-pdf"
+      ]
+    },
+    {
+      "slug": "extract-pages",
+      "file": "extract-pages.html",
+      "status": "live",
+      "name": "Extract Pages",
+      "category": "organize",
+      "title": "Extract Pages from PDF Free Online | EazyPDF",
+      "description": "Pull specific pages out of a PDF into a new document. Visual page picker, free, and processed locally in your browser.",
+      "keywords": [
+        "extract pdf pages",
+        "get pages from pdf",
+        "pdf page extractor online"
+      ],
+      "h1": "Extract Pages",
+      "shortDesc": "Pick exactly the pages you need and save them as a new PDF.",
+      "faqs": [
+        {
+          "q": "How is this different from Split PDF?",
+          "a": "Extract Pages keeps only the pages you pick into one new file; Split PDF divides the whole document into multiple output files."
+        },
+        {
+          "q": "Can I extract non-consecutive pages into one file?",
+          "a": "Yes, select any set of pages and they're combined, in order, into a single extracted PDF."
+        },
+        {
+          "q": "Does this work on scanned PDFs?",
+          "a": "Yes, extraction works on any valid PDF, including scanned documents, since it copies pages rather than reading text."
+        }
+      ],
+      "relatedSlugs": [
+        "delete-pages",
+        "split-pdf",
+        "organize-pdf",
+        "merge-pdf",
+        "rotate-pdf",
+        "compress-pdf"
+      ]
+    },
+    {
+      "slug": "organize-pdf",
+      "file": "organize-pdf.html",
+      "status": "live",
+      "name": "Organize PDF",
+      "category": "organize",
+      "title": "Organize & Reorder PDF Pages Free Online | EazyPDF",
+      "description": "Drag and drop to reorder, rotate, or remove PDF pages in one visual workspace. Free, browser-based, no file uploads.",
+      "keywords": [
+        "organize pdf",
+        "reorder pdf pages",
+        "rearrange pdf pages online"
+      ],
+      "h1": "Organize PDF",
+      "shortDesc": "Drag to reorder, rotate, or delete pages in one workspace.",
+      "faqs": [
+        {
+          "q": "Can I reorder, rotate, and delete pages in the same step?",
+          "a": "Yes, Organize PDF combines all three actions in one page-grid workspace before you save."
+        },
+        {
+          "q": "Is drag-and-drop reordering supported on mobile?",
+          "a": "Yes, the page grid supports touch dragging in addition to mouse and keyboard."
+        },
+        {
+          "q": "Do I need to install anything?",
+          "a": "No, everything runs in your browser tab — no install, no account."
+        }
+      ],
+      "relatedSlugs": [
+        "merge-pdf",
+        "rotate-pdf",
+        "delete-pages",
+        "split-pdf",
+        "extract-pages",
+        "compress-pdf"
+      ]
+    },
+    {
+      "slug": "crop-pdf",
+      "file": "crop-pdf.html",
+      "status": "live",
+      "name": "Crop PDF",
+      "category": "edit",
+      "title": "Crop PDF Pages Free Online — Trim Margins | EazyPDF",
+      "description": "Crop margins or unwanted areas from PDF pages with a visual crop box. Apply to one page or the whole document, free.",
+      "keywords": [
+        "crop pdf",
+        "trim pdf margins",
+        "crop pdf pages online"
+      ],
+      "h1": "Crop PDF",
+      "shortDesc": "Draw a crop box and trim margins from any or all pages.",
+      "faqs": [
+        {
+          "q": "Can I apply the same crop to every page?",
+          "a": "Yes, set the crop box once and apply it across the whole document, or crop individual pages differently."
+        },
+        {
+          "q": "Can I zoom in for a precise crop?",
+          "a": "Yes, the crop workspace supports zoom and page-by-page navigation for accuracy."
+        },
+        {
+          "q": "Is cropping reversible?",
+          "a": "Cropping changes the page's visible area in the output file; keep your original PDF if you may need the untrimmed version later."
+        }
+      ],
+      "relatedSlugs": [
+        "rotate-pdf",
+        "organize-pdf",
+        "watermark-pdf",
+        "page-numbers",
+        "compress-pdf",
+        "merge-pdf"
+      ]
+    },
+    {
+      "slug": "watermark-pdf",
+      "file": "watermark-pdf.html",
+      "status": "live",
+      "name": "Watermark PDF",
+      "category": "edit",
+      "title": "Add Watermark to PDF Free Online | EazyPDF",
+      "description": "Add a text watermark to your PDF with live preview — control position, opacity, size and rotation. Free, no uploads.",
+      "keywords": [
+        "watermark pdf",
+        "add watermark to pdf",
+        "pdf stamp online"
+      ],
+      "h1": "Watermark PDF",
+      "shortDesc": "Stamp a text watermark across every page, with live preview.",
+      "faqs": [
+        {
+          "q": "Can I preview the watermark before saving?",
+          "a": "Yes, position, opacity, size and rotation all update in a live preview as you adjust them."
+        },
+        {
+          "q": "Can I control how transparent the watermark is?",
+          "a": "Yes, opacity is adjustable so the watermark can be subtle or bold."
+        },
+        {
+          "q": "Does the watermark apply to every page automatically?",
+          "a": "Yes, by default it's applied to all pages using the same settings."
+        }
+      ],
+      "relatedSlugs": [
+        "page-numbers",
+        "protect-pdf",
+        "crop-pdf",
+        "organize-pdf",
+        "compress-pdf",
+        "merge-pdf"
+      ]
+    },
+    {
+      "slug": "add-page-numbers",
+      "file": "page-numbers.html",
+      "status": "live",
+      "name": "Add Page Numbers",
+      "category": "edit",
+      "title": "Add Page Numbers to PDF Free Online | EazyPDF",
+      "description": "Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads.",
+      "keywords": [
+        "add page numbers to pdf",
+        "pdf page numbering online",
+        "number pdf pages"
+      ],
+      "h1": "Add Page Numbers",
+      "shortDesc": "Insert page numbers with your choice of position and format.",
+      "faqs": [
+        {
+          "q": "Can I start numbering from a page other than 1?",
+          "a": "Yes, set any starting number, which is useful when this file is part of a larger combined document."
+        },
+        {
+          "q": "Where can page numbers be placed?",
+          "a": "Choose from common positions such as bottom-center, bottom-right, or top-right, with a live preview."
+        },
+        {
+          "q": "Can I exclude the first page, like a cover page?",
+          "a": "Yes, numbering options let you skip the cover page while numbering the rest."
+        }
+      ],
+      "relatedSlugs": [
+        "watermark-pdf",
+        "crop-pdf",
+        "protect-pdf",
+        "organize-pdf",
+        "compress-pdf",
+        "merge-pdf"
+      ]
+    },
+    {
+      "slug": "protect-pdf",
+      "file": "protect-pdf.html",
+      "status": "live",
+      "name": "Protect PDF",
+      "category": "security",
+      "title": "Password Protect PDF Free Online | EazyPDF",
+      "description": "Add a password to a PDF to restrict opening or editing. Free, browser-based encryption — see the tool for encryption details.",
+      "keywords": [
+        "password protect pdf",
+        "encrypt pdf online",
+        "lock pdf file"
+      ],
+      "h1": "Protect PDF",
+      "shortDesc": "Add an open or permissions password to a PDF file.",
+      "faqs": [
+        {
+          "q": "How strong is the encryption?",
+          "a": "Protect PDF uses the PDF format's original Standard Security Handler (40-bit RC4). It's suitable as basic access control, not as strong confidentiality for highly sensitive documents."
+        },
+        {
+          "q": "Is my file uploaded to encrypt it?",
+          "a": "No, encryption happens locally in your browser — the file and password are never sent anywhere."
+        },
+        {
+          "q": "Can I restrict printing or editing without a password to open?",
+          "a": "Yes, permission flags can be set independently of the open password, though they're honored only by readers that respect them."
+        }
+      ],
+      "relatedSlugs": [
+        "compress-pdf",
+        "edit-pdf",
+        "watermark-pdf",
+        "page-numbers",
+        "organize-pdf",
+        "merge-pdf"
+      ]
+    },
+    {
+      "slug": "compress-pdf",
+      "file": "compress-pdf.html",
+      "status": "live",
+      "name": "Compress PDF",
+      "category": "optimize",
+      "title": "Compress PDF to Target Size Free Online | EazyPDF",
+      "description": "Shrink a PDF's file size down to an exact KB target you set. Free, fast, entirely in-browser compression.",
+      "keywords": [
+        "compress pdf",
+        "reduce pdf size",
+        "pdf compressor online",
+        "shrink pdf file size"
+      ],
+      "h1": "Compress PDF",
+      "shortDesc": "Shrink file size down to an exact KB target you set.",
+      "faqs": [
+        {
+          "q": "Can I choose exactly how small the file becomes?",
+          "a": "Yes, set a target file size in KB and Compress PDF works toward that size."
+        },
+        {
+          "q": "Does compression reduce image quality?",
+          "a": "Images are re-encoded to hit the target size, so very aggressive targets can visibly reduce image quality."
+        },
+        {
+          "q": "Is there a file size limit for compressing?",
+          "a": "No hard limit is enforced, though very large files depend on your browser's available memory."
+        }
+      ],
+      "relatedSlugs": [
+        "edit-pdf",
+        "protect-pdf",
+        "merge-pdf",
+        "watermark-pdf",
+        "organize-pdf",
+        "split-pdf"
+      ],
+      "landing": {
+        "hero": {
+          "valueProp": "Reduce PDF size without losing quality — set a target size in KB and let Compress PDF do the rest, in your browser.",
+          "trustBadges": [
+            "Browser Based",
+            "Free",
+            "Secure",
+            "No Registration"
+          ],
+          "ctaLabel": "Use Compress PDF",
+          "ctaTarget": "openCompress"
+        },
+        "whyUse": {
+          "intro": "Compression matters whenever a file's size, not its content, is the problem.",
+          "points": [
+            {
+              "title": "Email attachment limits",
+              "desc": "Most inboxes cap attachments around 20–25MB. A scanned PDF over that limit needs to shrink before it can be sent at all."
+            },
+            {
+              "title": "Government and portal uploads",
+              "desc": "Application portals and government forms frequently cap file size — sometimes as low as 1–2MB per document."
+            },
+            {
+              "title": "Storage add up fast",
+              "desc": "A folder of full-resolution scans can quietly use up far more space than the same documents compressed to a reasonable target."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you want to shrink. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Set a target size",
+            "desc": "Enter the exact KB size you need to hit — for an email limit, a form upload cap, or just general storage saving."
+          },
+          {
+            "title": "Compress",
+            "desc": "Images and content are re-encoded locally toward your target, entirely in your browser."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the smaller file. Your original PDF is untouched."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Exact KB target",
+            "desc": "Choose the size you need to hit instead of a vague 'high/medium/low' setting."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Compression happens locally — nothing is uploaded to a server."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start compressing — no account, no email, no waiting."
+          },
+          {
+            "title": "Works on any device",
+            "desc": "Set a KB target from a laptop, tablet, or phone — the slider works the same everywhere."
+          },
+          {
+            "title": "No file limit",
+            "desc": "Compress as many files as you need, one after another, at no charge."
+          },
+          {
+            "title": "Free",
+            "desc": "Compress as many files as you need — no watermark, no per-file fee."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Email attachments",
+            "desc": "Shrink a scanned document below your email provider's attachment size limit."
+          },
+          {
+            "title": "Government uploads",
+            "desc": "Meet strict file-size caps on government and institutional application portals."
+          },
+          {
+            "title": "Online forms",
+            "desc": "Fit a supporting document under a web form's upload limit without cutting content."
+          },
+          {
+            "title": "Storage saving",
+            "desc": "Reduce the space a large archive of scanned PDFs takes up on disk or cloud storage."
+          },
+          {
+            "title": "Job applications",
+            "desc": "Keep a resume and portfolio PDF under the size caps some application systems enforce."
+          },
+          {
+            "title": "Sharing on mobile",
+            "desc": "Make a large PDF small enough to send smoothly over a mobile data connection."
+          }
+        ],
+        "cta": {
+          "question": "Need to change the content before compressing?",
+          "targetSlug": "edit-pdf",
+          "label": "Edit PDF"
+        }
+      }
+    },
+    {
+      "slug": "edit-pdf",
+      "file": "edit-pdf.html",
+      "status": "landing-only",
+      "name": "Edit PDF",
+      "category": "edit",
+      "title": "Edit PDF Online Free — Coming Soon | EazyPDF",
+      "description": "Edit PDF documents directly in your browser — add text, fill forms, and annotate. In active development, launching soon on EazyPDF.",
+      "keywords": [
+        "edit pdf",
+        "edit pdf online",
+        "pdf editor free"
+      ],
+      "h1": "Edit PDF",
+      "shortDesc": "Edit PDF documents directly in your browser.",
+      "faqs": [
+        {
+          "q": "Is Edit PDF available yet?",
+          "a": "Edit PDF is in active development. This page describes what's coming — the interactive tool isn't live yet."
+        },
+        {
+          "q": "Will editing require an upload to a server?",
+          "a": "No. Like every EazyPDF tool, Edit PDF is being built to run entirely in your browser, with no file upload."
+        },
+        {
+          "q": "Will it be free?",
+          "a": "Yes. Edit PDF will follow the same free, no-registration model as every other EazyPDF tool."
+        }
+      ],
+      "relatedSlugs": [
+        "compress-pdf",
+        "protect-pdf",
+        "pdf-to-word",
+        "watermark-pdf",
+        "page-numbers",
+        "crop-pdf"
+      ],
+      "landing": {
+        "hero": {
+          "valueProp": "Edit PDF documents directly in your browser — correct mistakes, fill forms, add text, and annotate, without installing anything.",
+          "trustBadges": [
+            "Browser Based",
+            "Free",
+            "Secure",
+            "No Registration"
+          ],
+          "ctaLabel": "Coming Soon",
+          "ctaTarget": null
+        },
+        "whyUse": {
+          "intro": "Editing is what's needed whenever a PDF's actual content — not just its pages — has to change.",
+          "points": [
+            {
+              "title": "Fixing a typo doesn't need the original file",
+              "desc": "A small correction in a scanned or finalized PDF shouldn't require going back to source software you may not have anymore."
+            },
+            {
+              "title": "Forms need filling, not printing and scanning",
+              "desc": "Typing directly into a PDF form is faster and cleaner than the print-sign-scan cycle."
+            },
+            {
+              "title": "Feedback belongs on the document itself",
+              "desc": "Annotating a PDF directly keeps comments attached to the exact page and line they refer to."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you want to edit — planned to run locally, with no file upload."
+          },
+          {
+            "title": "Edit",
+            "desc": "Add or correct text, fill form fields, or place annotations directly on the page."
+          },
+          {
+            "title": "Review",
+            "desc": "Check every change in place before saving."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the edited PDF to your device."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Text editing",
+            "desc": "Correct or add text directly on the page, in place."
+          },
+          {
+            "title": "Form filling",
+            "desc": "Type directly into fillable PDF form fields."
+          },
+          {
+            "title": "Annotations",
+            "desc": "Add comments, highlights, and markup tied to an exact location on the page."
+          },
+          {
+            "title": "Planned: runs in your browser",
+            "desc": "Planned to edit locally the moment you open a file — no server upload, matching how every EazyPDF tool works."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Won't require signing up — open it and start editing, like every other EazyPDF tool."
+          },
+          {
+            "title": "Free",
+            "desc": "No paywall or per-edit charge planned."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Correcting mistakes",
+            "desc": "Fix a typo or wrong figure in a PDF without needing the original source file."
+          },
+          {
+            "title": "Filling forms",
+            "desc": "Complete a fillable PDF form by typing directly into its fields."
+          },
+          {
+            "title": "Adding text",
+            "desc": "Insert a note, date, or missing detail directly onto a page."
+          },
+          {
+            "title": "Annotating",
+            "desc": "Mark up a document with comments or highlights for someone else to review."
+          },
+          {
+            "title": "Students",
+            "desc": "Add notes directly onto a lecture PDF or reading."
+          },
+          {
+            "title": "Business",
+            "desc": "Make a quick correction to a contract or proposal PDF before sending it on."
+          }
+        ],
+        "cta": {
+          "question": "Need to protect the edited file with a password?",
+          "targetSlug": "protect-pdf",
+          "label": "Protect PDF"
+        }
+      }
+    },
+    {
+      "slug": "pdf-to-word",
+      "file": "pdf-to-word.html",
+      "status": "landing-only",
+      "name": "PDF to Word",
+      "category": "convert",
+      "title": "PDF to Word Converter Free — Coming Soon | EazyPDF",
+      "description": "Convert PDF into an editable Word document. In active development, launching soon on EazyPDF — free, browser-based, no uploads.",
+      "keywords": [
+        "pdf to word",
+        "convert pdf to word",
+        "pdf to doc converter"
+      ],
+      "h1": "PDF to Word",
+      "shortDesc": "Convert PDF into editable Word documents.",
+      "faqs": [
+        {
+          "q": "Is PDF to Word available yet?",
+          "a": "PDF to Word is in active development. This page describes what's coming — the interactive converter isn't live yet."
+        },
+        {
+          "q": "Will the converted file be fully editable?",
+          "a": "Yes — the goal is a .docx file with text and layout preserved as closely as possible, ready to edit in Word."
+        },
+        {
+          "q": "Will my file be uploaded to convert it?",
+          "a": "The plan is the same as every other EazyPDF tool: conversion runs in your browser, with no file upload to a server."
+        }
+      ],
+      "relatedSlugs": [
+        "edit-pdf",
+        "compress-pdf",
+        "merge-pdf",
+        "split-pdf",
+        "protect-pdf",
+        "organize-pdf"
+      ],
+      "landing": {
+        "hero": {
+          "valueProp": "Convert PDF into editable Word documents — get your text and layout back into a format you can actually rewrite.",
+          "trustBadges": [
+            "Browser Based",
+            "Free",
+            "Secure",
+            "No Registration"
+          ],
+          "ctaLabel": "Coming Soon",
+          "ctaTarget": null
+        },
+        "whyUse": {
+          "intro": "Converting to Word matters whenever a PDF needs to be rewritten, not just read.",
+          "points": [
+            {
+              "title": "The source file is gone",
+              "desc": "A resume, contract, or report saved only as a PDF still needs a Word file to make real edits."
+            },
+            {
+              "title": "Track changes and comments need Word",
+              "desc": "Collaborative editing workflows — legal redlines, editorial review — expect a .docx, not a PDF."
+            },
+            {
+              "title": "Reusing an old document as a template",
+              "desc": "Turning a PDF back into Word makes it possible to adapt an old report or form for a new purpose."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you want to convert — planned to run locally, with no file upload."
+          },
+          {
+            "title": "Convert",
+            "desc": "Text and layout are mapped into a Word-compatible structure."
+          },
+          {
+            "title": "Review",
+            "desc": "Check the converted layout before saving."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the result as a .docx file, ready to edit in Word."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Layout-aware conversion",
+            "desc": "Aims to preserve paragraphs, headings, and basic formatting, not just raw text."
+          },
+          {
+            "title": "Planned: runs in your browser",
+            "desc": "Planned to convert locally the moment you choose a file — no server upload, the same model every EazyPDF tool follows."
+          },
+          {
+            "title": ".docx output",
+            "desc": "Produces a standard Word file that opens directly in Microsoft Word or Google Docs."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Won't require an account — open it and convert, consistent with the rest of EazyPDF."
+          },
+          {
+            "title": "No file limit",
+            "desc": "No artificial cap on how many PDFs you can convert."
+          },
+          {
+            "title": "Free",
+            "desc": "No paywall or per-conversion charge planned."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Resume editing",
+            "desc": "Turn an old PDF resume back into an editable Word file to update for a new application."
+          },
+          {
+            "title": "Contracts",
+            "desc": "Convert a PDF contract to Word to make redlines or track changes."
+          },
+          {
+            "title": "Reports",
+            "desc": "Reuse a scanned or exported PDF report as the starting point for a new one."
+          },
+          {
+            "title": "Office documents",
+            "desc": "Get a PDF back into an editable format for routine office document workflows."
+          },
+          {
+            "title": "Students",
+            "desc": "Convert a PDF handout back into Word to rework or annotate in a familiar editor."
+          },
+          {
+            "title": "Job applications",
+            "desc": "Recover an editable copy of a resume or cover letter saved only as a PDF."
+          }
+        ],
+        "cta": {
+          "question": "Need to shrink the file before sharing it?",
+          "targetSlug": "compress-pdf",
+          "label": "Compress PDF"
+        }
+      }
+    }
+  ],
+  "plannedTools": {
+    "note": "Not yet built. Excluded from sitemap.xml on purpose — submitting URLs that 404 damages crawl trust and wastes crawl budget. Flip 'status' to 'live' (or 'landing-only' for a content-first page ahead of the interactive tool), add a file + full metadata/faqs/landing entry above, then re-run the generator to include one in the sitemap.",
+    "items": [
+      {
+        "slug": "word-to-pdf",
+        "name": "Word to PDF",
+        "category": "convert"
+      },
+      {
+        "slug": "pdf-to-jpg",
+        "name": "PDF to JPG",
+        "category": "convert"
+      },
+      {
+        "slug": "jpg-to-pdf",
+        "name": "JPG to PDF",
+        "category": "convert"
+      },
+      {
+        "slug": "excel-to-pdf",
+        "name": "Excel to PDF",
+        "category": "convert"
+      },
+      {
+        "slug": "ppt-to-pdf",
+        "name": "PPT to PDF",
+        "category": "convert"
+      }
+    ]
+  }
+}
