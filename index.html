@@ -73,11 +73,37 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- pdf-lib and pdf.js stay eager/blocking: the app's main script is one
+     large inline block (not an external file) that references PDFLib/
+     pdfjsLib synchronously at its very top (`const {PDFDocument,...} =
+     PDFLib`) - `defer` has no effect on inline scripts (only ones with
+     `src`), so deferring just these two without also externalizing the
+     ~3000-line inline script would make it run before they've loaded.
+     That's a bigger, separate change; not attempted here. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- jszip/mammoth/xlsx are each only needed by a handful of specific
+     tools (Split/Extract Pages/Extract Images, PDF to Word, PDF<->Excel)
+     - loaded on demand via ensureJSZip()/ensureMammoth()/ensureXLSX()
+     instead of on every single page load regardless of which tool (if
+     any) the visitor actually uses. -->
+<script>
+function loadScriptOnce(src){
+  window.__scriptLoadPromises = window.__scriptLoadPromises || {};
+  if(window.__scriptLoadPromises[src]) return window.__scriptLoadPromises[src];
+  window.__scriptLoadPromises[src] = new Promise((resolve, reject)=>{
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Failed to load " + src));
+    document.head.appendChild(s);
+  });
+  return window.__scriptLoadPromises[src];
+}
+function ensureJSZip(){ return typeof JSZip!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"); }
+function ensureMammoth(){ return typeof mammoth!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"); }
+function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"); }
+</script>
 <style>
 :root{
   --paper:#FFFFFF;
@@ -2945,6 +2971,7 @@ TOOLS.split = function(){
   document.getElementById("go").addEventListener("click", async ()=>{
     const out = document.getElementById("out");
     out.innerHTML = statusEl("Splitting...");
+    await ensureJSZip();
     const bytes = await file.arrayBuffer();
     const src = await PDFDocument.load(bytes);
     const total = src.getPageCount();
@@ -3575,6 +3602,7 @@ TOOLS.pdf2jpg = function(){
   wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Rendering pages...");
+    await ensureJSZip();
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     const zip = new JSZip();
@@ -3814,6 +3842,7 @@ TOOLS.pdf2word = function(){
   wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Extracting content...");
+    await ensureJSZip();
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     const blocks=[];
@@ -3856,6 +3885,7 @@ TOOLS.word2pdf = function(){
   wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Reading document...");
+    await ensureMammoth();
     const arrayBuffer = await file.arrayBuffer();
     const result = await mammoth.extractRawText({arrayBuffer});
     const text = result.value;
@@ -3899,6 +3929,7 @@ TOOLS.pdf2excel = function(){
   wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Extracting content...");
+    await Promise.all([ensureXLSX(), ensureJSZip()]);
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     const rows=[];
@@ -3958,6 +3989,7 @@ TOOLS.excel2pdf = function(){
   wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Reading spreadsheet...");
+    await ensureXLSX();
     const bytes = await file.arrayBuffer();
     const wb = XLSX.read(bytes, {type:"array"});
     const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -4292,6 +4324,7 @@ TOOLS.extractimages = function(){
   wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Rendering...");
+    await ensureJSZip();
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     const zip = new JSZip();
