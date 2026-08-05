@@ -343,6 +343,18 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   display:inline-flex; align-items:center; gap:8px; background:var(--ochre); color:#fff;
   padding:11px 16px; border-radius:9px; text-decoration:none; font-weight:600; font-size:0.9rem; width:fit-content;
 }
+.dl-link-primary{
+  background:var(--red); padding:14px 24px; font-size:1rem; border-radius:10px;
+  box-shadow:0 8px 20px -8px rgba(232,41,27,0.5);
+}
+.next-tool-cta{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:10px;
+  padding:12px 16px; font-size:0.85rem; color:var(--ink-soft); cursor:pointer;
+  font-family:inherit; text-align:left;
+}
+.next-tool-cta:hover{ border-color:var(--red); }
+.next-tool-name{ color:var(--red); font-weight:700; white-space:nowrap; }
 .hidden{display:none !important;}
 .visually-hidden{
   position:absolute !important; width:1px !important; height:1px !important; padding:0 !important;
@@ -2381,14 +2393,22 @@ function setStatus(msg, done, percent){
     s.innerHTML = `<span class="spinner">⚽</span> ${msg}`;
   }
 }
-function resultBox({sizeText, sizeGood, previewNode, url, filename}){
+function resultBox({sizeText, sizeGood, previewNode, url, filename, nextTool}){
   const box = document.createElement("div");
   box.className="result-box";
   box.innerHTML = `<div>Result size: <span class="size-badge ${sizeGood?'good':'bad'} mono">${sizeText}</span></div>`;
   if(previewNode){ const wrap=document.createElement("div"); wrap.className="thumbs"; wrap.appendChild(previewNode); box.appendChild(wrap); }
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.className="dl-link"; a.textContent = "Download " + filename;
+  a.href = url; a.download = filename; a.className="dl-link dl-link-primary"; a.textContent = "⬇ Download " + filename;
   box.appendChild(a);
+  if(nextTool){
+    const next = document.createElement("button");
+    next.type = "button";
+    next.className = "next-tool-cta";
+    next.innerHTML = `${nextTool.question} <span class="next-tool-name">${nextTool.label} →</span>`;
+    next.addEventListener("click", ()=>{ closePanel(); TOOLS[nextTool.id](); });
+    box.appendChild(next);
+  }
   return box;
 }
 
@@ -2695,7 +2715,7 @@ TOOLS.merge = function(){
     const {url} = downloadBlob(blob, "merged.pdf");
     const {canvas} = await pdfThumb(bytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"merged.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"merged.pdf", nextTool:{id:"compress", label:"Compress PDF", question:"Need to reduce the merged file's size?"}}));
   });
 };
 
@@ -2739,7 +2759,7 @@ TOOLS.split = function(){
     const zipBlob = await zip.generateAsync({type:"blob"});
     const {url} = downloadBlob(zipBlob, "split_parts.zip");
     setStatus("Done — "+groups.length+" files", true);
-    out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:"split_parts.zip"}));
+    out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:"split_parts.zip", nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
   });
 };
 
@@ -2815,7 +2835,7 @@ TOOLS.compress = function(){
     } else {
       setStatus(reached ? "Target reached" : `Target not fully reachable — best result: ${fmtSize(blob.size)} at quality floor`, true);
     }
-    out.appendChild(resultBox({sizeText:`${fmtSize(blob.size)} (target ${targetKb} KB)`, sizeGood:reached, previewNode:canvas, url, filename:"compressed.pdf"}));
+    out.appendChild(resultBox({sizeText:`${fmtSize(blob.size)} (target ${targetKb} KB)`, sizeGood:reached, previewNode:canvas, url, filename:"compressed.pdf", nextTool:{id:"edit", label:"Edit PDF", question:"Need to change the content before compressing?"}}));
   });
 };
 
