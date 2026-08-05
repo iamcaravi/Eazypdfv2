@@ -237,6 +237,43 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .thumbs canvas, .thumbs img{
   border:1px solid var(--line); border-radius:6px; height:110px; width:auto; background:#fff;
 }
+.page-grid{
+  display:flex; flex-wrap:wrap; gap:14px; max-height:360px; overflow-y:auto;
+  padding:6px 2px; margin:4px 0;
+}
+.page-card{
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:5px;
+  width:110px; cursor:grab; user-select:none; -webkit-user-select:none;
+}
+.page-card.page-card-select{ cursor:pointer; }
+.page-card canvas, .page-card img{
+  border:2px solid var(--line); border-radius:8px; width:100%; height:auto;
+  background:#fff; display:block; transition:border-color .12s ease, box-shadow .12s ease, opacity .12s ease;
+}
+.page-card:hover canvas, .page-card:hover img{ border-color:var(--red); }
+.page-card .page-num{
+  font-size:.72rem; font-weight:700; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;
+}
+.page-card.dragging{ opacity:.35; }
+.page-card.drag-over canvas, .page-card.drag-over img{
+  border-color:var(--red); box-shadow:0 0 0 3px rgba(232,41,27,0.18);
+}
+.page-card.selected canvas, .page-card.selected img{
+  border-color:var(--red); box-shadow:0 0 0 3px rgba(232,41,27,0.18);
+}
+.page-card .page-check{
+  position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%;
+  background:var(--red); color:#fff; display:none; align-items:center; justify-content:center;
+  font-size:12px; line-height:1; box-shadow:0 1px 3px rgba(0,0,0,.25);
+}
+.page-card.selected .page-check{ display:flex; }
+.page-card .page-remove{
+  position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%;
+  background:var(--ink); color:#fff; border:none; display:flex; align-items:center; justify-content:center;
+  font-size:12px; line-height:1; cursor:pointer; opacity:0; transition:opacity .12s ease;
+}
+.page-card:hover .page-remove{ opacity:1; }
+.page-grid-hint{ margin:0 0 8px; color:var(--ink-soft); font-size:.82rem; }
 .status{font-size:0.85rem; color:var(--ink-soft); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 .progress-bar{ color:var(--red); font-weight:600; letter-spacing:1px; }
 .football-progress{ display:inline-flex; align-items:center; gap:9px; vertical-align:middle; white-space:nowrap; }
@@ -2214,6 +2251,90 @@ async function renderPdfPageCanvas(pdoc, pageNum, scale){
   await page.render({canvasContext:canvas.getContext("2d"), viewport:vp}).promise;
   return canvas;
 }
+
+/* Shared iLovePDF-style page-thumbnail grid.
+   mode "reorder": drag cards to reorder; getOrder() returns the current
+     0-based original page indices in on-screen order.
+   mode "select": click a card to toggle it; getSelected() returns a Set
+     of 0-based original page indices currently selected.
+   removable (reorder mode only): shows a hover ✕ on each card to drop
+     that page entirely (used by Organize, not by pure Reorder). */
+async function buildPageGrid(container, bytes, {mode="reorder", removable=false} = {}){
+  const pdoc = await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
+  const numPages = pdoc.numPages;
+  container.innerHTML = "";
+  container.classList.add("page-grid");
+  const firstVp = (await pdoc.getPage(1)).getViewport({scale:1});
+  const scale = 150 / firstVp.height;
+  for(let i=1;i<=numPages;i++){
+    const canvas = await renderPdfPageCanvas(pdoc, i, scale);
+    const card = document.createElement("div");
+    card.className = "page-card" + (mode==="select" ? " page-card-select" : "");
+    card.dataset.page = i-1;
+    card.draggable = mode === "reorder";
+    card.appendChild(canvas);
+    const label = document.createElement("span");
+    label.className = "page-num";
+    label.textContent = "Page " + i;
+    card.appendChild(label);
+    if(mode==="select"){
+      const chk = document.createElement("span");
+      chk.className = "page-check";
+      chk.textContent = "✓";
+      card.appendChild(chk);
+      card.addEventListener("click", ()=>card.classList.toggle("selected"));
+    }
+    if(mode==="reorder" && removable){
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "page-remove";
+      rm.setAttribute("aria-label", "Remove page "+i);
+      rm.textContent = "✕";
+      rm.addEventListener("click", e=>{ e.stopPropagation(); card.remove(); });
+      card.appendChild(rm);
+    }
+    container.appendChild(card);
+  }
+  if(mode==="reorder") wirePageGridDrag(container);
+  return {
+    getOrder(){ return [...container.querySelectorAll(".page-card")].map(c=>parseInt(c.dataset.page)); },
+    getSelected(){ return new Set([...container.querySelectorAll(".page-card.selected")].map(c=>parseInt(c.dataset.page))); }
+  };
+}
+function wirePageGridDrag(container){
+  let dragEl = null;
+  container.addEventListener("dragstart", e=>{
+    const card = e.target.closest(".page-card");
+    if(!card) return;
+    dragEl = card;
+    card.classList.add("dragging");
+    if(e.dataTransfer){
+      e.dataTransfer.effectAllowed = "move";
+      try{ e.dataTransfer.setData("text/plain", card.dataset.page); }catch(_){}
+    }
+  });
+  container.addEventListener("dragend", ()=>{
+    if(dragEl) dragEl.classList.remove("dragging");
+    container.querySelectorAll(".drag-over").forEach(c=>c.classList.remove("drag-over"));
+    dragEl = null;
+  });
+  container.addEventListener("dragover", e=>{
+    e.preventDefault();
+    const card = e.target.closest(".page-card");
+    if(!card || card===dragEl) return;
+    container.querySelectorAll(".drag-over").forEach(c=>c.classList.remove("drag-over"));
+    card.classList.add("drag-over");
+  });
+  container.addEventListener("drop", e=>{
+    e.preventDefault();
+    const card = e.target.closest(".page-card");
+    if(!card || !dragEl || card===dragEl) return;
+    card.classList.remove("drag-over");
+    const rect = card.getBoundingClientRect();
+    const before = (e.clientX - rect.left) < rect.width/2;
+    container.insertBefore(dragEl, before ? card : card.nextSibling);
+  });
+}
 function canvasToPngBase64(canvas){
   return canvas.toDataURL("image/png").split(",")[1];
 }
@@ -2711,21 +2832,28 @@ TOOLS.rotate = function(){
 
 /* ---- DELETE PAGES ---- */
 TOOLS.deletepages = function(){
-  let file=null;
+  let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Delete Pages</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
       ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Pages to delete (e.g. 2,4,7)</label><input type="text" id="pages" placeholder="2,4,7"></div>
+      <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to delete.</p>
+      <div class="page-grid" id="pageGrid"></div>
       <button class="btn" id="go" disabled>Delete Pages</button>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(async fs=>{
+    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
+    const bytes = await file.arrayBuffer();
+    document.getElementById("gridHint").style.display="block";
+    gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select"});
+    document.getElementById("go").disabled=false;
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await PDFDocument.load(bytes);
-    const del = new Set(document.getElementById("pages").value.split(",").map(n=>parseInt(n.trim())-1).filter(n=>!isNaN(n)));
+    const del = gridApi.getSelected();
     const keep = doc.getPageIndices().filter(i=>!del.has(i));
     const newDoc = await PDFDocument.create();
     const pages = await newDoc.copyPages(doc, keep);
@@ -2741,26 +2869,29 @@ TOOLS.deletepages = function(){
 
 /* ---- EXTRACT PAGES ---- */
 TOOLS.extractpages = function(){
-  let file=null;
+  let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Extract Pages</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
       ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Pages to keep (e.g. 1,3,5-6)</label><input type="text" id="pages" placeholder="1,3,5-6"></div>
+      <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to keep.</p>
+      <div class="page-grid" id="pageGrid"></div>
       <button class="btn" id="go" disabled>Extract Pages</button>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(async fs=>{
+    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
+    const bytes = await file.arrayBuffer();
+    document.getElementById("gridHint").style.display="block";
+    gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select"});
+    document.getElementById("go").disabled=false;
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await PDFDocument.load(bytes);
-    let keep=[];
-    document.getElementById("pages").value.split(",").forEach(tok=>{
-      tok=tok.trim();
-      if(tok.includes("-")){ const [a,b]=tok.split("-").map(n=>parseInt(n)-1); for(let i=a;i<=b;i++) keep.push(i); }
-      else if(tok) keep.push(parseInt(tok)-1);
-    });
+    const keep = [...gridApi.getSelected()].sort((a,b)=>a-b);
+    if(keep.length===0){ toast("Select at least one page to keep"); out.innerHTML=""; return; }
     const newDoc = await PDFDocument.create();
     const pages = await newDoc.copyPages(doc, keep);
     pages.forEach(p=>newDoc.addPage(p));
@@ -2775,21 +2906,28 @@ TOOLS.extractpages = function(){
 
 /* ---- REORDER ---- */
 TOOLS.reorder = function(){
-  let file=null;
+  let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Reorder Pages</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
       ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>New order (e.g. 3,1,2,4)</label><input type="text" id="order" placeholder="3,1,2,4"></div>
+      <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages into the order you want.</p>
+      <div class="page-grid" id="pageGrid"></div>
       <button class="btn" id="go" disabled>Reorder Pages</button>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(async fs=>{
+    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
+    const bytes = await file.arrayBuffer();
+    document.getElementById("gridHint").style.display="block";
+    gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder"});
+    document.getElementById("go").disabled=false;
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await PDFDocument.load(bytes);
-    const order = document.getElementById("order").value.split(",").map(n=>parseInt(n.trim())-1);
+    const order = gridApi.getOrder();
     const newDoc = await PDFDocument.create();
     const pages = await newDoc.copyPages(doc, order);
     pages.forEach(p=>newDoc.addPage(p));
@@ -3085,35 +3223,29 @@ TOOLS.invertpdf = function(){
 
 /* ---- ORGANIZE ---- */
 TOOLS.organize = function(){
-  let file=null, numPages=0;
+  let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Organize PDF</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
       ${fileInputHTML("application/pdf", false)}
-      <div class="thumbs" id="thumbGrid"></div>
-      <div class="field"><label>Final page order (e.g. 1,3,2 — any page left out will be removed)</label><input type="text" id="order" placeholder="1,2,3"></div>
+      <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages to reorder them, or hover a page and click ✕ to remove it.</p>
+      <div class="page-grid" id="pageGrid"></div>
       <button class="btn" id="go" disabled>Apply</button>
       <div id="out"></div>
     </div>`);
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null;});
+    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
-    const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
-    numPages = pdoc.numPages;
-    const qp = document.getElementById("quickPreview"); if(qp) qp.innerHTML = "";
-    const grid = document.getElementById("thumbGrid"); grid.innerHTML="";
-    for(let i=1;i<=numPages;i++){
-      const {canvas} = await pdfThumb(bytes, i, 90);
-      grid.appendChild(canvas);
-    }
-    document.getElementById("order").value = Array.from({length:numPages},(_,i)=>i+1).join(",");
+    document.getElementById("gridHint").style.display="block";
+    gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true});
     document.getElementById("go").disabled=false;
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Applying...");
     const bytes=await file.arrayBuffer();
     const src=await PDFDocument.load(bytes);
-    const order = document.getElementById("order").value.split(",").map(n=>parseInt(n.trim())-1).filter(n=>!isNaN(n));
+    const order = gridApi.getOrder();
+    if(order.length===0){ toast("At least one page must remain"); out.innerHTML=""; return; }
     const newDoc = await PDFDocument.create();
     const pages = await newDoc.copyPages(src, order);
     pages.forEach(p=>newDoc.addPage(p));
