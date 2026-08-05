@@ -218,7 +218,7 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
    scrolls internally and keeps form content readable-width, centered,
    inside the now full-height panel. */
 .panel-body{
-  flex:1; overflow-y:auto; width:100%; max-width:1240px; margin:0 auto;
+  flex:1; overflow-y:auto; width:100%; max-width:1500px; margin:0 auto;
   box-sizing:border-box;
 }
 .panel-body{
@@ -233,15 +233,23 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
-.tool-layout{ display:flex; gap:36px; align-items:flex-start; width:100%; }
-.tool-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; }
+.tool-layout{ display:flex; gap:0; align-items:flex-start; width:100%; }
+/* Matches iLovePDF's own .tool__workarea exactly: a bounded, tinted
+   panel (their #F5F5FA, our --paper-dim) with real padding — this is
+   what makes empty space read as "inside a defined workspace" instead
+   of "blank/broken". Confirmed via their live stylesheet, not a guess. */
+.tool-main{
+  flex:1; min-width:0; display:flex; flex-direction:column; gap:14px;
+  background:var(--paper-dim); border-radius:16px 0 0 16px; padding:28px;
+}
 /* No wrapping card around the whole sidebar — that reads as one big
    mostly-empty box when a tool only has a button and no fields. Each
    piece (tip, fields, button) is its own small element on the plain
-   page background instead, same as iLovePDF's actual sidebar. */
+   page background instead, same as iLovePDF's actual sidebar. Width
+   (440px) matches iLovePDF's own .tool__sidebar flex-basis exactly. */
 .tool-sidebar{
-  width:320px; flex:none; display:flex; flex-direction:column; gap:16px;
-  position:sticky; top:0;
+  width:440px; flex:none; display:flex; flex-direction:column; gap:16px;
+  position:sticky; top:0; padding:28px 0 28px 32px;
 }
 .tool-sidebar-tip{
   display:flex; align-items:flex-start; gap:10px; background:rgba(23,190,187,0.1);
@@ -251,7 +259,8 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .tool-sidebar-tip .tip-icon{ flex:none; font-size:1rem; line-height:1.4; }
 @media (max-width: 860px){
   .tool-layout{ flex-direction:column; gap:20px; }
-  .tool-sidebar{ width:100%; position:static; }
+  .tool-main{ border-radius:16px; padding:20px; }
+  .tool-sidebar{ width:100%; position:static; padding:0; }
 }
 .field label{font-size:0.82rem; font-weight:600; display:block; margin-bottom:5px;}
 .field input[type=text], .field input[type=number], .field textarea, .field select{
@@ -284,10 +293,11 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   display:flex; flex-wrap:wrap; gap:16px; max-height:420px; overflow-y:auto;
   padding:6px 2px; margin:0;
 }
-.file-card{ position:relative; width:130px; display:flex; flex-direction:column; gap:6px; }
+.file-card{ position:relative; width:198px; display:flex; flex-direction:column; gap:8px; }
 .file-card-thumb{
-  width:100%; height:160px; border:1px solid var(--line); border-radius:8px;
+  width:100%; height:230px; border:1px solid var(--line); border-radius:8px;
   background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden;
+  box-shadow:0 0 8px rgba(0,0,0,0.08);
 }
 .file-card-thumb canvas, .file-card-thumb img{ max-width:100%; max-height:100%; object-fit:contain; }
 .file-card-kind{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:.72rem; color:var(--ink-soft); letter-spacing:.06em; }
@@ -310,8 +320,8 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   padding:8px 4px; margin:4px 0;
 }
 .page-card{
-  position:relative; display:flex; flex-direction:column; align-items:center; gap:6px;
-  width:140px; cursor:grab; user-select:none; -webkit-user-select:none;
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:8px;
+  width:198px; cursor:grab; user-select:none; -webkit-user-select:none;
 }
 .page-card.page-card-select{ cursor:pointer; }
 .page-card canvas, .page-card img{
@@ -2334,7 +2344,7 @@ function renderFileList(files, onRemove){
       try{
         if(isPdfFile(f)){
           const bytes = await f.arrayBuffer();
-          const {canvas} = await pdfThumb(bytes, 1, 150);
+          const {canvas} = await pdfThumb(bytes, 1, 220);
           if(document.getElementById("fcThumb"+i)===slot){ slot.innerHTML=""; slot.appendChild(canvas); }
         } else if(f.type && f.type.startsWith("image/")){
           const img = document.createElement("img");
@@ -2465,7 +2475,7 @@ async function buildPageGrid(container, bytes, {mode="reorder", removable=false}
   container.classList.add("page-grid");
   document.querySelector(".panel-body")?.classList.toggle("has-file", numPages>0);
   const firstVp = (await pdoc.getPage(1)).getViewport({scale:1});
-  const scale = 190 / firstVp.height;
+  const scale = 260 / firstVp.height;
   for(let i=1;i<=numPages;i++){
     const canvas = await renderPdfPageCanvas(pdoc, i, scale);
     const card = document.createElement("div");
