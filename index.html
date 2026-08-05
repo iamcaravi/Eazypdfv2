@@ -230,6 +230,20 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
    iLovePDF's tight, top-anchored workspace once there's real content,
    rather than a big centered block with growing whitespace around it. */
 .panel-body.has-file{ justify-content:flex-start; padding-top:28px; }
+/* Two-column tool workspace (see layoutTwoColumn()) — file area on the
+   left, options + action button in a sticky sidebar on the right, like
+   iLovePDF. Falls back to a single stacked column under 860px. */
+.tool-layout{ display:flex; gap:36px; align-items:flex-start; width:100%; }
+.tool-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; }
+.tool-sidebar{
+  width:320px; flex:none; display:flex; flex-direction:column; gap:14px;
+  position:sticky; top:0; background:var(--paper-dim); border:1px solid var(--line);
+  border-radius:14px; padding:20px;
+}
+@media (max-width: 860px){
+  .tool-layout{ flex-direction:column; gap:20px; }
+  .tool-sidebar{ width:100%; position:static; }
+}
 .field label{font-size:0.82rem; font-weight:600; display:block; margin-bottom:5px;}
 .field input[type=text], .field input[type=number], .field textarea, .field select{
   width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px;
@@ -2147,8 +2161,40 @@ const siteHeader = document.querySelector("header");
    TOOLS.edit to park its one persistent shell instance between
    closes/reopens. See closePanel() and TOOLS.edit. */
 const editorHoldingArea = document.createElement("div");
+/* Splits a tool panel's content into a left "main" column (file drop
+   zone, file list, page grid, any instructional text) and a right
+   "sidebar" column (option fields + the primary action button) —
+   matches iLovePDF's file-management workspace layout. Runs generically
+   against whatever openPanel() just rendered rather than requiring every
+   TOOLS.xxx template to be rewritten: each column is an independent
+   block container (not a shared CSS grid), so mismatched element counts
+   between the two sides just stack normally instead of overlapping.
+   Panels with no .field/#go (About, Contact, Privacy, TOOLS.edit's own
+   fullscreen shell, etc.) have nothing to move into a sidebar and are
+   left as a single column, unchanged. */
+function layoutTwoColumn(){
+  const body = document.querySelector(".panel-body");
+  if(!body || body.querySelector(".tool-layout")) return;
+  const out = document.getElementById("out");
+  const sidebarEls = [...body.querySelectorAll(".field, .row, #go")];
+  if(sidebarEls.length === 0) return;
+  const mainEls = [...body.children].filter(el => el!==out && !sidebarEls.includes(el));
+
+  const wrap = document.createElement("div");
+  wrap.className = "tool-layout";
+  const main = document.createElement("div");
+  main.className = "tool-main";
+  const sidebar = document.createElement("div");
+  sidebar.className = "tool-sidebar";
+  mainEls.forEach(el=>main.appendChild(el));
+  sidebarEls.forEach(el=>sidebar.appendChild(el));
+  wrap.appendChild(main);
+  wrap.appendChild(sidebar);
+  body.insertBefore(wrap, out || null);
+}
 function openPanel(html){
   panel.innerHTML = html;
+  layoutTwoColumn();
   overlay.classList.add("open");
   /* Every tool page keeps the site header visible above it (logo, nav,
      search, dark mode) — same pattern iLovePDF uses on its own tool
