@@ -235,11 +235,20 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
    iLovePDF. Falls back to a single stacked column under 860px. */
 .tool-layout{ display:flex; gap:36px; align-items:flex-start; width:100%; }
 .tool-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; }
+/* No wrapping card around the whole sidebar — that reads as one big
+   mostly-empty box when a tool only has a button and no fields. Each
+   piece (tip, fields, button) is its own small element on the plain
+   page background instead, same as iLovePDF's actual sidebar. */
 .tool-sidebar{
-  width:320px; flex:none; display:flex; flex-direction:column; gap:14px;
-  position:sticky; top:0; background:var(--paper-dim); border:1px solid var(--line);
-  border-radius:14px; padding:20px;
+  width:320px; flex:none; display:flex; flex-direction:column; gap:16px;
+  position:sticky; top:0;
 }
+.tool-sidebar-tip{
+  display:flex; align-items:flex-start; gap:10px; background:rgba(23,190,187,0.1);
+  border:1px solid rgba(23,190,187,0.35); border-radius:10px; padding:13px 15px;
+  font-size:.85rem; line-height:1.45; color:var(--ink);
+}
+.tool-sidebar-tip .tip-icon{ flex:none; font-size:1rem; line-height:1.4; }
 @media (max-width: 860px){
   .tool-layout{ flex-direction:column; gap:20px; }
   .tool-sidebar{ width:100%; position:static; }
@@ -2186,6 +2195,10 @@ function layoutTwoColumn(){
   main.className = "tool-main";
   const sidebar = document.createElement("div");
   sidebar.className = "tool-sidebar";
+  const tip = document.createElement("div");
+  tip.className = "tool-sidebar-tip";
+  tip.innerHTML = `<span class="tip-icon" aria-hidden="true">🔒</span><span>Everything happens right here in your browser — your files are never uploaded or stored anywhere.</span>`;
+  sidebar.appendChild(tip);
   mainEls.forEach(el=>main.appendChild(el));
   sidebarEls.forEach(el=>sidebar.appendChild(el));
   wrap.appendChild(main);
