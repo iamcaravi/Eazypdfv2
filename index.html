@@ -4622,6 +4622,15 @@ TOOLS.imginvert = function(){
   syncHeaderScroll();
   window.addEventListener("scroll", syncHeaderScroll, { passive:true });
 })();
+
+/* Deep-link support: SEO landing pages (e.g. /merge-pdf) link their CTA
+   button to /?tool=merge so the interactive tool opens automatically -
+   the landing page itself stays a plain static, indexable page; this is
+   the only piece of index.html that needs to know about it. */
+(function(){
+  const toolId = new URLSearchParams(location.search).get("tool");
+  if(toolId && TOOLS[toolId]) openTool(toolId);
+})();
 </script>
 </body>
 </html>
