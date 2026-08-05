@@ -196,7 +196,7 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .overlay.open{display:flex;}
 .panel{
-  background:var(--panel-bg); width:100%; height:100vh; height:100dvh;
+  background:var(--panel-bg); width:100%; height:100%;
   border:none; border-radius:0; box-shadow:none;
   animation:rise .15s ease-out;
   display:flex; flex-direction:column;
@@ -2102,6 +2102,7 @@ function toast(msg){
 /* ---------------- Modal plumbing ---------------- */
 const overlay = document.getElementById("overlay");
 const panel = document.getElementById("panel");
+const siteHeader = document.querySelector("header");
 /* Detached (never appended to the visible DOM) — just a place for
    TOOLS.edit to park its one persistent shell instance between
    closes/reopens. See closePanel() and TOOLS.edit. */
@@ -2109,9 +2110,20 @@ const editorHoldingArea = document.createElement("div");
 function openPanel(html){
   panel.innerHTML = html;
   overlay.classList.add("open");
+  /* Every tool page keeps the site header visible above it (logo, nav,
+     search, dark mode) — same pattern iLovePDF uses on its own tool
+     pages — instead of covering the entire viewport and hiding all site
+     branding/navigation, which read as a bare, disconnected utility
+     screen rather than part of a real website. Force the header into its
+     solid "scrolled" background since it now always sits above a panel,
+     never the transparent hero. */
+  siteHeader.classList.add("scrolled");
+  overlay.style.top = siteHeader.getBoundingClientRect().height + "px";
 }
 function closePanel(){
   overlay.classList.remove("open");
+  overlay.style.top = "";
+  siteHeader.classList.toggle("scrolled", window.scrollY > 8);
   /* Strip the fullscreen variant (only ever added by TOOLS.edit) so the
      shared #panel/#overlay elements are back to their default state for
      every other tool the next time openPanel() runs. The editor's own
