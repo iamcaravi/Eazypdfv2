@@ -225,6 +225,11 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   padding:32px 22px 40px; display:flex; flex-direction:column; gap:14px;
   justify-content:safe center; min-height:100%;
 }
+/* Once a file/page exists, stop vertically centering (that's for the
+   empty "hero" state) and sit compact near the top instead — matches
+   iLovePDF's tight, top-anchored workspace once there's real content,
+   rather than a big centered block with growing whitespace around it. */
+.panel-body.has-file{ justify-content:flex-start; padding-top:28px; }
 .field label{font-size:0.82rem; font-weight:600; display:block; margin-bottom:5px;}
 .field input[type=text], .field input[type=number], .field textarea, .field select{
   width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px;
@@ -382,6 +387,31 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .next-tool-cta:hover{ border-color:var(--red); }
 .next-tool-name{ color:var(--red); font-weight:700; white-space:nowrap; }
+/* Full success screen (resultBox) — matches iLovePDF's post-process page */
+.result-success{ width:100%; max-width:640px; margin:0 auto; align-items:center; text-align:center; }
+.result-head{ display:flex; align-items:center; justify-content:center; gap:12px; position:relative; width:100%; }
+.result-head h3{ margin:0; font-size:1.4rem; }
+.result-back{
+  position:absolute; left:0; width:38px; height:38px; border-radius:50%;
+  background:var(--paper-dim); border:1px solid var(--line); color:var(--ink);
+  display:flex; align-items:center; justify-content:center; font-size:1.1rem; cursor:pointer;
+}
+.result-back:hover{ border-color:var(--teal); }
+.continue-section{ width:100%; margin-top:8px; text-align:left; }
+.continue-label{ font-size:.8rem; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-bottom:10px; }
+.continue-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:12px; }
+.continue-card{
+  display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:10px;
+  padding:16px 10px; cursor:pointer; font-family:inherit; transition:.15s;
+}
+.continue-card:hover{ border-color:var(--teal); transform:translateY(-2px); }
+.continue-card .icon{
+  width:36px; height:36px; border-radius:9px; color:#fff; flex:none;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px -6px rgba(0,0,0,0.3);
+}
+.continue-card .icon svg{ width:20px; height:20px; }
+.continue-name{ font-size:.8rem; font-weight:600; }
 .hidden{display:none !important;}
 .visually-hidden{
   position:absolute !important; width:1px !important; height:1px !important; padding:0 !important;
@@ -1880,6 +1910,7 @@ const AppSession = {
    calls this instead of invoking TOOLS[id] directly. */
 function openTool(toolId){
   if(!TOOLS[toolId]) return;
+  window.__currentToolId = toolId;
   TOOLS[toolId]();
   if(!AppSession.currentFiles.length) return;
   const files = AppSession.currentFiles;
@@ -2219,6 +2250,7 @@ function wireDropzone(onFiles){
 function renderFileList(files, onRemove){
   const flist = document.getElementById("flist");
   flist.classList.add("file-grid");
+  document.querySelector(".panel-body")?.classList.toggle("has-file", files.length>0);
   flist.innerHTML = files.map((f,i)=>{
     const kind = isPdfFile(f) ? "PDF" : (f.type && f.type.startsWith("image/")) ? "IMG" : (f.name.split(".").pop()||"FILE").toUpperCase().slice(0,4);
     return `<div class="file-card" data-i="${i}">
@@ -2366,6 +2398,7 @@ async function buildPageGrid(container, bytes, {mode="reorder", removable=false}
   const numPages = pdoc.numPages;
   container.innerHTML = "";
   container.classList.add("page-grid");
+  document.querySelector(".panel-body")?.classList.toggle("has-file", numPages>0);
   const firstVp = (await pdoc.getPage(1)).getViewport({scale:1});
   const scale = 190 / firstVp.height;
   for(let i=1;i<=numPages;i++){
@@ -2465,22 +2498,52 @@ function setStatus(msg, done, percent){
     s.innerHTML = `<span class="spinner">⚽</span> ${msg}`;
   }
 }
-function resultBox({sizeText, sizeGood, previewNode, url, filename, nextTool}){
+/* Full success screen, matching iLovePDF's post-process page: the input
+   form (dropzone/fields/button) is hidden — not just left visible above
+   the result — and replaced by a prominent download + a "Continue to..."
+   grid of other tools, built from the same QUICK_ACTIONS/QA_LABELS/
+   CATEGORY_META/renderIcon data already used by the Quick Action modal,
+   so it needs no per-tool wiring and covers all 39 tools automatically. */
+function resultBox({sizeText, sizeGood, previewNode, url, filename}){
+  const body = document.querySelector(".panel-body");
+  const out = document.getElementById("out");
+  if(body){
+    [...body.children].forEach(el=>{ if(el!==out) el.classList.add("hidden"); });
+    body.classList.add("has-file");
+  }
+
+  const continueIds = QUICK_ACTIONS.map(q=>q.id).filter(id=>id!==window.__currentToolId && TOOLS[id]).slice(0,6);
+  const continueHtml = continueIds.map(id=>{
+    const qa = QUICK_ACTIONS.find(q=>q.id===id);
+    const color = (CATEGORY_META[qa && qa.cat] && CATEGORY_META[qa.cat].color) || "#112B5C";
+    return `<button type="button" class="continue-card" data-continue-tool="${id}">
+      ${renderIcon(id, color)}
+      <span class="continue-name">${QA_LABELS[id] || id}</span>
+    </button>`;
+  }).join("");
+
   const box = document.createElement("div");
-  box.className="result-box";
-  box.innerHTML = `<div>Result size: <span class="size-badge ${sizeGood?'good':'bad'} mono">${sizeText}</span></div>`;
+  box.className="result-box result-success";
+  box.innerHTML = `
+    <div class="result-head">
+      <button type="button" class="result-back" aria-label="Start over">←</button>
+      <h3>✅ All done!</h3>
+    </div>
+    <div>Result size: <span class="size-badge ${sizeGood?'good':'bad'} mono">${sizeText}</span></div>`;
   if(previewNode){ const wrap=document.createElement("div"); wrap.className="thumbs"; wrap.appendChild(previewNode); box.appendChild(wrap); }
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.className="dl-link dl-link-primary"; a.textContent = "⬇ Download " + filename;
   box.appendChild(a);
-  if(nextTool){
-    const next = document.createElement("button");
-    next.type = "button";
-    next.className = "next-tool-cta";
-    next.innerHTML = `${nextTool.question} <span class="next-tool-name">${nextTool.label} →</span>`;
-    next.addEventListener("click", ()=>{ closePanel(); TOOLS[nextTool.id](); });
-    box.appendChild(next);
+  if(continueHtml){
+    const section = document.createElement("div");
+    section.className = "continue-section";
+    section.innerHTML = `<div class="continue-label">Continue to...</div><div class="continue-grid">${continueHtml}</div>`;
+    box.appendChild(section);
   }
+  box.querySelector(".result-back").addEventListener("click", ()=>{ closePanel(); openTool(window.__currentToolId); });
+  box.querySelectorAll("[data-continue-tool]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{ closePanel(); openTool(btn.dataset.continueTool); });
+  });
   return box;
 }
 
