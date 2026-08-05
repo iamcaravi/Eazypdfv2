@@ -198,6 +198,12 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   border:1px solid var(--line); box-shadow:0 30px 60px -20px rgba(0,0,0,0.4);
   animation:rise .18s ease-out;
 }
+/* Wider workspace variant for tools built around a page grid (Merge,
+   Organize, Reorder, Delete/Extract Pages) — the default 640px modal was
+   too cramped for a real thumbnail-based workspace, unlike iLovePDF's
+   full-page tool view. Not full-bleed like .panel-fullscreen (that variant
+   is shaped for TOOLS.edit's own toolbar/sidebar/canvas layout). */
+.panel.panel-lg{ max-width:960px; }
 @keyframes rise{from{transform:translateY(10px); opacity:0;} to{transform:translateY(0); opacity:1;}}
 .panel-head{
   display:flex; align-items:center; justify-content:space-between;
@@ -238,12 +244,12 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   border:1px solid var(--line); border-radius:6px; height:110px; width:auto; background:#fff;
 }
 .page-grid{
-  display:flex; flex-wrap:wrap; gap:14px; max-height:360px; overflow-y:auto;
-  padding:6px 2px; margin:4px 0;
+  display:flex; flex-wrap:wrap; gap:16px; max-height:520px; overflow-y:auto;
+  padding:8px 4px; margin:4px 0;
 }
 .page-card{
-  position:relative; display:flex; flex-direction:column; align-items:center; gap:5px;
-  width:110px; cursor:grab; user-select:none; -webkit-user-select:none;
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:6px;
+  width:140px; cursor:grab; user-select:none; -webkit-user-select:none;
 }
 .page-card.page-card-select{ cursor:pointer; }
 .page-card canvas, .page-card img{
@@ -2070,6 +2076,7 @@ function closePanel(){
      innerHTML wipe, so its state/listeners survive a close+reopen. */
   overlay.classList.remove("panel-fullscreen");
   panel.classList.remove("panel-fullscreen");
+  panel.classList.remove("panel-lg");
   if (window.__editorShellEl && window.__editorShellEl.parentNode === panel){
     editorHoldingArea.appendChild(window.__editorShellEl);
   }
@@ -2108,6 +2115,11 @@ async function autoQuickPreview(fs){
   const qp = document.getElementById("quickPreview");
   if(!qp) return;
   qp.innerHTML = "";
+  // Tools with their own page-grid (Organize/Reorder/Delete/Extract Pages)
+  // already render every page as a full interactive thumbnail — this
+  // redundant strip would duplicate that render concurrently against the
+  // same pdf.js worker, which is wasteful and, in some environments, races.
+  if(document.getElementById("pageGrid")) return;
   if(fs.length!==1) return;
   const f = fs[0];
   try{
@@ -2265,7 +2277,7 @@ async function buildPageGrid(container, bytes, {mode="reorder", removable=false}
   container.innerHTML = "";
   container.classList.add("page-grid");
   const firstVp = (await pdoc.getPage(1)).getViewport({scale:1});
-  const scale = 150 / firstVp.height;
+  const scale = 190 / firstVp.height;
   for(let i=1;i<=numPages;i++){
     const canvas = await renderPdfPageCanvas(pdoc, i, scale);
     const card = document.createElement("div");
@@ -2660,6 +2672,7 @@ TOOLS.merge = function(){
       <button class="btn" id="go" disabled>Merge Files</button>
       <div id="out"></div>
     </div>`);
+  panel.classList.add("panel-lg");
   const refresh = ()=>{ renderFileList(files, i=>{files.splice(i,1); refresh();}); document.getElementById("go").disabled = files.length<2; };
   wireDropzone(fs=>{ files = files.concat(fs.filter(f=>f.type==="application/pdf"||f.name.endsWith(".pdf"))); refresh(); });
   document.getElementById("go").addEventListener("click", async ()=>{
@@ -2842,6 +2855,7 @@ TOOLS.deletepages = function(){
       <button class="btn" id="go" disabled>Delete Pages</button>
       <div id="out"></div>
     </div>`);
+  panel.classList.add("panel-lg");
   wireDropzone(async fs=>{
     file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
@@ -2879,6 +2893,7 @@ TOOLS.extractpages = function(){
       <button class="btn" id="go" disabled>Extract Pages</button>
       <div id="out"></div>
     </div>`);
+  panel.classList.add("panel-lg");
   wireDropzone(async fs=>{
     file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
@@ -2916,6 +2931,7 @@ TOOLS.reorder = function(){
       <button class="btn" id="go" disabled>Reorder Pages</button>
       <div id="out"></div>
     </div>`);
+  panel.classList.add("panel-lg");
   wireDropzone(async fs=>{
     file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
@@ -3233,6 +3249,7 @@ TOOLS.organize = function(){
       <button class="btn" id="go" disabled>Apply</button>
       <div id="out"></div>
     </div>`);
+  panel.classList.add("panel-lg");
   wireDropzone(async fs=>{
     file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
