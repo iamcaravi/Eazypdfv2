@@ -221,7 +221,10 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   flex:1; overflow-y:auto; width:100%; max-width:900px; margin:0 auto;
   box-sizing:border-box;
 }
-.panel-body{padding:20px 22px 24px; display:flex; flex-direction:column; gap:14px;}
+.panel-body{
+  padding:32px 22px 40px; display:flex; flex-direction:column; gap:14px;
+  justify-content:safe center; min-height:100%;
+}
 .field label{font-size:0.82rem; font-weight:600; display:block; margin-bottom:5px;}
 .field input[type=text], .field input[type=number], .field textarea, .field select{
   width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px;
