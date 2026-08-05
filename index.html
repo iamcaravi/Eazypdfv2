@@ -2225,6 +2225,11 @@ function layoutTwoColumn(){
   const sidebarEls = [...body.querySelectorAll(".field, .row, #go")];
   if(sidebarEls.length === 0) return;
   const mainEls = [...body.children].filter(el => el!==out && !sidebarEls.includes(el));
+  // Tools with no dropzone (txt2pdf's textarea, compare's two native file
+  // inputs) are entirely .field/#go - splitting them would leave main
+  // empty and dump everything into a cramped 440px sidebar, which looks
+  // worse than just keeping the single centered column.
+  if(mainEls.length === 0) return;
 
   const wrap = document.createElement("div");
   wrap.className = "tool-layout";
