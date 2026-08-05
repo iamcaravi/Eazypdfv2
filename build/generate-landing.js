@@ -6,23 +6,36 @@ const registry = JSON.parse(fs.readFileSync(
   "utf8"
 ));
 
-// Maps registry slug -> this app's actual TOOLS.xxx id (used for ?tool=)
+// Maps registry slug -> this app's actual TOOLS.xxx id (used for ?tool=).
+// protect-pdf is intentionally excluded: the registry describes a
+// password-protect feature that doesn't exist as a TOOLS.xxx in this
+// build (no TOOLS.protect) - generating a page whose CTA opens nothing
+// would be worse than not generating it at all.
 const SLUG_TO_TOOLID = {
   "merge-pdf": "merge",
   "split-pdf": "split",
   "compress-pdf": "compress",
   "edit-pdf": "edit",
   "pdf-to-word": "pdf2word",
+  "rotate-pdf": "rotate",
+  "delete-pages": "deletepages",
+  "extract-pages": "extractpages",
+  "organize-pdf": "organize",
+  "crop-pdf": "crop",
+  "watermark-pdf": "watermark",
+  "add-page-numbers": "pagenumbers",
 };
 // Maps ANY registry slug appearing in relatedSlugs -> our landing page filename,
-// so "related tools" links only point at pages that actually exist on this build.
-const SLUG_TO_FILE = {
-  "merge-pdf": "merge-pdf.html",
-  "split-pdf": "split-pdf.html",
-  "compress-pdf": "compress-pdf.html",
-  "edit-pdf": "edit-pdf.html",
-  "pdf-to-word": "pdf-to-word.html",
-};
+// so "related tools" links only point at pages that actually exist on this
+// build. Derived from each entry's own `file` field rather than assumed
+// slug-to-filename patterns - add-page-numbers's own file is actually
+// page-numbers.html, not add-page-numbers.html, which a hand-written map
+// got wrong once already.
+const SLUG_TO_FILE = {};
+for (const slug of Object.keys(SLUG_TO_TOOLID)) {
+  const t = registry.tools.find(x => x.slug === slug);
+  if (t) SLUG_TO_FILE[slug] = t.file;
+}
 
 const OUT_DIR = path.join(__dirname, "..");
 const DOMAIN = "https://eazypdf.in";
@@ -33,8 +46,13 @@ function esc(s){
 
 function renderTool(tool){
   const toolId = SLUG_TO_TOOLID[tool.slug];
-  const l = tool.landing;
-  const canonical = `${DOMAIN}/${tool.slug}`;
+  const l = tool.landing || {};
+  // Use tool.file (what actually gets written to disk / served), not
+  // tool.slug - they differ for add-page-numbers (file: page-numbers.html,
+  // slug: add-page-numbers), and a canonical tag must point at the URL
+  // that actually serves this content, not an unrelated slug.
+  const urlPath = tool.file.replace(/\.html$/, "");
+  const canonical = `${DOMAIN}/${urlPath}`;
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -192,7 +210,7 @@ const slugs = Object.keys(SLUG_TO_TOOLID);
 const generated = [];
 for (const slug of slugs) {
   let tool = registry.tools.find(t => t.slug === slug);
-  if (!tool || !tool.landing) { console.log("SKIP (no landing data):", slug); continue; }
+  if (!tool || !tool.faqs || !tool.title) { console.log("SKIP (no usable data):", slug); continue; }
   // This registry entry is from before Edit PDF's editor workspace was
   // built - it's "landing-only, coming soon" content for a tool that is
   // now actually fully functional in this build. Correct the parts that
