@@ -1,0 +1,420 @@
+{
+  "tools": [
+    {
+      "slug": "word-to-pdf",
+      "file": "word-to-pdf.html",
+      "toolId": "word2pdf",
+      "name": "Word to PDF",
+      "title": "Word to PDF Converter Free Online | EazyPDF",
+      "description": "Convert a .docx file into a PDF, free and browser-based. No upload, no sign-up, no watermark.",
+      "h1": "Word to PDF",
+      "heroValueProp": "Turn a Word document into a PDF that looks the same everywhere it's opened — done locally in your browser, nothing uploaded.",
+      "faqs": [
+        {"q": "Is my document uploaded to convert it?", "a": "No. The conversion reads your .docx file and builds the PDF entirely in your browser using mammoth.js and pdf-lib — nothing is sent to a server."},
+        {"q": "Will formatting be preserved exactly?", "a": "This is a basic, text-focused converter: it lays out the extracted text as a PDF. Complex formatting, images, and page layout from the original .docx are not preserved."},
+        {"q": "Do I need Microsoft Word installed?", "a": "No. Everything runs in the browser tab — no Word, no other software required."}
+      ],
+      "relatedSlugs": ["pdf-to-word", "merge-pdf", "compress-pdf"]
+    },
+    {
+      "slug": "pdf-to-jpg",
+      "file": "pdf-to-jpg.html",
+      "toolId": "pdf2jpg",
+      "name": "PDF to JPG",
+      "title": "PDF to JPG Converter Free Online | EazyPDF",
+      "description": "Convert every page of a PDF into a JPG image, free and browser-based. Download all pages as a ZIP.",
+      "h1": "PDF to JPG",
+      "heroValueProp": "Turn every page of a PDF into its own JPG image — useful for sharing a page as a picture, or pulling a document into a slide deck.",
+      "faqs": [
+        {"q": "Do I get one image per page?", "a": "Yes. Every page is rendered as a separate JPG image, bundled together into a ZIP file for download."},
+        {"q": "Is the PDF uploaded to convert it?", "a": "No. Pages are rendered to images locally in your browser using pdf.js — nothing leaves your device."},
+        {"q": "What resolution are the JPGs?", "a": "Pages render at a resolution suited for on-screen viewing and sharing — not designed for large-format printing."}
+      ],
+      "relatedSlugs": ["jpg-to-pdf", "extract-images", "compress-pdf"]
+    },
+    {
+      "slug": "jpg-to-pdf",
+      "file": "jpg-to-pdf.html",
+      "toolId": "jpg2pdf",
+      "name": "JPG to PDF",
+      "title": "JPG to PDF Converter Free Online | EazyPDF",
+      "description": "Combine one or more images into a single PDF file, free and browser-based. No upload, no sign-up.",
+      "h1": "JPG to PDF",
+      "heroValueProp": "Turn one or more photos or scans into a single PDF — the order you add them is the order they appear in the document.",
+      "faqs": [
+        {"q": "Can I combine multiple images into one PDF?", "a": "Yes. Add as many images as you like and they're combined into one PDF, one image per page, in the order you added them."},
+        {"q": "Which image formats are supported?", "a": "JPG and PNG images can be converted into a PDF."},
+        {"q": "Are my images uploaded anywhere?", "a": "No. The PDF is built locally in your browser using pdf-lib — your images never leave your device."}
+      ],
+      "relatedSlugs": ["pdf-to-jpg", "merge-pdf", "compress-pdf"]
+    },
+    {
+      "slug": "pdf-to-excel",
+      "file": "pdf-to-excel.html",
+      "toolId": "pdf2excel",
+      "name": "PDF to Excel",
+      "title": "PDF to Excel Converter Free Online | EazyPDF",
+      "description": "Extract text from a PDF into rows and columns in a spreadsheet, free and browser-based. No upload, no sign-up.",
+      "h1": "PDF to Excel",
+      "heroValueProp": "Pull tabular data out of a PDF and into a spreadsheet you can actually sort, filter, and calculate with.",
+      "faqs": [
+        {"q": "Will tables convert perfectly?", "a": "The converter approximates table structure from text spacing and position — it works well for simple tables but won't perfectly reconstruct complex, merged-cell layouts."},
+        {"q": "What happens to pages with charts or scanned images?", "a": "Pages with little extractable text are embedded as images in the spreadsheet instead, so nothing is lost."},
+        {"q": "Is my PDF uploaded to a server?", "a": "No. Extraction and spreadsheet-building both happen locally in your browser."}
+      ],
+      "relatedSlugs": ["excel-to-pdf", "pdf-to-word", "merge-pdf"]
+    },
+    {
+      "slug": "excel-to-pdf",
+      "file": "excel-to-pdf.html",
+      "toolId": "excel2pdf",
+      "name": "Excel to PDF",
+      "title": "Excel to PDF Converter Free Online | EazyPDF",
+      "description": "Convert a spreadsheet's first sheet into a table PDF, free and browser-based. No upload, no sign-up.",
+      "h1": "Excel to PDF",
+      "heroValueProp": "Turn a spreadsheet into a PDF you can send to anyone, whether or not they have Excel installed.",
+      "faqs": [
+        {"q": "Which file types can I convert?", "a": "XLSX, XLS, and CSV files can all be converted into a table-layout PDF."},
+        {"q": "Are multiple sheets and cell formatting preserved?", "a": "This is a basic converter: only the first sheet is converted, laid out as a simple table. Cell colors, fonts, and multi-sheet workbooks are not preserved."},
+        {"q": "Is my spreadsheet uploaded anywhere?", "a": "No. It's read and converted entirely in your browser."}
+      ],
+      "relatedSlugs": ["pdf-to-excel", "merge-pdf", "compress-pdf"]
+    },
+    {
+      "slug": "sign-pdf",
+      "file": "sign-pdf.html",
+      "toolId": "sign",
+      "name": "Sign PDF",
+      "title": "Sign PDF Online Free — Add Your Signature | EazyPDF",
+      "description": "Draw a signature and place it anywhere on a PDF page, free and browser-based. No upload, no account.",
+      "h1": "Sign PDF",
+      "heroValueProp": "Draw your signature with your mouse, finger, or stylus and drop it exactly where it needs to go on the document.",
+      "faqs": [
+        {"q": "Is this a legally binding e-signature service?", "a": "No — this is a simple visual signature tool for adding a drawn signature to a document, not a certified e-signature platform with identity verification or audit trails."},
+        {"q": "Can I use a touchscreen or trackpad to sign?", "a": "Yes, the signature pad works with mouse, touchscreen, and stylus input."},
+        {"q": "Is my document uploaded to sign it?", "a": "No. The signature is drawn and placed onto the PDF entirely in your browser."}
+      ],
+      "relatedSlugs": ["fill-pdf-form", "edit-pdf", "flatten-pdf"]
+    },
+    {
+      "slug": "extract-images",
+      "file": "extract-images.html",
+      "toolId": "extractimages",
+      "name": "Extract Images",
+      "title": "Extract Images from PDF Free Online | EazyPDF",
+      "description": "Save every page of a PDF as a standalone image, free and browser-based. Download all images as a ZIP.",
+      "h1": "Extract Images",
+      "heroValueProp": "Pull every page of a PDF out as its own image file — handy for reusing a diagram, photo, or scanned page elsewhere.",
+      "faqs": [
+        {"q": "Does this extract embedded images or full pages?", "a": "Each full page is rendered as an image — this captures everything visible on the page, not just embedded photos within it."},
+        {"q": "What format are the extracted images?", "a": "Images are exported as PNG files, bundled into a ZIP for download."},
+        {"q": "Is my PDF uploaded anywhere?", "a": "No. Pages are rendered to images locally using pdf.js."}
+      ],
+      "relatedSlugs": ["pdf-to-jpg", "jpg-to-pdf", "compress-pdf"]
+    },
+    {
+      "slug": "compare-pdf",
+      "file": "compare-pdf.html",
+      "toolId": "compare",
+      "name": "Compare PDFs",
+      "title": "Compare Two PDF Files Free Online | EazyPDF",
+      "description": "Spot text differences between two PDF files, free and browser-based. No upload, no sign-up.",
+      "h1": "Compare PDFs",
+      "heroValueProp": "Find out what actually changed between two versions of a document without reading both side by side line by line.",
+      "faqs": [
+        {"q": "Does this compare formatting or just text?", "a": "The comparison is based on extracted text content — it highlights text differences between the two files, not visual/formatting changes."},
+        {"q": "Are both files uploaded to a server to compare them?", "a": "No. Both PDFs are read and compared entirely in your browser."},
+        {"q": "Can I compare scanned PDFs?", "a": "Only if the scan has an extractable text layer (e.g. it was OCR'd). Pure image scans with no embedded text can't be text-compared."}
+      ],
+      "relatedSlugs": ["merge-pdf", "split-pdf", "edit-pdf"]
+    },
+    {
+      "slug": "reorder-pages",
+      "file": "reorder-pages.html",
+      "toolId": "reorder",
+      "name": "Reorder Pages",
+      "title": "Reorder PDF Pages Free Online | EazyPDF",
+      "description": "Rearrange the pages of a PDF into any order you like, free and browser-based. Drag to reorder.",
+      "h1": "Reorder Pages",
+      "heroValueProp": "Drag pages into the exact order you need — no need to delete and re-merge, just rearrange what's already there.",
+      "faqs": [
+        {"q": "How do I change the page order?", "a": "Drag each page's thumbnail into the position you want before saving the reordered file."},
+        {"q": "Can I remove pages while reordering?", "a": "Reorder Pages keeps every page — use Delete Pages or Organize PDF if you also need to drop some pages while rearranging."},
+        {"q": "Is my file uploaded anywhere?", "a": "No. Reordering happens locally using pdf-lib."}
+      ],
+      "relatedSlugs": ["organize-pdf", "delete-pages", "extract-pages"]
+    },
+    {
+      "slug": "add-blank-page",
+      "file": "add-blank-page.html",
+      "toolId": "addblank",
+      "name": "Add Blank Page",
+      "title": "Add Blank Page to PDF Free Online | EazyPDF",
+      "description": "Insert a blank page anywhere in a PDF document, free and browser-based.",
+      "h1": "Add Blank Page",
+      "heroValueProp": "Insert a blank page exactly where you need one — a separator, a spot for a printed signature, or just extra room.",
+      "faqs": [
+        {"q": "Can I choose where the blank page goes?", "a": "Yes, you choose the exact position in the document where the new blank page is inserted."},
+        {"q": "Does the blank page match the size of the original pages?", "a": "Yes, the inserted page matches the surrounding page dimensions."},
+        {"q": "Is my file uploaded anywhere?", "a": "No, this runs entirely in your browser using pdf-lib."}
+      ],
+      "relatedSlugs": ["organize-pdf", "delete-pages", "merge-pdf"]
+    },
+    {
+      "slug": "header-footer",
+      "file": "header-footer.html",
+      "toolId": "headerfooter",
+      "name": "Add Header & Footer",
+      "title": "Add Header and Footer to PDF Free Online | EazyPDF",
+      "description": "Add a running header and footer to every page of a PDF, free and browser-based.",
+      "h1": "Add Header & Footer",
+      "heroValueProp": "Stamp the same header and footer text across every page — a title, a date, a company name — without touching each page individually.",
+      "faqs": [
+        {"q": "Can I set different text for the header and footer?", "a": "Yes, header and footer text are set independently."},
+        {"q": "Does it apply to every page automatically?", "a": "Yes, the same header/footer text is stamped onto every page of the document in one step."},
+        {"q": "Is my file uploaded to a server?", "a": "No, this runs locally using pdf-lib."}
+      ],
+      "relatedSlugs": ["add-page-numbers", "watermark-pdf", "edit-pdf"]
+    },
+    {
+      "slug": "invert-pdf-colors",
+      "file": "invert-pdf-colors.html",
+      "toolId": "invertpdf",
+      "name": "Invert PDF Colors",
+      "title": "Invert PDF Colors Free Online — Dark Mode PDF | EazyPDF",
+      "description": "Flip every page of a PDF to a negative / dark-mode style palette, free and browser-based.",
+      "h1": "Invert PDF Colors",
+      "heroValueProp": "Flip a bright white PDF into a dark-background version that's easier on the eyes for night reading.",
+      "faqs": [
+        {"q": "Will this make my PDF look like dark mode?", "a": "It inverts every page's colors into a negative palette, which gives a dark-background effect similar to dark mode, though results vary by document."},
+        {"q": "Does this work well on text-heavy documents?", "a": "It works best on simple text documents. Documents with photos or colored graphics will also have those colors inverted, which may look unusual."},
+        {"q": "Is my file uploaded anywhere?", "a": "No, color inversion happens locally in your browser."}
+      ],
+      "relatedSlugs": ["crop-pdf", "rotate-pdf", "edit-pdf"]
+    },
+    {
+      "slug": "flatten-pdf",
+      "file": "flatten-pdf.html",
+      "toolId": "flatten",
+      "name": "Flatten PDF",
+      "title": "Flatten PDF Form Fields Free Online | EazyPDF",
+      "description": "Lock PDF form fields permanently into the page content, free and browser-based.",
+      "h1": "Flatten PDF",
+      "heroValueProp": "Lock a filled-in form so the answers become part of the page itself and can no longer be edited or accidentally changed.",
+      "faqs": [
+        {"q": "What does flattening actually do?", "a": "It converts any fillable form fields into permanent, non-editable page content — the visible values stay, but they can no longer be typed into or changed."},
+        {"q": "Should I flatten before or after filling a form?", "a": "Flatten after filling the form (see Fill PDF Form) once you're ready to lock the answers in."},
+        {"q": "Is my file uploaded anywhere?", "a": "No, flattening happens locally using pdf-lib."}
+      ],
+      "relatedSlugs": ["fill-pdf-form", "sign-pdf", "protect-pdf"]
+    },
+    {
+      "slug": "repair-pdf",
+      "file": "repair-pdf.html",
+      "toolId": "repair",
+      "name": "Repair PDF",
+      "title": "Repair Corrupted PDF Free Online | EazyPDF",
+      "description": "Attempt to fix minor structural issues in a damaged PDF file, free and browser-based.",
+      "h1": "Repair PDF",
+      "heroValueProp": "Re-save a PDF that won't open properly elsewhere, rebuilding its internal structure from what can still be read.",
+      "faqs": [
+        {"q": "What kinds of damage can this fix?", "a": "It can often recover PDFs with minor structural corruption by re-parsing and re-saving the document. Severely corrupted or truncated files may not be recoverable."},
+        {"q": "Is there a guarantee my file will be fixed?", "a": "No tool can guarantee recovery of every damaged file — if the underlying data is lost, repair can't restore it."},
+        {"q": "Is my file uploaded anywhere?", "a": "No, the repair attempt happens entirely in your browser."}
+      ],
+      "relatedSlugs": ["compress-pdf", "merge-pdf", "edit-pdf"]
+    },
+    {
+      "slug": "pdf-metadata-editor",
+      "file": "pdf-metadata-editor.html",
+      "toolId": "metadata",
+      "name": "PDF Metadata Editor",
+      "title": "Edit PDF Metadata Free Online | EazyPDF",
+      "description": "Edit the title, author, and subject of a PDF file, free and browser-based.",
+      "h1": "PDF Metadata Editor",
+      "heroValueProp": "Change what shows up as the document's title, author, and subject in file properties and search results.",
+      "faqs": [
+        {"q": "What metadata fields can I edit?", "a": "Title, author, and subject are the fields exposed for editing."},
+        {"q": "Why would I want to change this?", "a": "Correct metadata makes a document easier to find and identify later, and looks more professional when shared or archived."},
+        {"q": "Is my file uploaded anywhere?", "a": "No, metadata is edited locally using pdf-lib."}
+      ],
+      "relatedSlugs": ["pdf-page-size-converter", "compress-pdf", "repair-pdf"]
+    },
+    {
+      "slug": "pdf-page-size-converter",
+      "file": "pdf-page-size-converter.html",
+      "toolId": "pagesize",
+      "name": "PDF Page Size Converter",
+      "title": "Change PDF Page Size Free Online | EazyPDF",
+      "description": "Change a PDF's page dimensions to a standard size like A4 or Letter, free and browser-based.",
+      "h1": "PDF Page Size Converter",
+      "heroValueProp": "Resize every page in a PDF to a standard size like A4 or Letter — useful when a document needs to print correctly in a different region.",
+      "faqs": [
+        {"q": "Which page sizes are supported?", "a": "Standard sizes such as A4 and Letter are supported as conversion targets."},
+        {"q": "Will content be stretched or cropped?", "a": "Page content is scaled to fit the new page dimensions as closely as possible while preserving the original layout."},
+        {"q": "Is my file uploaded anywhere?", "a": "No, this runs locally in your browser."}
+      ],
+      "relatedSlugs": ["pdf-metadata-editor", "compress-pdf", "crop-pdf"]
+    },
+    {
+      "slug": "fill-pdf-form",
+      "file": "fill-pdf-form.html",
+      "toolId": "fillform",
+      "name": "Fill PDF Form",
+      "title": "Fill PDF Form Online Free | EazyPDF",
+      "description": "Fill out fillable form fields in a PDF and save the result, free and browser-based.",
+      "h1": "Fill PDF Form",
+      "heroValueProp": "Type directly into a PDF's existing form fields and save a completed copy — no printing, filling by hand, and rescanning.",
+      "faqs": [
+        {"q": "Does this work on any PDF?", "a": "It works on PDFs that already contain fillable AcroForm fields. A plain scanned document with no form fields can't be filled this way."},
+        {"q": "Can I lock the answers in afterward?", "a": "Yes, use Flatten PDF after filling to make the entered values permanent and non-editable."},
+        {"q": "Is my file uploaded anywhere?", "a": "No, the form is filled entirely in your browser."}
+      ],
+      "relatedSlugs": ["flatten-pdf", "sign-pdf", "edit-pdf"]
+    },
+    {
+      "slug": "html-to-pdf",
+      "file": "html-to-pdf.html",
+      "toolId": "html2pdf",
+      "name": "HTML to PDF",
+      "title": "HTML/Text to PDF Converter Free Online | EazyPDF",
+      "description": "Turn plain text or simple HTML into a formatted PDF document, free and browser-based.",
+      "h1": "HTML to PDF",
+      "heroValueProp": "Turn plain text or basic HTML content into a clean, formatted PDF document.",
+      "faqs": [
+        {"q": "What kind of HTML is supported?", "a": "Basic text and simple formatting — this is not a full browser rendering engine, so complex layouts, CSS, and scripts won't be reproduced."},
+        {"q": "Can I convert plain text instead of HTML?", "a": "Yes, plain text is also accepted and laid out as a formatted PDF."},
+        {"q": "Is my content uploaded anywhere?", "a": "No, the PDF is built entirely in your browser."}
+      ],
+      "relatedSlugs": ["txt-to-pdf", "word-to-pdf", "merge-pdf"]
+    },
+    {
+      "slug": "pdf-to-txt",
+      "file": "pdf-to-txt.html",
+      "toolId": "pdf2txt",
+      "name": "PDF to TXT",
+      "title": "PDF to TXT Converter Free Online | EazyPDF",
+      "description": "Extract all readable text from a PDF into a plain .txt file, free and browser-based.",
+      "h1": "PDF to TXT",
+      "heroValueProp": "Pull just the raw text out of a PDF — useful for pasting into another document, an AI tool, or a plain-text editor.",
+      "faqs": [
+        {"q": "Does this preserve formatting?", "a": "No, the output is plain text with no fonts, layout, or images — just the readable text content."},
+        {"q": "Will this work on scanned PDFs?", "a": "Only if the scan already has a text layer (e.g. from OCR). A pure image scan has no extractable text."},
+        {"q": "Is my file uploaded anywhere?", "a": "No, text is extracted locally using pdf.js."}
+      ],
+      "relatedSlugs": ["txt-to-pdf", "pdf-to-word", "pdf-to-excel"]
+    },
+    {
+      "slug": "txt-to-pdf",
+      "file": "txt-to-pdf.html",
+      "toolId": "txt2pdf",
+      "name": "TXT to PDF",
+      "title": "TXT to PDF Converter Free Online | EazyPDF",
+      "description": "Turn plain text into a formatted PDF document, free and browser-based.",
+      "h1": "TXT to PDF",
+      "heroValueProp": "Type or paste plain text and turn it into a clean, paginated PDF document in one step.",
+      "faqs": [
+        {"q": "Do I need to upload a .txt file?", "a": "No, you can type or paste text directly into the tool — there's no file upload step required."},
+        {"q": "Does long text automatically split across pages?", "a": "Yes, text that doesn't fit on one page automatically flows onto additional pages."},
+        {"q": "Is my text sent anywhere?", "a": "No, the PDF is generated entirely in your browser."}
+      ],
+      "relatedSlugs": ["pdf-to-txt", "html-to-pdf", "word-to-pdf"]
+    },
+    {
+      "slug": "image-compressor",
+      "file": "image-compressor.html",
+      "toolId": "imgcompress",
+      "name": "Image Compressor",
+      "title": "Image Compressor Free Online — Shrink to Exact KB | EazyPDF",
+      "description": "Shrink an image down to an exact KB target, free and browser-based.",
+      "h1": "Image Compressor",
+      "heroValueProp": "Shrink a photo down to a specific file size — useful when a form or upload has a strict size limit.",
+      "faqs": [
+        {"q": "Can I set an exact target file size?", "a": "Yes, enter a target size in KB and the tool compresses toward that target."},
+        {"q": "Which image formats are supported?", "a": "Common formats like JPG and PNG are supported."},
+        {"q": "Is my image uploaded anywhere?", "a": "No, compression happens locally in your browser."}
+      ],
+      "relatedSlugs": ["resize-image", "crop-image", "convert-image-format"]
+    },
+    {
+      "slug": "resize-image",
+      "file": "resize-image.html",
+      "toolId": "imgresize",
+      "name": "Resize Image",
+      "title": "Resize Image Free Online — Exact Width & Height | EazyPDF",
+      "description": "Resize an image to exact width and height, free and browser-based.",
+      "h1": "Resize Image",
+      "heroValueProp": "Resize a photo to exact pixel dimensions — for a profile picture, a form upload, or a specific layout requirement.",
+      "faqs": [
+        {"q": "Can I set exact pixel dimensions?", "a": "Yes, enter the exact width and height you need in pixels."},
+        {"q": "Will the image be stretched if the aspect ratio changes?", "a": "If your target dimensions don't match the original aspect ratio, the image will stretch to fill them."},
+        {"q": "Is my image uploaded anywhere?", "a": "No, resizing happens locally in your browser."}
+      ],
+      "relatedSlugs": ["image-compressor", "crop-image", "convert-image-format"]
+    },
+    {
+      "slug": "crop-image",
+      "file": "crop-image.html",
+      "toolId": "imgcrop",
+      "name": "Crop Image",
+      "title": "Crop Image Free Online | EazyPDF",
+      "description": "Crop an image to a precise pixel region, free and browser-based.",
+      "h1": "Crop Image",
+      "heroValueProp": "Trim an image down to just the part you need, with precise control over the crop area.",
+      "faqs": [
+        {"q": "How precise is the crop selection?", "a": "You can draw and adjust the crop box directly on the image before applying it."},
+        {"q": "Which image formats are supported?", "a": "Common formats like JPG and PNG are supported."},
+        {"q": "Is my image uploaded anywhere?", "a": "No, cropping happens locally in your browser."}
+      ],
+      "relatedSlugs": ["resize-image", "image-compressor", "convert-image-format"]
+    },
+    {
+      "slug": "convert-image-format",
+      "file": "convert-image-format.html",
+      "toolId": "imgconvert",
+      "name": "Convert Image Format",
+      "title": "Convert Image Format Free Online — PNG, JPG, WebP | EazyPDF",
+      "description": "Convert an image between PNG, JPG, and WebP formats, free and browser-based.",
+      "h1": "Convert Image Format",
+      "heroValueProp": "Convert between PNG, JPG, and WebP — for compatibility, smaller file size, or whatever format a site or app requires.",
+      "faqs": [
+        {"q": "Which formats can I convert between?", "a": "PNG, JPG, and WebP are all supported as both source and target formats."},
+        {"q": "Does converting to JPG lose transparency?", "a": "Yes, JPG doesn't support transparency — converting a transparent PNG to JPG will fill the transparent areas with a solid background."},
+        {"q": "Is my image uploaded anywhere?", "a": "No, conversion happens locally in your browser."}
+      ],
+      "relatedSlugs": ["image-compressor", "resize-image", "crop-image"]
+    },
+    {
+      "slug": "watermark-image",
+      "file": "watermark-image.html",
+      "toolId": "imgwatermark",
+      "name": "Add Watermark to Image",
+      "title": "Add Watermark to Image Free Online | EazyPDF",
+      "description": "Overlay custom watermark text on an image, free and browser-based.",
+      "h1": "Add Watermark to Image",
+      "heroValueProp": "Stamp your own text watermark across a photo — useful for marking ownership before sharing it publicly.",
+      "faqs": [
+        {"q": "Can I customize the watermark text?", "a": "Yes, you set the exact text used for the watermark."},
+        {"q": "Which image formats are supported?", "a": "Common formats like JPG and PNG are supported."},
+        {"q": "Is my image uploaded anywhere?", "a": "No, the watermark is applied locally in your browser."}
+      ],
+      "relatedSlugs": ["watermark-pdf", "image-compressor", "convert-image-format"]
+    },
+    {
+      "slug": "invert-image-colors",
+      "file": "invert-image-colors.html",
+      "toolId": "imginvert",
+      "name": "Invert Image Colors",
+      "title": "Invert Image Colors Free Online | EazyPDF",
+      "description": "Flip an image's colors to a negative palette, free and browser-based.",
+      "h1": "Invert Image Colors",
+      "heroValueProp": "Flip a photo's colors into a negative palette — a quick creative effect or a way to check contrast.",
+      "faqs": [
+        {"q": "What does color inversion do exactly?", "a": "It flips every pixel's color to its negative — light areas become dark and colors shift to their opposites."},
+        {"q": "Which image formats are supported?", "a": "Common formats like JPG and PNG are supported."},
+        {"q": "Is my image uploaded anywhere?", "a": "No, inversion happens locally in your browser."}
+      ],
+      "relatedSlugs": ["invert-pdf-colors", "convert-image-format", "image-compressor"]
+    }
+  ]
+}

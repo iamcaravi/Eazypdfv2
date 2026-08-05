@@ -5,6 +5,10 @@ const registry = JSON.parse(fs.readFileSync(
   path.join(__dirname, "..", "seo", "tools-registry.json"),
   "utf8"
 ));
+const additional = JSON.parse(fs.readFileSync(
+  path.join(__dirname, "..", "seo", "additional-tools.json"),
+  "utf8"
+));
 
 // Maps registry slug -> this app's actual TOOLS.xxx id (used for ?tool=).
 // protect-pdf is intentionally excluded: the registry describes a
@@ -25,15 +29,32 @@ const SLUG_TO_TOOLID = {
   "watermark-pdf": "watermark",
   "add-page-numbers": "pagenumbers",
 };
-// Maps ANY registry slug appearing in relatedSlugs -> our landing page filename,
-// so "related tools" links only point at pages that actually exist on this
+for (const t of additional.tools) SLUG_TO_TOOLID[t.slug] = t.toolId;
+
+// additional-tools.json uses a flatter shape (heroValueProp instead of
+// landing.hero.valueProp, no whyUse/keyFeatures/useCases) since that
+// content is fresh-written for tools with no existing rich copy - reshape
+// it to match the registry's structure so renderTool() can treat both
+// sources identically.
+const additionalNormalized = additional.tools.map(t => ({
+  ...t,
+  landing: { hero: { valueProp: t.heroValueProp, ctaLabel: "Use " + t.name } }
+}));
+
+// Combined lookup across both content sources, so relatedSlugs/related-tool
+// links resolve correctly regardless of which file a tool's content lives in.
+const ALL_TOOLS = [...registry.tools, ...additionalNormalized];
+function findTool(slug){ return ALL_TOOLS.find(t => t.slug === slug); }
+
+// Maps ANY slug appearing in relatedSlugs -> our landing page filename, so
+// "related tools" links only point at pages that actually exist on this
 // build. Derived from each entry's own `file` field rather than assumed
 // slug-to-filename patterns - add-page-numbers's own file is actually
 // page-numbers.html, not add-page-numbers.html, which a hand-written map
 // got wrong once already.
 const SLUG_TO_FILE = {};
 for (const slug of Object.keys(SLUG_TO_TOOLID)) {
-  const t = registry.tools.find(x => x.slug === slug);
+  const t = findTool(slug);
   if (t) SLUG_TO_FILE[slug] = t.file;
 }
 
@@ -73,7 +94,7 @@ function renderTool(tool){
 
   const relatedLinks = (tool.relatedSlugs || [])
     .filter(s => SLUG_TO_FILE[s])
-    .map(s => `<a href="/${SLUG_TO_FILE[s]}">${esc(registry.tools.find(t=>t.slug===s)?.name || s)}</a>`)
+    .map(s => `<a href="/${SLUG_TO_FILE[s]}">${esc(findTool(s)?.name || s)}</a>`)
     .join("\n      ");
 
   const whyCards = (l.whyUse?.points || []).map(p => `
@@ -108,7 +129,7 @@ function renderTool(tool){
 
   const trustBadges = (l.hero?.trustBadges || []).map(b => `<span>${esc(b)}</span>`).join("\n        ");
 
-  const nextTool = l.cta ? registry.tools.find(t => t.slug === l.cta.targetSlug) : null;
+  const nextTool = l.cta ? findTool(l.cta.targetSlug) : null;
   const nextToolFile = nextTool ? SLUG_TO_FILE[nextTool.slug] : null;
 
   return `<!DOCTYPE html>
@@ -209,7 +230,7 @@ function renderTool(tool){
 const slugs = Object.keys(SLUG_TO_TOOLID);
 const generated = [];
 for (const slug of slugs) {
-  let tool = registry.tools.find(t => t.slug === slug);
+  let tool = findTool(slug);
   if (!tool || !tool.faqs || !tool.title) { console.log("SKIP (no usable data):", slug); continue; }
   // This registry entry is from before Edit PDF's editor workspace was
   // built - it's "landing-only, coming soon" content for a tool that is
