@@ -79,33 +79,33 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
-  --paper:#FFFFFF;
-  --paper-dim:#F7F8FA;
+  --paper:#FBF9F8;
+  --paper-dim:#F2ECEA;
   --panel-bg:#FFFFFF;
-  --ink:#112B5C;
-  --ink-soft:#5F6B7A;
-  --red:#F6B62A;
-  --orange:#F6B62A;
-  --brand-grad: linear-gradient(135deg, #16407A, #112B5C);
-  --teal:#112B5C;
-  --teal-deep:#0B1E42;
-  --ochre:#F6B62A;
-  --rose:#D64545;
+  --ink:#1A1414;
+  --ink-soft:#6B5D5A;
+  --red:#E8291B;
+  --orange:#FF7A18;
+  --brand-grad: linear-gradient(135deg, var(--orange), var(--red));
+  --teal:#E8291B;
+  --teal-deep:#B81E12;
+  --ochre:#FF7A18;
+  --rose:#B81E12;
   --success:#20C997;
-  --line: #ECECEC;
+  --line: rgba(26,20,20,0.12);
   --header-bg:#FFFFFF;
   --card-bg:#FFFFFF;
-  --radius: 16px;
+  --radius: 10px;
 }
 [data-theme="dark"]{
-  --paper:#0E1A2E;
-  --paper-dim:#14233C;
-  --panel-bg:#132039;
-  --ink:#F2F5FA;
-  --ink-soft:#9FB0C6;
-  --line: rgba(242,245,250,0.14);
-  --header-bg:#0E1A2E;
-  --card-bg:#152744;
+  --paper:#15100F;
+  --paper-dim:#1E1716;
+  --panel-bg:#1C1615;
+  --ink:#F5EFEC;
+  --ink-soft:#B8A9A5;
+  --line: rgba(245,239,236,0.14);
+  --header-bg:#1A1413;
+  --card-bg:#211918;
 }
 *{box-sizing:border-box;}
 html{scroll-behavior:smooth; font-size:17.5px;}
@@ -113,13 +113,11 @@ body{
   margin:0;
   background:var(--paper);
   color:var(--ink);
-  font-family:'Plus Jakarta Sans', sans-serif;
-  font-weight:500;
+  font-family:'IBM Plex Sans', sans-serif;
   -webkit-font-smoothing:antialiased;
 }
 h1,h2,h3, .display{
-  font-family:'Plus Jakarta Sans', sans-serif;
-  font-weight:800;
+  font-family:'Space Grotesk', sans-serif;
   letter-spacing:-0.01em;
 }
 .mono{font-family:'IBM Plex Mono', monospace;}
@@ -247,6 +245,26 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .fileitem span.name{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .fileitem button{background:none; border:none; color:var(--rose); cursor:pointer; font-size:0.95rem;}
+/* Real thumbnail-card file list (replaces the old plain text .fileitem row) */
+.file-grid{
+  display:flex; flex-wrap:wrap; gap:16px; max-height:420px; overflow-y:auto;
+  padding:6px 2px; margin:0;
+}
+.file-card{ position:relative; width:130px; display:flex; flex-direction:column; gap:6px; }
+.file-card-thumb{
+  width:100%; height:160px; border:1px solid var(--line); border-radius:8px;
+  background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden;
+}
+.file-card-thumb canvas, .file-card-thumb img{ max-width:100%; max-height:100%; object-fit:contain; }
+.file-card-kind{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:.72rem; color:var(--ink-soft); letter-spacing:.06em; }
+.file-card-remove{
+  position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:50%;
+  background:var(--ink); color:#fff; border:none; display:flex; align-items:center; justify-content:center;
+  font-size:12px; cursor:pointer; opacity:0; transition:opacity .12s ease; z-index:1;
+}
+.file-card:hover .file-card-remove, .file-card:focus-within .file-card-remove{ opacity:1; }
+.file-card-name{ font-size:.78rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.file-card-size{ font-size:.7rem; color:var(--ink-soft); }
 .thumbs{display:flex; gap:8px; flex-wrap:wrap; max-height:180px; overflow-y:auto; padding:4px 0;}
 .crop-stage{ display:flex; justify-content:center; background:var(--paper-dim); border-radius:10px; padding:12px; }
 #cropCanvas{ max-width:100%; height:auto; border-radius:6px; cursor:crosshair; touch-action:none; }
@@ -2175,11 +2193,44 @@ function wireDropzone(onFiles){
   ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault(); dz.classList.remove("drag");}));
   dz.addEventListener("drop", e=>{ handle([...e.dataTransfer.files]); });
 }
+/* Renders the selected-files list as real thumbnail cards (actual PDF page
+   1, or the image itself) instead of a plain filename row — matches
+   iLovePDF's file-card look. Placeholder cards render instantly; real
+   thumbnails fill in progressively (sequential, not concurrent, since
+   rendering many PDFs' first pages at once can starve pdf.js's worker). */
 function renderFileList(files, onRemove){
   const flist = document.getElementById("flist");
-  flist.innerHTML = files.map((f,i)=>`<div class="fileitem"><span class="name">${f.name}</span><span class="mono" style="color:var(--ink-soft);font-size:.75rem">${fmtSize(f.size)}</span><button data-i="${i}">✕</button></div>`).join("");
-  flist.querySelectorAll("button").forEach(b=>b.addEventListener("click", ()=>onRemove(+b.dataset.i)));
+  flist.classList.add("file-grid");
+  flist.innerHTML = files.map((f,i)=>{
+    const kind = isPdfFile(f) ? "PDF" : (f.type && f.type.startsWith("image/")) ? "IMG" : (f.name.split(".").pop()||"FILE").toUpperCase().slice(0,4);
+    return `<div class="file-card" data-i="${i}">
+      <button type="button" class="file-card-remove" data-i="${i}" aria-label="Remove ${escapeAttr(f.name)}">✕</button>
+      <div class="file-card-thumb" id="fcThumb${i}"><span class="file-card-kind">${kind}</span></div>
+      <div class="file-card-name" title="${escapeAttr(f.name)}">${escapeAttr(f.name)}</div>
+      <div class="file-card-size mono">${fmtSize(f.size)}</div>
+    </div>`;
+  }).join("");
+  flist.querySelectorAll(".file-card-remove").forEach(b=>b.addEventListener("click", e=>{ e.stopPropagation(); onRemove(+b.dataset.i); }));
+  (async ()=>{
+    for(let i=0;i<files.length;i++){
+      const f = files[i];
+      const slot = document.getElementById("fcThumb"+i);
+      if(!slot) return; // list was re-rendered (add/remove) before this finished
+      try{
+        if(isPdfFile(f)){
+          const bytes = await f.arrayBuffer();
+          const {canvas} = await pdfThumb(bytes, 1, 150);
+          if(document.getElementById("fcThumb"+i)===slot){ slot.innerHTML=""; slot.appendChild(canvas); }
+        } else if(f.type && f.type.startsWith("image/")){
+          const img = document.createElement("img");
+          img.src = URL.createObjectURL(f);
+          slot.innerHTML=""; slot.appendChild(img);
+        }
+      }catch(e){ /* leave the kind-badge placeholder on any render failure */ }
+    }
+  })();
 }
+function escapeAttr(s){ return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 /* Shared drag-to-select crop interaction: supports drawing a new box,
    moving it, and resizing it from any edge/corner via small handles. */
 function wireCropCanvas(canvas, state){
