@@ -211,7 +211,10 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .panel-head h3{margin:0; font-size:1.25rem;}
 .panel-close{
   background:none; border:none; font-size:1.3rem; cursor:pointer; color:var(--ink-soft); line-height:1;
+  width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:8px; flex:none;
 }
+.panel-close:hover{ background:var(--paper-dim); }
 /* The generic option-form layout (every tool except TOOLS.edit, which
    overrides this via .panel-fullscreen .panel-body in editor-panel.css)
    scrolls internally and keeps form content readable-width, centered,
