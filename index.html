@@ -218,7 +218,7 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
    scrolls internally and keeps form content readable-width, centered,
    inside the now full-height panel. */
 .panel-body{
-  flex:1; overflow-y:auto; width:100%; max-width:900px; margin:0 auto;
+  flex:1; overflow-y:auto; width:100%; max-width:1240px; margin:0 auto;
   box-sizing:border-box;
 }
 .panel-body{
@@ -388,7 +388,7 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .next-tool-cta:hover{ border-color:var(--red); }
 .next-tool-name{ color:var(--red); font-weight:700; white-space:nowrap; }
 /* Full success screen (resultBox) — matches iLovePDF's post-process page */
-.result-success{ width:100%; max-width:640px; margin:0 auto; align-items:center; text-align:center; }
+.result-success{ width:100%; max-width:860px; margin:0 auto; align-items:center; text-align:center; }
 .result-head{ display:flex; align-items:center; justify-content:center; gap:12px; position:relative; width:100%; }
 .result-head h3{ margin:0; font-size:1.4rem; }
 .result-back{
@@ -397,21 +397,27 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   display:flex; align-items:center; justify-content:center; font-size:1.1rem; cursor:pointer;
 }
 .result-back:hover{ border-color:var(--teal); }
-.continue-section{ width:100%; margin-top:8px; text-align:left; }
-.continue-label{ font-size:.8rem; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-bottom:10px; }
-.continue-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:12px; }
-.continue-card{
-  display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;
-  background:var(--paper-dim); border:1px solid var(--line); border-radius:10px;
-  padding:16px 10px; cursor:pointer; font-family:inherit; transition:.15s;
+/* iLovePDF-style: one wide bordered card containing a 3-column list of
+   icon + name + chevron rows, not a grid of square tiles. */
+.continue-section{
+  width:100%; margin-top:24px; text-align:left;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px; padding:22px 26px;
 }
-.continue-card:hover{ border-color:var(--teal); transform:translateY(-2px); }
+.continue-label{ font-size:1rem; font-weight:700; color:var(--ink); margin-bottom:14px; text-align:left; }
+.continue-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:4px 24px; }
+.continue-card{
+  display:flex; flex-direction:row; align-items:center; gap:12px; text-align:left;
+  background:none; border:none; border-radius:8px;
+  padding:10px 8px; cursor:pointer; font-family:inherit; transition:.15s;
+}
+.continue-card:hover{ background:var(--panel-bg); }
+.continue-card::after{ content:"›"; margin-left:auto; color:var(--ink-soft); font-size:1.3rem; line-height:1; }
 .continue-card .icon{
-  width:36px; height:36px; border-radius:9px; color:#fff; flex:none;
+  width:32px; height:32px; border-radius:8px; color:#fff; flex:none;
   display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px -6px rgba(0,0,0,0.3);
 }
 .continue-card .icon svg{ width:20px; height:20px; }
-.continue-name{ font-size:.8rem; font-weight:600; }
+.continue-name{ font-size:.85rem; font-weight:600; flex:1; }
 .hidden{display:none !important;}
 .visually-hidden{
   position:absolute !important; width:1px !important; height:1px !important; padding:0 !important;
