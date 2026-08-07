@@ -73,6 +73,8 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Sticky Live Activity Bar (replaces the old footer visitor-badge embed) -->
+<link rel="stylesheet" href="css/trust-status-bar.css">
 <!-- pdf-lib and pdf.js stay eager/blocking: the app's main script is one
      large inline block (not an external file) that references PDFLib/
      pdfjsLib synchronously at its very top (`const {PDFDocument,...} =
@@ -1296,9 +1298,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
         EazyPDF
       </div>
       <p>A free, browser-based PDF toolkit. Every file is processed locally on your device — nothing is ever uploaded to a server.</p>
-      <div class="visitor-badge" id="visitorBadge" style="margin-top:2px;">
-        <img src="https://visitor-badge.laobi.icu/badge?page_id=eazypdf.in.home&text=Visitors&color=e8291b&left_color=1a1414" alt="Visitor count" style="vertical-align:middle;height:20px;" onerror="this.parentElement.textContent='👀 Free for everyone, every time';">
-      </div>
     </div>
     <div class="footer-col">
       <h4>PDF Tools</h4>
@@ -1366,6 +1365,19 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   <div class="qa-modal" id="qaModal"></div>
 </div>
 
+<!-- ===== Sticky Trust Status Bar (replaces the old simulated "Live Activity
+     Bar" — no counters, no random numbers, only static, always-true trust
+     indicators). Badges are rendered by js/trust-status-bar.js from
+     config/trustStatusBar.js so the list stays a single source of truth;
+     this markup just provides the mount point and the shared popover. See
+     css/trust-status-bar.css and config/trustStatusBar.js. -->
+<div class="trust-status-bar" id="trustStatusBar" role="group" aria-label="Trust indicators"></div>
+
+<div class="trust-status-popover" id="trustStatusPopover" role="tooltip">
+  <h3 id="trustStatusPopoverTitle"></h3>
+  <p id="trustStatusPopoverDesc"></p>
+  <p class="trust-status-popover-extra" id="trustStatusPopoverExtra" style="display:none;"></p>
+</div>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -2884,8 +2896,7 @@ TOOLS.privacy = function(){
     <div class="panel-head"><h3>Privacy Policy</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
       <p style="margin:0;color:var(--ink-soft);font-size:.9rem;line-height:1.6"><strong style="color:var(--ink)">Your files never leave your device.</strong> Every PDF and image tool on EazyPDF runs in your browser using JavaScript — nothing is uploaded, stored, or transmitted to any server.</p>
-      <p style="margin:0;color:var(--ink-soft);font-size:.9rem;line-height:1.6">We don't use tracking cookies or sell personal data. A basic, anonymous page-view counter is used to estimate site traffic. If you use the Contact form, the information you type is sent directly to our email via your own mail client — we don't store it elsewhere.</p>
-      <p style="margin:0;color:var(--ink-soft);font-size:.9rem;line-height:1.6">Third-party embeds (such as the visitor-count badge) may set their own cookies; refer to their respective privacy policies for details.</p>
+      <p style="margin:0;color:var(--ink-soft);font-size:.9rem;line-height:1.6">We don't use tracking cookies or sell personal data. The trust badges shown on this site describe how the tools actually work — none of them are counters or visitor trackers. If you use the Contact form, the information you type is sent directly to our email via your own mail client — we don't store it elsewhere.</p>
     </div>`);
 };
 
@@ -4632,5 +4643,9 @@ TOOLS.imginvert = function(){
   if(toolId && TOOLS[toolId]) openTool(toolId);
 })();
 </script>
+
+<!-- Sticky Live Activity Bar: config first, then the component itself. -->
+<script src="config/trustStatusBar.js?v=2"></script>
+<script src="js/trust-status-bar.js?v=2"></script>
 </body>
 </html>
