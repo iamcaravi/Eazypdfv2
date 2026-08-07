@@ -3087,7 +3087,7 @@ let editorAssetsLoadPromise = null;
 function loadEditorAssets(){
   if (editorAssetsLoadPromise) return editorAssetsLoadPromise;
 
-  ["css/editor-workspace.css", "css/pdf-viewer.css", "css/editor-panel.css", "css/editor-inspector.css", "css/editor-viewer-polish.css"].forEach(href=>{
+  ["css/editor-workspace.css", "css/pdf-viewer.css", "css/editor-panel.css", "css/editor-inspector.css", "css/editor-viewer-polish.css", "css/editor-objects.css"].forEach(href=>{
     const l = document.createElement("link");
     l.rel = "stylesheet";
     l.href = href;
@@ -3111,6 +3111,11 @@ function loadEditorAssets(){
     "js/editor/editor-canvas.js",
     "js/editor/editor-inspector.js",
     "js/editor/editor-statusbar.js",
+    // Editing engine (Phase 3 — previously referenced everywhere by name
+    // but never actually written; see editor-objects.js's own file header)
+    "js/editor/editor-objects.js",
+    "js/editor/editor-history.js",
+    "js/editor/editor-export.js",
   ];
   editorAssetsLoadPromise = files.reduce((p, src) => p.then(() => new Promise((resolve, reject) => {
     const s = document.createElement("script");
@@ -3189,6 +3194,9 @@ function initEditorShell(shell){
   EditorCanvas.init(shell);
   EditorStatusbar.init(shell);
   EditorLayout.init(shell);
+  EditorObjects.init(shell);
+  EditorHistory.init();
+  EditorExport.init();
 
   window.addEventListener('editor:pageChange', async (e) => {
     try { window.__currentPageNativeSize = await window.RenderEngine.getPageInfo(e.detail.page); } catch (_) {}

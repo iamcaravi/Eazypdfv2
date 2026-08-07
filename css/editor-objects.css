@@ -1,0 +1,36 @@
+/* ==========================================================================
+   css/editor-objects.css
+   ---------------------------------------------------------------------------
+   Additive only, same convention as css/pdf-viewer.css (see that file's own
+   header) — .editor-object lives inside .editor-canvas-page
+   (css/pdf-viewer.css, position:relative already set there), so no changes
+   to any frozen/existing file were needed.
+   ========================================================================== */
+
+.editor-object{
+  position:absolute; box-sizing:border-box; cursor:move;
+  outline:1px dashed transparent; user-select:none;
+}
+.editor-object:hover{ outline-color:rgba(17,43,92,0.35); }
+.editor-object.is-selected{ outline:1.5px solid var(--red,#e8291b); z-index:2; }
+
+.editor-object-content{ width:100%; height:100%; overflow:hidden; pointer-events:none; }
+.editor-object-content img{ width:100%; height:100%; object-fit:fill; display:block; }
+.eo-shape-box{ width:100%; height:100%; box-sizing:border-box; }
+.eo-text-inner{
+  width:100%; height:100%; white-space:pre-wrap; word-break:break-word;
+  line-height:1.2; outline:none; pointer-events:auto; cursor:text;
+}
+.editor-object-content .eo-text-inner{ pointer-events:none; }
+.eo-text-inner[contenteditable="true"]{ pointer-events:auto; background:rgba(255,255,255,0.6); }
+
+.editor-object-handle{
+  position:absolute; width:10px; height:10px; border-radius:50%;
+  background:#fff; border:1.5px solid var(--red,#e8291b);
+  display:none; z-index:3;
+}
+.editor-object.is-selected .editor-object-handle{ display:block; }
+.editor-object-handle-nw{ top:-5px; left:-5px; cursor:nwse-resize; }
+.editor-object-handle-ne{ top:-5px; right:-5px; cursor:nesw-resize; }
+.editor-object-handle-sw{ bottom:-5px; left:-5px; cursor:nesw-resize; }
+.editor-object-handle-se{ bottom:-5px; right:-5px; cursor:nwse-resize; }
