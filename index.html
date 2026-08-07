@@ -2478,6 +2478,17 @@ function downloadBlob(blob, filename){
   const url = URL.createObjectURL(blob);
   return {url, filename};
 }
+/* Phase 5: "<original-name-without-extension>_<suffix>.<ext>" instead of a
+   generic static name, so a result keeps traceable to what the user
+   uploaded (document.pdf -> document_compressed.pdf) - matches every
+   other tool site's file object, which already carries the original
+   File. Falls back to "document" if the input has no usable name (e.g.
+   a merge/zip output with no single source file). */
+function suffixedName(file, suffix, ext){
+  const raw = (file && file.name) ? file.name : "document";
+  const base = raw.replace(/\.[^./\\]+$/, "") || "document";
+  return `${base}_${suffix}.${ext}`;
+}
 function fileInputHTML(accept, multiple, label){
   return `<div class="dropzone" id="dz">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
@@ -3442,10 +3453,11 @@ TOOLS.split = function(){
       const doc = await buildPdfFromPages(src, groups[0]);
       const b = await doc.save();
       const blob = new Blob([b], {type:"application/pdf"});
-      const {url} = downloadBlob(blob, "split.pdf");
+      const outName = suffixedName(file, "split", "pdf");
+      const {url} = downloadBlob(blob, outName);
       const {canvas} = await pdfThumb(b);
       setStatus("Done", true);
-      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"split.pdf", nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
+      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName, nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
     } else {
       await ensureJSZip();
       const zip = new JSZip();
@@ -3456,9 +3468,10 @@ TOOLS.split = function(){
         zip.file(`part_${i+1}.pdf`, b);
       }
       const zipBlob = await zip.generateAsync({type:"blob"});
-      const {url} = downloadBlob(zipBlob, "split_parts.zip");
+      const outName = suffixedName(file, "split_parts", "zip");
+      const {url} = downloadBlob(zipBlob, outName);
       setStatus("Done — "+groups.length+" files", true);
-      out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:"split_parts.zip", nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
+      out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:outName, nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
     }
   });
 };
@@ -3505,7 +3518,8 @@ TOOLS.compress = function(){
       return;
     }
     const blob = new Blob([finalBytes], {type:"application/pdf"});
-    const {url} = downloadBlob(blob, "compressed.pdf");
+    const outName = suffixedName(file, "compressed", "pdf");
+    const {url} = downloadBlob(blob, outName);
     const {canvas} = await pdfThumb(finalBytes);
     const savedPct = Math.round((1 - blob.size/bytes.byteLength) * 100);
     if(usedOriginal){
@@ -3515,7 +3529,7 @@ TOOLS.compress = function(){
     } else {
       setStatus(`Done — ${fmtSize(bytes.byteLength)} → ${fmtSize(blob.size)} (${savedPct}% smaller), text untouched`, true);
     }
-    out.appendChild(resultBox({sizeText:`${fmtSize(blob.size)}${usedOriginal?"":` (was ${fmtSize(bytes.byteLength)})`}`, sizeGood:!usedOriginal, previewNode:canvas, url, filename:"compressed.pdf", nextTool:{id:"edit", label:"Edit PDF", question:"Need to change the content before compressing?"}}));
+    out.appendChild(resultBox({sizeText:`${fmtSize(blob.size)}${usedOriginal?"":` (was ${fmtSize(bytes.byteLength)})`}`, sizeGood:!usedOriginal, previewNode:canvas, url, filename:outName, nextTool:{id:"edit", label:"Edit PDF", question:"Need to change the content before compressing?"}}));
   });
 };
 
@@ -3565,10 +3579,11 @@ TOOLS.rotate = function(){
     const newDoc = await buildPdfFromPages(src, pagesSpec);
     const outBytes=await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"rotated.pdf");
+    const outName = suffixedName(file, "rotated", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done",true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"rotated.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -3602,10 +3617,11 @@ TOOLS.deletepages = function(){
     pages.forEach(p=>newDoc.addPage(p));
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"pages_removed.pdf");
+    const outName = suffixedName(file, "pages_removed", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done — "+keep.length+" pages remaining", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"pages_removed.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -3639,10 +3655,11 @@ TOOLS.extractpages = function(){
     pages.forEach(p=>newDoc.addPage(p));
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"extracted.pdf");
+    const outName = suffixedName(file, "extracted", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"extracted.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -3675,10 +3692,11 @@ TOOLS.reorder = function(){
     pages.forEach(p=>newDoc.addPage(p));
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"reordered.pdf");
+    const outName = suffixedName(file, "reordered", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"reordered.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -3703,10 +3721,11 @@ TOOLS.addblank = function(){
     doc.insertPage(pos, [ref.width, ref.height]);
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"with_blank.pdf");
+    const outName = suffixedName(file, "with_blank", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"with_blank.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -3740,10 +3759,11 @@ TOOLS.pagenumbers = function(){
     });
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"numbered.pdf");
+    const outName = suffixedName(file, "numbered", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"numbered.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -3778,10 +3798,11 @@ TOOLS.watermark = function(){
     });
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"watermarked.pdf");
+    const outName = suffixedName(file, "watermarked", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"watermarked.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -3812,10 +3833,11 @@ TOOLS.headerfooter = function(){
     });
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"header_footer.pdf");
+    const outName = suffixedName(file, "header_footer", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"header_footer.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -3909,10 +3931,11 @@ TOOLS.crop = function(){
     });
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"cropped.pdf");
+    const outName = suffixedName(file, "cropped", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas:thumb}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:thumb, url, filename:"cropped.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:thumb, url, filename:outName}));
   });
 };
 
@@ -3956,10 +3979,11 @@ TOOLS.invertpdf = function(){
     }
     const outBytes = await outDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"inverted.pdf");
+    const outName = suffixedName(file, "inverted", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"inverted.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -3991,10 +4015,11 @@ TOOLS.organize = function(){
     const newDoc = await buildPdfFromPages(src, pagesSpec);
     const outBytes=await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"organized.pdf");
+    const outName = suffixedName(file, "organized", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"organized.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -4017,10 +4042,11 @@ TOOLS.flatten = function(){
     try{ const form = doc.getForm(); form.flatten(); }catch(e){}
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"flattened.pdf");
+    const outName = suffixedName(file, "flattened", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"flattened.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -4043,10 +4069,11 @@ TOOLS.repair = function(){
       const doc=await loadPdfSafe(bytes, {ignoreEncryption:true, throwOnInvalidObject:false});
       const outBytes=await doc.save({useObjectStreams:false});
       const blob=new Blob([outBytes],{type:"application/pdf"});
-      const {url}=downloadBlob(blob,"repaired.pdf");
+      const outName = suffixedName(file, "repaired", "pdf");
+      const {url}=downloadBlob(blob,outName);
       const {canvas}=await pdfThumb(outBytes);
       setStatus("Done", true);
-      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"repaired.pdf"}));
+      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
     }catch(e){
       setStatus("This file is too damaged to repair in-browser.", true);
     }
@@ -4083,13 +4110,15 @@ TOOLS.pdf2jpg = function(){
     }
     setStatus("Done", true);
     if(pdoc.numPages===1){
-      const {url}=downloadBlob(firstBlob,"page_1.jpg");
+      const outName = suffixedName(file, "page1", "jpg");
+      const {url}=downloadBlob(firstBlob,outName);
       const img=document.createElement("img"); img.src=url;
-      out.appendChild(resultBox({sizeText:fmtSize(firstBlob.size), sizeGood:true, previewNode:img, url, filename:"page_1.jpg"}));
+      out.appendChild(resultBox({sizeText:fmtSize(firstBlob.size), sizeGood:true, previewNode:img, url, filename:outName}));
     } else {
       const zipBlob = await zip.generateAsync({type:"blob"});
-      const {url}=downloadBlob(zipBlob,"pages.zip");
-      out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:"pages.zip"}));
+      const outName = suffixedName(file, "pages", "zip");
+      const {url}=downloadBlob(zipBlob,outName);
+      out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:outName}));
     }
   });
 };
@@ -4454,9 +4483,10 @@ TOOLS.pdf2word = function(){
     }
     setStatus("Building document...");
     const blob = await buildMixedDocx(blocks);
-    const {url}=downloadBlob(blob,"converted.docx");
+    const outName = suffixedName(file, "converted", "docx");
+    const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:"converted.docx"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
   });
 };
 
@@ -4519,10 +4549,11 @@ TOOLS.word2pdf = function(){
       return;
     }
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"converted.pdf");
+    const outName = suffixedName(file, "converted", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"converted.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -4570,9 +4601,10 @@ TOOLS.pdf2excel = function(){
     XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
     const wbout = XLSX.write(wb, {bookType:"xlsx", type:"array"});
     const blob = imagePlacements.length ? await embedImagesInXlsx(wbout, imagePlacements) : new Blob([wbout], {type:"application/octet-stream"});
-    const {url}=downloadBlob(blob,"converted.xlsx");
+    const outName = suffixedName(file, "converted", "xlsx");
+    const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:"converted.xlsx"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
   });
 };
 
@@ -4621,10 +4653,11 @@ TOOLS.excel2pdf = function(){
       return;
     }
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"converted.pdf");
+    const outName = suffixedName(file, "converted", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"converted.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -4650,9 +4683,10 @@ TOOLS.pdf2txt = function(){
       text += content.items.map(it=>it.str).join(" ") + "\n\n";
     }
     const blob = new Blob([text], {type:"text/plain"});
-    const {url}=downloadBlob(blob,"extracted.txt");
+    const outName = suffixedName(file, "extracted", "txt");
+    const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:"extracted.txt"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
   });
 };
 
@@ -4723,9 +4757,10 @@ TOOLS.metadata = function(){
     doc.setSubject(document.getElementById("msubject").value);
     const outBytes = await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"metadata_updated.pdf");
+    const outName = suffixedName(file, "metadata_updated", "pdf");
+    const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:"metadata_updated.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
   });
 };
 
@@ -4755,10 +4790,11 @@ TOOLS.pagesize = function(){
     doc.getPages().forEach(p=>p.setSize(w,h));
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"resized.pdf");
+    const outName = suffixedName(file, "resized", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"resized.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
@@ -4859,10 +4895,11 @@ TOOLS.sign = function(){
     page.drawImage(img, {x,y,width:sw,height:sh});
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"signed.pdf");
+    const outName = suffixedName(file, "signed", "pdf");
+    const {url}=downloadBlob(blob,outName);
     const {canvas:thumb}=await pdfThumb(outBytes, pn+1);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:thumb, url, filename:"signed.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:thumb, url, filename:outName}));
   });
 };
 
@@ -4911,9 +4948,10 @@ TOOLS.fillform = function(){
     if(document.getElementById("flat").checked) form.flatten();
     const outBytes = await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"filled.pdf");
+    const outName = suffixedName(file, "filled", "pdf");
+    const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:"filled.pdf"}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
   });
 };
 
@@ -4944,9 +4982,10 @@ TOOLS.extractimages = function(){
       zip.file(`page_${i}.png`, blob);
     }
     const zipBlob = await zip.generateAsync({type:"blob"});
-    const {url}=downloadBlob(zipBlob,"images.zip");
+    const outName = suffixedName(file, "images", "zip");
+    const {url}=downloadBlob(zipBlob,outName);
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:"images.zip"}));
+    out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:outName}));
   });
 };
 
@@ -4992,11 +5031,12 @@ TOOLS.imgcompress = function(){
     }
     let usedOriginal=false;
     if(best.size >= file.size){ best = file; usedOriginal = true; }
-    const {url}=downloadBlob(best,"compressed.jpg");
+    const outName = suffixedName(file, "compressed", "jpg");
+    const {url}=downloadBlob(best,outName);
     const im=document.createElement("img"); im.src=url;
     const reached = best.size<=targetBytes;
     setStatus(usedOriginal ? `This image is already efficiently encoded — we kept the original (${fmtSize(best.size)}).` : (reached?"Target reached":`Best possible result: ${fmtSize(best.size)}`), true);
-    out.appendChild(resultBox({sizeText:`${fmtSize(best.size)} (target ${targetKb} KB)`, sizeGood:reached, previewNode:im, url, filename:"compressed.jpg"}));
+    out.appendChild(resultBox({sizeText:`${fmtSize(best.size)} (target ${targetKb} KB)`, sizeGood:reached, previewNode:im, url, filename:outName}));
   });
 };
 
@@ -5027,10 +5067,11 @@ TOOLS.imgresize = function(){
     const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
     canvas.getContext("2d").drawImage(imgRef,0,0,w,h);
     const blob = await new Promise(res=>canvas.toBlob(res, file.type.includes("png")?"image/png":"image/jpeg", 0.92));
-    const {url}=downloadBlob(blob,"resized."+(file.type.includes("png")?"png":"jpg"));
+    const outName = suffixedName(file, "resized", file.type.includes("png")?"png":"jpg");
+    const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:"resized."+(file.type.includes("png")?"png":"jpg")}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
   });
 };
 
@@ -5111,10 +5152,11 @@ TOOLS.imgcrop = function(){
     const canvas=document.createElement("canvas"); canvas.width=cw; canvas.height=ch;
     canvas.getContext("2d").drawImage(imgRef, cx,cy,cw,ch, 0,0,cw,ch);
     const blob = await new Promise(res=>canvas.toBlob(res, file.type.includes("png")?"image/png":"image/jpeg", 0.92));
-    const {url}=downloadBlob(blob,"cropped."+(file.type.includes("png")?"png":"jpg"));
+    const outName = suffixedName(file, "cropped", file.type.includes("png")?"png":"jpg");
+    const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:"cropped."+(file.type.includes("png")?"png":"jpg")}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
   });
 };
 
@@ -5139,10 +5181,11 @@ TOOLS.imgconvert = function(){
     const fmt = document.getElementById("fmt").value;
     const ext = fmt.split("/")[1];
     const blob = await new Promise(res=>canvas.toBlob(res, fmt, 0.92));
-    const {url}=downloadBlob(blob,"converted."+ext);
+    const outName = suffixedName(file, "converted", ext);
+    const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:"converted."+ext}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
   });
 };
 
@@ -5178,10 +5221,11 @@ TOOLS.imgwatermark = function(){
     ctx.strokeText(text,0,0); ctx.fillText(text,0,0);
     ctx.restore();
     const blob = await new Promise(res=>canvas.toBlob(res, file.type.includes("png")?"image/png":"image/jpeg", 0.92));
-    const {url}=downloadBlob(blob,"watermarked."+(file.type.includes("png")?"png":"jpg"));
+    const outName = suffixedName(file, "watermarked", file.type.includes("png")?"png":"jpg");
+    const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:"watermarked."+(file.type.includes("png")?"png":"jpg")}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
   });
 };
 
@@ -5204,10 +5248,11 @@ TOOLS.imginvert = function(){
     for(let px=0; px<d.length; px+=4){ d[px]=255-d[px]; d[px+1]=255-d[px+1]; d[px+2]=255-d[px+2]; }
     ctx.putImageData(imgData,0,0);
     const blob = await new Promise(res=>canvas.toBlob(res, file.type.includes("png")?"image/png":"image/jpeg", 0.92));
-    const {url}=downloadBlob(blob,"inverted."+(file.type.includes("png")?"png":"jpg"));
+    const outName = suffixedName(file, "inverted", file.type.includes("png")?"png":"jpg");
+    const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:"inverted."+(file.type.includes("png")?"png":"jpg")}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
   });
 };
 
