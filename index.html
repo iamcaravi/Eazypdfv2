@@ -421,6 +421,12 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .page-thumb canvas.rot-90{ transform:rotate(90deg); }
 .page-thumb canvas.rot-180{ transform:rotate(180deg); }
 .page-thumb canvas.rot-270{ transform:rotate(270deg); }
+.page-thumb-placeholder{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+.page-thumb-spinner{
+  width:26px; height:26px; border:3px solid var(--line); border-top-color:var(--red);
+  border-radius:50%; animation:pageThumbSpin .8s linear infinite;
+}
+@keyframes pageThumbSpin{ to{ transform:rotate(360deg); } }
 .page-card:hover .page-thumb{ border-color:var(--red); }
 .page-card.drag-over .page-thumb{ border-color:var(--red); box-shadow:0 0 0 3px rgba(232,41,27,0.18); }
 .page-card.selected .page-thumb{ border-color:var(--red); box-shadow:0 0 0 3px rgba(232,41,27,0.18); }
@@ -2865,7 +2871,8 @@ async function buildPageGrid(container, bytes, {mode="reorder", removable=false,
     if(cur) cv.classList.add("rot-"+cur);
   }
 
-  function duplicateCard(card){
+  async function duplicateCard(card){
+    await renderCardCanvas(card); // ensure the source has a real canvas before copying its pixels
     const clone = card.cloneNode(true);
     const srcCanvas = card.querySelector("canvas");
     const dstCanvas = clone.querySelector("canvas");
@@ -2927,17 +2934,44 @@ async function buildPageGrid(container, bytes, {mode="reorder", removable=false,
     if(rm) rm.onclick = e=>{ e.stopPropagation(); card.classList.add("removing"); setTimeout(()=>card.remove(),160); };
   }
 
+  /* Phase 7: renders (or re-renders, after a timeout) exactly one card's
+     canvas on demand, instead of the old for-loop awaiting every page's
+     render up front - that blocked the whole grid behind however many
+     pages the PDF had, even the ones scrolled far out of view. Idempotent
+     via dataset.rendered, since duplicateCard() and the IntersectionObserver
+     below can both ask for the same card. */
+  async function renderCardCanvas(card){
+    if(card.dataset.rendered === "true") return;
+    card.dataset.rendered = "true";
+    const pageNum = parseInt(card.dataset.page) + 1;
+    const thumb = card.querySelector(".page-thumb");
+    const placeholder = thumb && thumb.querySelector(".page-thumb-placeholder");
+    try{
+      const canvas = await renderPdfPageCanvas(pdoc, pageNum, scale);
+      const rot = card.dataset.rotation;
+      if(rot && rot !== "0") canvas.classList.add("rot-"+rot);
+      if(placeholder) placeholder.replaceWith(canvas);
+      else if(thumb) thumb.insertBefore(canvas, thumb.firstChild);
+    }catch(e){
+      card.dataset.rendered = "false"; // let a later intersection retry
+      if(placeholder) placeholder.textContent = "⚠";
+    }
+  }
+
   for(let i=1;i<=numPages;i++){
-    const canvas = await renderPdfPageCanvas(pdoc, i, scale);
     const card = document.createElement("div");
     card.className = "page-card" + (mode==="select" ? " page-card-select" : "");
     card.dataset.page = i-1;
     card.dataset.rotation = "0";
+    card.dataset.rendered = "false";
     card.draggable = mode === "reorder";
 
     const thumb = document.createElement("div");
     thumb.className = "page-thumb";
-    thumb.appendChild(canvas);
+    const placeholder = document.createElement("div");
+    placeholder.className = "page-thumb-placeholder";
+    placeholder.innerHTML = '<span class="page-thumb-spinner" aria-hidden="true"></span>';
+    thumb.appendChild(placeholder);
     if(rotatable || duplicable){
       const actions = document.createElement("div");
       actions.className = "page-thumb-actions";
@@ -2979,6 +3013,19 @@ async function buildPageGrid(container, bytes, {mode="reorder", removable=false,
     cardsWrap.appendChild(card);
   }
   if(mode==="reorder") wirePageGridDrag(cardsWrap);
+
+  // Phase 7: only render a card's canvas once it's actually scrolled near
+  // view, instead of every page up front - see renderCardCanvas() above.
+  // rootMargin is generous (a couple of screens) so scrolling still feels
+  // instant, not so large that a 300-page grid renders itself anyway.
+  const renderObserver = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if(!entry.isIntersecting) return;
+      renderCardCanvas(entry.target);
+      renderObserver.unobserve(entry.target);
+    });
+  }, {root:null, rootMargin:"600px 0px 600px 0px", threshold:0});
+  cardsWrap.querySelectorAll(".page-card").forEach(c=>renderObserver.observe(c));
 
   if(zoomable){
     toolbar.querySelectorAll(".zoom-btn").forEach(btn=>{
