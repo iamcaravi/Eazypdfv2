@@ -152,6 +152,47 @@
     }
   }
 
+  /** Freehand strokes have no native pdf-lib primitive — drawn as a chain
+   *  of straight segments between consecutive recorded points, same
+   *  approach the on-screen SVG polyline preview uses. Points are stored
+   *  (editor-objects.js) as 0-100 percentages of the object's own box, not
+   *  the page, so each point is converted through that box first. */
+  function drawDrawObject(page, obj, rgb) {
+    const d = obj.data || {};
+    const pts = d.points || [];
+    if (pts.length < 2) return;
+    const [pw, ph] = pageSize(page);
+    const boxX = (obj.xPct / 100) * pw;
+    const boxW = (obj.wPct / 100) * pw;
+    const boxH = (obj.hPct / 100) * ph;
+    const boxYTop = (obj.yPct / 100) * ph;
+    const stroke = hexToRgb01(d.stroke);
+    const strokeWidth = d.strokeWidth != null ? d.strokeWidth : 2;
+    function toAbs(p) {
+      const x = boxX + (p.x / 100) * boxW;
+      const yTop = boxYTop + (p.y / 100) * boxH;
+      return { x, y: ph - yTop };
+    }
+    for (let i = 1; i < pts.length; i++) {
+      const a = toAbs(pts[i - 1]), b = toAbs(pts[i]);
+      page.drawLine({ start: a, end: b, thickness: strokeWidth, color: rgb(stroke.r, stroke.g, stroke.b) });
+    }
+  }
+
+  function drawHighlightObject(page, obj, rgb) {
+    const d = obj.data || {};
+    const { x, y, w, h } = toPdfBox(obj, ...pageSize(page));
+    const fill = hexToRgb01(d.fill || '#ffeb3b');
+    page.drawRectangle({ x, y, width: w, height: h, color: rgb(fill.r, fill.g, fill.b), opacity: d.opacity != null ? d.opacity : 0.4 });
+  }
+
+  function drawWhiteoutObject(page, obj, rgb) {
+    const d = obj.data || {};
+    const { x, y, w, h } = toPdfBox(obj, ...pageSize(page));
+    const fill = hexToRgb01(d.color || '#ffffff');
+    page.drawRectangle({ x, y, width: w, height: h, color: rgb(fill.r, fill.g, fill.b) });
+  }
+
   function pageSize(page) {
     const { width, height } = page.getSize();
     return [width, height];
@@ -184,6 +225,9 @@
         if (obj.type === 'text') await drawTextObject(page, obj, pdfDoc, fontCache, rgb);
         else if (obj.type === 'image') await drawImageObject(page, obj, pdfDoc);
         else if (obj.type === 'rectangle' || obj.type === 'ellipse' || obj.type === 'line') drawShapeObject(page, obj, rgb);
+        else if (obj.type === 'draw') drawDrawObject(page, obj, rgb);
+        else if (obj.type === 'highlight') drawHighlightObject(page, obj, rgb);
+        else if (obj.type === 'whiteout') drawWhiteoutObject(page, obj, rgb);
       } catch (err) {
         console.error(`EditorExport: failed to draw object ${obj.id} (${obj.type}):`, err);
         // Skip this one object rather than aborting the whole export —

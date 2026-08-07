@@ -54,6 +54,8 @@
   let pendingPlacement = null; // { type, data, wPct, hPct }
   const elById = new Map(); // id -> DOM element
   const pageInfoCache = new Map(); // pageNumber -> {width,height} in PDF points, for image aspect-lock math
+  let drawState = null; // in-progress freehand stroke: { rect, page, points, data }
+  let suppressNextClick = false; // swallows the synthetic click that follows a finished drag-to-draw stroke
 
   function init(rootEl) {
     root = rootEl;
@@ -61,12 +63,15 @@
     objects = [];
     nextId = 1;
     pendingPlacement = null;
+    drawState = null;
+    suppressNextClick = false;
     elById.clear();
     pageInfoCache.clear();
 
     const canvasEl = root.querySelector('.editor-canvas');
 
     canvasEl.addEventListener('click', onCanvasClick);
+    canvasEl.addEventListener('mousedown', onCanvasMouseDown);
 
     window.addEventListener('keydown', onKeyDown);
 
@@ -83,16 +88,64 @@
   }
 
   function onCanvasClick(e) {
+    if (suppressNextClick) { suppressNextClick = false; return; }
     // Clicks on an existing object are handled (and stopPropagation'd) by
     // that object's own mousedown handler below — this only ever sees
     // clicks on empty page area or, mid-placement, the page itself.
     const wrap = e.target.closest('.editor-canvas-page');
     if (pendingPlacement) {
       if (!wrap) return;
+      if (pendingPlacement.type === 'draw') return; // draw placement is drag-driven, see onCanvasMouseDown
       placeAt(wrap, e.clientX, e.clientY);
       return;
     }
     if (!e.target.closest('.editor-object')) deselectAll();
+  }
+
+  /** Freehand draw ('draw' type) doesn't fit the click-to-place model every
+   *  other type uses — it's a drag gesture that records a path. Only armed
+   *  while pendingPlacement.type === 'draw'; every other placement/select/
+   *  drag interaction still goes through onCanvasClick / startDrag. */
+  function onCanvasMouseDown(e) {
+    if (!pendingPlacement || pendingPlacement.type !== 'draw') return;
+    const wrap = e.target.closest('.editor-canvas-page');
+    if (!wrap) return;
+    e.preventDefault();
+    const rect = wrap.getBoundingClientRect();
+    const page = Number(wrap.dataset.page);
+    const data = pendingPlacement.data;
+    drawState = { rect, page, data, points: [{ x: e.clientX - rect.left, y: e.clientY - rect.top }] };
+    pendingPlacement = null;
+
+    function onMove(ev) {
+      drawState.points.push({ x: ev.clientX - rect.left, y: ev.clientY - rect.top });
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      finishDraw();
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function finishDraw() {
+    const { rect, page, points, data } = drawState;
+    drawState = null;
+    setCrosshair(false);
+    if (points.length < 2) return; // a plain click with no drag — nothing to create
+    const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const pad = 4; // px, so the stroke isn't clipped flush against the box edge
+    const boxX = Math.max(0, minX - pad), boxY = Math.max(0, minY - pad);
+    const boxW = Math.max(1, maxX - minX + pad * 2), boxH = Math.max(1, maxY - minY + pad * 2);
+    const normPoints = points.map((p) => ({ x: ((p.x - boxX) / boxW) * 100, y: ((p.y - boxY) / boxH) * 100 }));
+    const xPct = clamp((boxX / rect.width) * 100, 0, 100);
+    const yPct = clamp((boxY / rect.height) * 100, 0, 100);
+    const wPct = (boxW / rect.width) * 100;
+    const hPct = (boxH / rect.height) * 100;
+    addObject({ type: 'draw', page, xPct, yPct, wPct, hPct, data: Object.assign({ points: normPoints }, data) });
+    suppressNextClick = true;
   }
 
   function onKeyDown(e) {
@@ -131,6 +184,8 @@
 
   function defaultBoxFor(type) {
     if (type === 'text') return { wPct: 22, hPct: 6 };
+    if (type === 'highlight') return { wPct: 30, hPct: 6 };
+    if (type === 'whiteout') return { wPct: 30, hPct: 10 };
     return { wPct: 25, hPct: 15 }; // image (usually overridden by caller), rectangle/ellipse/line
   }
 
@@ -306,6 +361,24 @@
       content.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%">
         <line x1="0" y1="0" x2="100" y2="100" stroke="${d.stroke || '#000000'}" stroke-width="${d.strokeWidth != null ? d.strokeWidth : 2}" vector-effect="non-scaling-stroke" />
       </svg>`;
+    } else if (obj.type === 'draw') {
+      const pts = (d.points || []).map((p) => `${p.x},${p.y}`).join(' ');
+      content.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%">
+        <polyline points="${pts}" fill="none" stroke="${d.stroke || '#000000'}" stroke-width="${d.strokeWidth != null ? d.strokeWidth : 2}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+      </svg>`;
+    } else if (obj.type === 'highlight') {
+      content.innerHTML = '';
+      const box = document.createElement('div');
+      box.className = 'eo-highlight-box';
+      box.style.background = d.fill || '#ffeb3b';
+      box.style.opacity = d.opacity != null ? d.opacity : 0.4;
+      content.appendChild(box);
+    } else if (obj.type === 'whiteout') {
+      content.innerHTML = '';
+      const box = document.createElement('div');
+      box.className = 'eo-whiteout-box';
+      box.style.background = d.color || '#ffffff';
+      content.appendChild(box);
     }
   }
 

@@ -197,7 +197,9 @@
     ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
     line: '<path d="M5 19L19 5" stroke-linecap="round"/>',
     draw: '<path d="M4 20l4-1 11-11-3-3L5 16z"/>',
-    sign: '<path d="M4 18c3-6 5 4 8-2s5 4 8-2" stroke-linecap="round"/>'
+    sign: '<path d="M4 18c3-6 5 4 8-2s5 4 8-2" stroke-linecap="round"/>',
+    highlight: '<path d="M4 20h16" stroke-linecap="round"/><path d="M6 16l9-9 3 3-9 9H6z" stroke-linejoin="round"/>',
+    whiteout: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 8h8v8H8z" fill="currentColor" stroke="none"/>'
   };
 
   const GROUPS = [
@@ -226,8 +228,10 @@
       { icon: 'rectangle', title: 'Rectangle', action: 'rectangle-tool' },
       { icon: 'ellipse', title: 'Ellipse', action: 'ellipse-tool' },
       { icon: 'line', title: 'Line', action: 'line-tool' },
-      { icon: 'draw', title: 'Draw (coming soon)', reserved: true },
-      { icon: 'sign', title: 'Sign (coming soon)', reserved: true }
+      { icon: 'draw', title: 'Draw', action: 'draw-tool' },
+      { icon: 'highlight', title: 'Highlight', action: 'highlight-tool' },
+      { icon: 'whiteout', title: 'Whiteout', action: 'whiteout-tool' },
+      { icon: 'sign', title: 'Sign', action: 'sign-tool' }
     ]}
   ];
 
@@ -285,6 +289,28 @@
 
     function clampBoxPct(v) { return Math.min(90, Math.max(5, v)); }
 
+    /** Shared by handlePickedImage() and openSignaturePad(): the page's own
+     *  aspect ratio has to be factored in because wPct/hPct are percentages
+     *  of the page's width/height respectively (not equal to each other in
+     *  pixels), the same math startResize()'s image branch already applies
+     *  on resize — this just establishes a correct starting box instead of
+     *  a coincidentally-correct one. Falls back to the uncorrected default
+     *  wPct/defaultHPct if no page info is available yet. */
+    async function aspectCorrectedBox(naturalWidth, naturalHeight, wPct, defaultHPct) {
+      let hPct = defaultHPct;
+      if (naturalWidth && naturalHeight && pageState.total > 0 && window.RenderEngine) {
+        try {
+          const info = await window.RenderEngine.getPageInfo(pageState.current);
+          if (info && info.width && info.height) {
+            const pageAspect = info.width / info.height;
+            const imageAspect = naturalWidth / naturalHeight;
+            hPct = clampBoxPct(wPct * pageAspect / imageAspect);
+          }
+        } catch (_) { /* fall back to defaultHPct — see doc comment above */ }
+      }
+      return { wPct, hPct };
+    }
+
     async function handlePickedImage(file) {
       // Superseding an image that was picked but never placed — revoke its
       // URL now rather than leaving it orphaned indefinitely.
@@ -302,34 +328,109 @@
       pendingImageUrl = url;
       const naturalWidth = img.naturalWidth || img.width;
       const naturalHeight = img.naturalHeight || img.height;
-
-      // Aspect-correct default box size: the page's own aspect ratio has to
-      // be factored in because wPct/hPct are percentages of the page's
-      // width/height respectively (not equal to each other in pixels), the
-      // same math startResize()'s image branch already applies on resize —
-      // this just establishes a correct starting box instead of a
-      // coincidentally-correct one.
-      let wPct = 30, hPct = 20;
-      if (naturalWidth && naturalHeight && pageState.total > 0 && window.RenderEngine) {
-        try {
-          const info = await window.RenderEngine.getPageInfo(pageState.current);
-          if (info && info.width && info.height) {
-            const pageAspect = info.width / info.height;
-            const imageAspect = naturalWidth / naturalHeight;
-            hPct = clampBoxPct(wPct * pageAspect / imageAspect);
-          }
-        } catch (_) {
-          // No page info available — fall back to the uncorrected default
-          // above; renderImageContent()'s own onload handler still backfills
-          // naturalWidth/naturalHeight if they were ever missing, and the
-          // user can freely resize afterward regardless.
-        }
-      }
+      const { wPct, hPct } = await aspectCorrectedBox(naturalWidth, naturalHeight, 30, 20);
 
       if (!window.EditorObjects) { revokePendingImageUrl(); return; }
       window.EditorObjects.beginPlacement('image', {
         data: { src: url, naturalWidth, naturalHeight, keepAspectRatio: true },
         wPct, hPct
+      });
+    }
+
+    /** Trims a canvas down to the bounding box of its non-transparent
+     *  pixels (a small alpha-threshold pixel scan) so a signature drawn in
+     *  one corner of the pad doesn't get placed as a mostly-empty box. */
+    function trimTransparentCanvas(canvas) {
+      const ctx = canvas.getContext('2d');
+      const { width, height } = canvas;
+      const data = ctx.getImageData(0, 0, width, height).data;
+      let minX = width, minY = height, maxX = -1, maxY = -1;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (data[(y * width + x) * 4 + 3] > 10) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX < 0) return canvas; // nothing drawn
+      const pad = 6;
+      minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+      maxX = Math.min(width - 1, maxX + pad); maxY = Math.min(height - 1, maxY + pad);
+      const w = maxX - minX + 1, h = maxY - minY + 1;
+      const out = document.createElement('canvas');
+      out.width = w; out.height = h;
+      out.getContext('2d').drawImage(canvas, minX, minY, w, h, 0, 0, w, h);
+      return out;
+    }
+
+    /** Sign tool: a lightweight self-contained pad (own overlay, own
+     *  markup) rather than reusing index.html's modal system — this file
+     *  stays standalone-testable in editor-preview.html the same way
+     *  every other editor-*.js module already is (see e.g. render-
+     *  engine.js's own file header on that same constraint). On "Use
+     *  Signature", the drawn ink is trimmed, exported as a transparent
+     *  PNG, and armed via beginPlacement('image', ...) — reusing the
+     *  entire existing image object type/rendering/export pipeline
+     *  rather than inventing a `signature` object type with its own. */
+    function openSignaturePad() {
+      const overlay = document.createElement('div');
+      overlay.className = 'editor-sign-overlay';
+      overlay.innerHTML = `
+        <div class="editor-sign-modal">
+          <div class="editor-sign-modal-head">
+            <span>Draw your signature</span>
+            <button type="button" class="editor-sign-close" aria-label="Cancel">✕</button>
+          </div>
+          <canvas class="editor-sign-canvas" width="480" height="180"></canvas>
+          <div class="editor-sign-modal-actions">
+            <button type="button" class="editor-sign-clear">Clear</button>
+            <button type="button" class="editor-sign-done">Use Signature</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      const canvas = overlay.querySelector('.editor-sign-canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1a1a2e';
+      let drawing = false, hasInk = false;
+
+      function pointFromEvent(e) {
+        const r = canvas.getBoundingClientRect();
+        const t = e.touches && e.touches[0];
+        const cx = (t ? t.clientX : e.clientX) - r.left;
+        const cy = (t ? t.clientY : e.clientY) - r.top;
+        return { x: cx * (canvas.width / r.width), y: cy * (canvas.height / r.height) };
+      }
+      function start(e) { e.preventDefault(); drawing = true; const p = pointFromEvent(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }
+      function move(e) { if (!drawing) return; e.preventDefault(); const p = pointFromEvent(e); ctx.lineTo(p.x, p.y); ctx.stroke(); hasInk = true; }
+      function end() { drawing = false; }
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+      canvas.addEventListener('touchstart', start, { passive: false });
+      canvas.addEventListener('touchmove', move, { passive: false });
+      canvas.addEventListener('touchend', end);
+
+      function close() {
+        window.removeEventListener('mouseup', end);
+        overlay.remove();
+      }
+      overlay.querySelector('.editor-sign-close').addEventListener('click', close);
+      overlay.querySelector('.editor-sign-clear').addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); hasInk = false; });
+      overlay.querySelector('.editor-sign-done').addEventListener('click', async () => {
+        if (!hasInk) { close(); return; }
+        const trimmed = trimTransparentCanvas(canvas);
+        const blob = await new Promise((resolve) => trimmed.toBlob(resolve, 'image/png'));
+        close();
+        if (!blob || !window.EditorObjects) return;
+        const url = URL.createObjectURL(blob);
+        pendingImageUrl = url; // same leak-prevention lifecycle as a picked image file
+        const { wPct, hPct } = await aspectCorrectedBox(trimmed.width, trimmed.height, 30, 12);
+        window.EditorObjects.beginPlacement('image', {
+          data: { src: url, naturalWidth: trimmed.width, naturalHeight: trimmed.height, keepAspectRatio: true },
+          wPct, hPct
+        });
       });
     }
 
@@ -513,6 +614,19 @@
         revokePendingImageUrl();
         window.EditorObjects.beginPlacement('line', { data: { fill: '#ffffff', stroke: '#000000', strokeWidth: 2, radius: 0 } });
       }
+      if (action === 'draw-tool' && window.EditorObjects) {
+        revokePendingImageUrl();
+        window.EditorObjects.beginPlacement('draw', { data: { stroke: '#e8291b', strokeWidth: 2 } });
+      }
+      if (action === 'highlight-tool' && window.EditorObjects) {
+        revokePendingImageUrl();
+        window.EditorObjects.beginPlacement('highlight', { data: { fill: '#ffeb3b', opacity: 0.4 } });
+      }
+      if (action === 'whiteout-tool' && window.EditorObjects) {
+        revokePendingImageUrl();
+        window.EditorObjects.beginPlacement('whiteout', { data: { color: '#ffffff' } });
+      }
+      if (action === 'sign-tool') { revokePendingImageUrl(); openSignaturePad(); }
       if (action === 'undo' && window.EditorHistory) window.EditorHistory.undo();
       if (action === 'redo' && window.EditorHistory) window.EditorHistory.redo();
       if (action === 'export' && window.EditorExport) window.EditorExport.exportCurrentDocument();
