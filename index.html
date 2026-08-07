@@ -1437,19 +1437,28 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 const { PDFDocument, degrees, rgb, StandardFonts, ParseSpeeds } = PDFLib;
-/* pdf-lib's PDFDocument.load() defaults to parseSpeed: ParseSpeeds.Slow -
-   a deliberately conservative setting that yields control very frequently
-   while parsing, intended to keep the main thread responsive on large
-   documents. For PDFs with many objects packed into compressed object
-   streams (a standard PDF 1.5+ feature many modern generators use - Word/
-   LibreOffice export, Ghostscript, LaTeX, etc.) this default makes loading
-   dramatically slower - measured up to 38x slower (8.4s vs 219ms on the
-   same real 3.5MB/1570-object file) than parseSpeed: ParseSpeeds.Fastest,
-   which produces the identical parsed object graph, just without yielding
-   as often. Every PDFDocument.load() call in this app should go through
-   this helper instead of calling it directly, so the whole app gets the
-   fix (and a bounded timeout instead of an unbounded hang for whatever
-   pathological case might remain) in one place. */
+/**
+ * The one entry point for PDFDocument.load() in this app - every call
+ * site should go through this helper instead of calling pdf-lib
+ * directly, so the whole app gets both fixes below in one place.
+ *
+ * pdf-lib's PDFDocument.load() defaults to parseSpeed: ParseSpeeds.Slow -
+ * a deliberately conservative setting that yields control very frequently
+ * while parsing, intended to keep the main thread responsive on large
+ * documents. For PDFs with many objects packed into compressed object
+ * streams (a standard PDF 1.5+ feature many modern generators use - Word/
+ * LibreOffice export, Ghostscript, LaTeX, etc.) this default makes loading
+ * dramatically slower - measured up to 38x slower (8.4s vs 219ms on the
+ * same real 3.5MB/1570-object file) than parseSpeed: ParseSpeeds.Fastest,
+ * which produces the identical parsed object graph, just without yielding
+ * as often.
+ * @param {ArrayBuffer|Uint8Array} bytes - raw PDF bytes.
+ * @param {object} [extraOpts] - extra pdf-lib load options, merged over
+ *   the parseSpeed default (a caller can still override it if needed).
+ * @param {number} [timeoutMs=20000] - abort with a rejection instead of
+ *   hanging forever on some pathological input.
+ * @returns {Promise<import("pdf-lib").PDFDocument>}
+ */
 async function loadPdfSafe(bytes, extraOpts={}, timeoutMs=20000){
   return Promise.race([
     PDFDocument.load(bytes, {parseSpeed: ParseSpeeds.Fastest, ...extraOpts}),
@@ -2376,15 +2385,20 @@ document.addEventListener("click", e=>{
 });
 
 /* ---------------- Helpers ---------------- */
-/* pdf-lib's StandardFonts (Helvetica etc.) use WinAnsi encoding, which
-   can't represent many Unicode characters - currency symbols like ₹,
-   smart quotes, em dashes, emoji, non-Latin scripts. Calling
-   page.drawText() with such a character throws, and since that call
-   sits deep inside an async click handler, the error was previously
-   uncaught: the tool just froze on its last status message forever
-   with no explanation (found via real user-submitted documents
-   containing ₹). Replacing the common cases and stripping anything
-   else outside Latin-1 lets the conversion degrade instead of crash. */
+/**
+ * Sanitizes text before any page.drawText() call with a pdf-lib
+ * StandardFont. Those fonts (Helvetica etc.) use WinAnsi encoding, which
+ * can't represent many Unicode characters - currency symbols like ₹,
+ * smart quotes, em dashes, emoji, non-Latin scripts. Calling
+ * page.drawText() with such a character throws, and since that call
+ * sits deep inside an async click handler, the error was previously
+ * uncaught: the tool just froze on its last status message forever with
+ * no explanation (found via real user-submitted documents containing
+ * ₹). Replacing the common cases and stripping anything else outside
+ * Latin-1 lets the conversion degrade instead of crash.
+ * @param {string} s - text about to be drawn with a StandardFont.
+ * @returns {string} WinAnsi-safe text.
+ */
 function winAnsiSafe(s){
   return String(s)
     .replace(/₹/g, "Rs.")
@@ -2474,20 +2488,44 @@ function fmtSize(bytes){
   if(bytes < 1024*1024) return (bytes/1024).toFixed(1)+" KB";
   return (bytes/1024/1024).toFixed(2)+" MB";
 }
+/**
+ * Wraps a result Blob as an object URL ready for a `<a download>` link.
+ * @param {Blob} blob - the file bytes to offer for download.
+ * @param {string} filename - suggested download filename.
+ * @returns {{url: string, filename: string}}
+ */
 function downloadBlob(blob, filename){
   const url = URL.createObjectURL(blob);
   return {url, filename};
 }
-/* Phase 5: "<original-name-without-extension>_<suffix>.<ext>" instead of a
-   generic static name, so a result keeps traceable to what the user
-   uploaded (document.pdf -> document_compressed.pdf) - matches every
-   other tool site's file object, which already carries the original
-   File. Falls back to "document" if the input has no usable name (e.g.
-   a merge/zip output with no single source file). */
+/**
+ * Builds "<original-name-without-extension>_<suffix>.<ext>" instead of a
+ * generic static name, so a result stays traceable to what the user
+ * uploaded (document.pdf -> document_compressed.pdf). Falls back to
+ * "document" if the input has no usable name (e.g. a merge/zip output
+ * with no single source file).
+ * @param {File|null} file - the original uploaded file, if any.
+ * @param {string} suffix - tool-specific suffix, e.g. "compressed".
+ * @param {string} ext - output extension, without the leading dot.
+ * @returns {string}
+ */
 function suffixedName(file, suffix, ext){
   const raw = (file && file.name) ? file.name : "document";
   const base = raw.replace(/\.[^./\\]+$/, "") || "document";
   return `${base}_${suffix}.${ext}`;
+}
+/**
+ * Resolves the output raster format for an image tool from its input
+ * File's MIME type: PNG stays PNG (to preserve transparency), everything
+ * else becomes JPEG. Shared by every image tool that re-encodes via
+ * canvas.toBlob() (Resize/Crop/Watermark/Invert), which previously each
+ * duplicated this same two-branch ternary independently.
+ * @param {File} file - the original uploaded image file.
+ * @returns {{mime: "image/png"|"image/jpeg", ext: "png"|"jpg"}}
+ */
+function imgOutputFormat(file){
+  const isPng = file.type.includes("png");
+  return {mime: isPng ? "image/png" : "image/jpeg", ext: isPng ? "png" : "jpg"};
 }
 function fileInputHTML(accept, multiple, label){
   return `<div class="dropzone" id="dz">
@@ -2530,6 +2568,13 @@ async function autoQuickPreview(fs){
     }
   }catch(e){ /* preview is best-effort; ignore failures */ }
 }
+/**
+ * Wires the current panel's dropzone/file-input pair (the "#dz"/"#fi"
+ * elements fileInputHTML() renders) to a single callback, covering both
+ * click-to-browse and drag-and-drop, plus the shared quick-preview strip.
+ * @param {(files: File[]) => void} onFiles - called with the picked/
+ *   dropped files, once per pick/drop.
+ */
 function wireDropzone(onFiles){
   const dz = document.getElementById("dz");
   const fi = document.getElementById("fi");
@@ -2540,11 +2585,17 @@ function wireDropzone(onFiles){
   ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault(); dz.classList.remove("drag");}));
   dz.addEventListener("drop", e=>{ handle([...e.dataTransfer.files]); });
 }
-/* Renders the selected-files list as real thumbnail cards (actual PDF page
-   1, or the image itself) instead of a plain filename row — matches
-   iLovePDF's file-card look. Placeholder cards render instantly; real
-   thumbnails fill in progressively (sequential, not concurrent, since
-   rendering many PDFs' first pages at once can starve pdf.js's worker). */
+/**
+ * Renders the selected-files list as real thumbnail cards (actual PDF
+ * page 1 + page count, or the image itself) instead of a plain filename
+ * row — matches iLovePDF's file-card look. Placeholder cards render
+ * instantly; real thumbnails fill in progressively (sequential, not
+ * concurrent, since rendering many PDFs' first pages at once can starve
+ * pdf.js's worker).
+ * @param {File[]} files - files to render as cards.
+ * @param {(index: number) => void} onRemove - called with a file's index
+ *   when its card's remove button is clicked.
+ */
 function renderFileList(files, onRemove){
   const flist = document.getElementById("flist");
   flist.classList.add("file-grid");
@@ -2672,16 +2723,25 @@ function drawCropHandles(ctx, r){
   });
   ctx.restore();
 }
-/* pdf.js's page.render() has been observed to hang indefinitely (never
-   resolving or rejecting) rather than erroring out, in some environments.
-   Every result screen across ~25 tools awaits this for its preview
-   thumbnail before showing the download link, so a hang here means the
-   whole tool looks permanently stuck at "Building..." with no way to
-   download a file that was actually already produced successfully.
-   A timeout with a null-canvas fallback means a slow/failed thumbnail
-   degrades to "no preview" instead of blocking the download forever -
-   every caller already handles a falsy canvas (resultBox only renders
-   the preview thumbs wrapper `if(previewNode)`). */
+/**
+ * Renders one PDF page to a thumbnail canvas, with a hang-proof timeout.
+ * pdf.js's page.render() has been observed to hang indefinitely (never
+ * resolving or rejecting) rather than erroring out, in some
+ * environments. Every result screen across ~25 tools awaits this for
+ * its preview thumbnail before showing the download link, so a hang
+ * here means the whole tool looks permanently stuck at "Building..."
+ * with no way to download a file that was actually already produced
+ * successfully. A timeout with a null-canvas fallback means a slow/
+ * failed thumbnail degrades to "no preview" instead of blocking the
+ * download forever - every caller already handles a falsy canvas
+ * (resultBox only renders the preview thumbs wrapper `if(previewNode)`).
+ * @param {ArrayBuffer|Uint8Array} bytes - PDF bytes.
+ * @param {number} [pageNum=1] - 1-based page to render.
+ * @param {number} [maxH=110] - target canvas height in CSS px.
+ * @param {number} [timeoutMs=8000]
+ * @returns {Promise<{canvas: HTMLCanvasElement|null, numPages: number}>}
+ *   `canvas` is null and `numPages` is 0 on timeout/failure.
+ */
 async function pdfThumb(bytes, pageNum=1, maxH=110, timeoutMs=8000){
   try {
     return await Promise.race([
@@ -2703,19 +2763,28 @@ async function pdfThumbInner(bytes, pageNum, maxH){
   await page.render({canvasContext:canvas.getContext("2d"), viewport:vp}).promise;
   return {canvas, numPages: doc.numPages};
 }
+/**
+ * Renders one PDF page to a canvas at an explicit scale (page-grid
+ * thumbnails, image-fallback conversion paths). Unlike pdfThumb(), this
+ * throws on timeout rather than swallowing - page.render() has been
+ * observed elsewhere in this app to hang indefinitely (never resolving
+ * or rejecting) rather than erroring, on some inputs/environments, same
+ * category of issue pdfThumb() was fixed for earlier - but some callers
+ * here use the rendered image as the actual deliverable, not just an
+ * optional preview, so they need to decide how to handle a failure
+ * themselves rather than silently getting nothing back.
+ * @param {import("pdfjs-dist").PDFDocumentProxy} pdoc
+ * @param {number} pageNum - 1-based page to render.
+ * @param {number} scale - pdf.js viewport scale.
+ * @param {number} [timeoutMs=10000]
+ * @returns {Promise<HTMLCanvasElement>} rejects on timeout.
+ */
 async function renderPdfPageCanvas(pdoc, pageNum, scale, timeoutMs=10000){
   const page = await pdoc.getPage(pageNum);
   const vp = page.getViewport({scale});
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(vp.width));
   canvas.height = Math.max(1, Math.round(vp.height));
-  // page.render() has been observed elsewhere in this app to hang
-  // indefinitely (never resolving or rejecting) rather than erroring, on
-  // some inputs/environments - same category of issue as pdfThumb, fixed
-  // there earlier. This throws (rather than swallowing, like pdfThumb
-  // does) so callers - some of which use the rendered image as the actual
-  // deliverable, not just an optional preview - can decide how to handle
-  // a failure themselves.
   await Promise.race([
     page.render({canvasContext:canvas.getContext("2d"), viewport:vp}).promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error("Page render timed out")), timeoutMs))
@@ -2723,23 +2792,35 @@ async function renderPdfPageCanvas(pdoc, pageNum, scale, timeoutMs=10000){
   return canvas;
 }
 
-/* Shared iLovePDF-style page-thumbnail grid.
-   mode "reorder": drag cards to reorder; getOrder() returns the current
-     0-based original page indices in on-screen order.
-   mode "select": click a card to toggle it; getSelected() returns a Set
-     of 0-based original page indices currently selected.
-   removable (reorder mode only): shows a hover ✕ on each card to drop
-     that page entirely (used by Organize, not by pure Reorder).
-   rotatable: hover-reveal rotate-left/right buttons per card, plus a
-     bulk "Rotate Selected" action when a selection exists.
-   duplicable: hover-reveal duplicate button per card, plus a bulk
-     "Duplicate Selected" action.
-   multiSelect (reorder mode only): click-to-select alongside dragging,
-     via an always-visible checkbox in the corner (mode "select" already
-     gets click-to-select natively, no flag needed there).
-   zoomable: adds a Small/Medium/Large thumbnail-size toggle.
-   All new flags default to false, so existing callers (Delete Pages,
-   Extract Pages, plain Reorder) are unaffected. */
+/**
+ * Shared iLovePDF-style page-thumbnail grid, backing Delete Pages,
+ * Extract Pages, Reorder Pages, Split, Organize, and Rotate. All flags
+ * below default to false, so existing callers (Delete Pages, Extract
+ * Pages, plain Reorder) are unaffected by ones they don't pass.
+ * @param {HTMLElement} container - element to render the grid into.
+ * @param {ArrayBuffer|Uint8Array} bytes - PDF bytes to render pages from.
+ * @param {object} [opts]
+ * @param {"reorder"|"select"} [opts.mode="reorder"] - "reorder": drag
+ *   cards to reorder; getOrder() returns the current 0-based original
+ *   page indices in on-screen order. "select": click a card to toggle
+ *   it; getSelected() returns a Set of 0-based indices currently
+ *   selected.
+ * @param {boolean} [opts.removable=false] - reorder mode only: shows a
+ *   hover ✕ on each card to drop that page entirely.
+ * @param {boolean} [opts.rotatable=false] - hover-reveal rotate-left/
+ *   right buttons per card, plus a bulk "Rotate Selected" action.
+ * @param {boolean} [opts.duplicable=false] - hover-reveal duplicate
+ *   button per card, plus a bulk "Duplicate Selected" action.
+ * @param {boolean} [opts.multiSelect=false] - reorder mode only: click-
+ *   to-select alongside dragging, via an always-visible corner checkbox
+ *   (mode "select" already gets click-to-select natively).
+ * @param {boolean} [opts.zoomable=false] - adds a Small/Medium/Large
+ *   thumbnail-size toggle.
+ * @returns {Promise<{getOrder: Function, getSelected: Function,
+ *   getPages: Function, getSelectedPages: Function, selectOddEven:
+ *   Function, selectAll: Function, clearSelection: Function, rotateAll:
+ *   Function}>}
+ */
 async function buildPageGrid(container, bytes, {mode="reorder", removable=false, rotatable=false, duplicable=false, multiSelect=false, zoomable=false} = {}){
   const pdoc = await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
   const numPages = pdoc.numPages;
@@ -2950,10 +3031,17 @@ async function buildPageGrid(container, bytes, {mode="reorder", removable=false,
     rotateAll(delta){ cardsWrap.querySelectorAll(".page-card").forEach(c=>rotateCard(c, delta)); }
   };
 }
-/* Copies pagesSpec ([{index, rotation}]) from srcDoc into a fresh
-   PDFDocument, applying each entry's extra rotation on top of whatever
-   rotation the source page already had. Shared by Split/Organize/Rotate
-   so none of them duplicate this copy+rotate logic. */
+/**
+ * Copies pagesSpec into a fresh PDFDocument, applying each entry's extra
+ * rotation on top of whatever rotation the source page already had.
+ * Shared by Split/Organize/Rotate so none of them duplicate this copy+
+ * rotate logic.
+ * @param {import("pdf-lib").PDFDocument} srcDoc - source document.
+ * @param {{index: number, rotation: number}[]} pagesSpec - pages to
+ *   copy, in output order; `index` may repeat (duplicated pages copy
+ *   independently, each with its own `rotation`).
+ * @returns {Promise<import("pdf-lib").PDFDocument>}
+ */
 async function buildPdfFromPages(srcDoc, pagesSpec){
   const newDoc = await PDFDocument.create();
   const order = pagesSpec.map(p=>p.index);
@@ -3002,7 +3090,20 @@ function wirePageGridDrag(container){
 function canvasToPngBase64(canvas){
   return canvas.toDataURL("image/png").split(",")[1];
 }
+/**
+ * Initial "working..." status line markup for a tool's #out container.
+ * Pair with setStatus() to update the same message as work progresses,
+ * and finish with setStatus(msg, true) to mark it done.
+ * @param {string} msg - initial status message.
+ * @returns {string} HTML to assign into `#out`.
+ */
 function statusEl(msg){ return `<div class="status" id="statusLine"><span class="spinner">⚽</span> ${msg}</div>`; }
+/**
+ * Football-themed progress bar markup (house visual style for every
+ * tool's percent-complete indicator).
+ * @param {number} percent - 0-100, clamped and rounded internally.
+ * @returns {string} HTML snippet, meant to be inlined via setStatus().
+ */
 function progressBar(percent, width){
   percent = Math.max(0, Math.min(100, Math.round(percent)));
   return `<span class="football-progress">
@@ -3016,6 +3117,15 @@ function progressBar(percent, width){
       <span class="football-percent">${percent}%</span>
     </span>`;
 }
+/**
+ * Updates the #statusLine element statusEl() rendered, in place - the
+ * standard progress-reporting call every tool's async handler makes
+ * repeatedly while working.
+ * @param {string} msg - current status message.
+ * @param {boolean} [done] - true to render the final done state (🥅).
+ * @param {number} [percent] - 0-100 to show a progress bar instead of
+ *   the spinner; ignored when `done` is true.
+ */
 function setStatus(msg, done, percent){
   const s = document.getElementById("statusLine");
   if(!s) return;
@@ -3027,12 +3137,25 @@ function setStatus(msg, done, percent){
     s.innerHTML = `<span class="spinner">⚽</span> ${msg}`;
   }
 }
-/* Full success screen, matching iLovePDF's post-process page: the input
-   form (dropzone/fields/button) is hidden — not just left visible above
-   the result — and replaced by a prominent download + a "Continue to..."
-   grid of other tools, built from the same QUICK_ACTIONS/QA_LABELS/
-   CATEGORY_META/renderIcon data already used by the Quick Action modal,
-   so it needs no per-tool wiring and covers all 39 tools automatically. */
+/**
+ * Full success screen, matching iLovePDF's post-process page: the input
+ * form (dropzone/fields/button) is hidden — not just left visible above
+ * the result — and replaced by a prominent download + a "Continue to..."
+ * grid of other tools, built from the same QUICK_ACTIONS/QA_LABELS/
+ * CATEGORY_META/renderIcon data already used by the Quick Action modal,
+ * so it needs no per-tool wiring and covers all 39 tools automatically.
+ * @param {object} opts
+ * @param {string} opts.sizeText - displayed result size, e.g. "1.2 MB".
+ * @param {boolean} opts.sizeGood - true renders the size badge as
+ *   "good" (green), false as "bad" (e.g. larger than the original).
+ * @param {Node} [opts.previewNode] - optional thumbnail/canvas to show.
+ * @param {string} opts.url - object URL from downloadBlob().
+ * @param {string} opts.filename - suggested download filename.
+ * @param {{id: string, label: string, question: string}} [opts.nextTool]
+ *   - optional suggested-next-step call to action shown above the
+ *   generic "Continue to..." grid.
+ * @returns {HTMLElement} the result box, ready to append into `#out`.
+ */
 function resultBox({sizeText, sizeGood, previewNode, url, filename}){
   const body = document.querySelector(".panel-body");
   const out = document.getElementById("out");
@@ -5066,8 +5189,9 @@ TOOLS.imgresize = function(){
     const w=+document.getElementById("rw").value, h=+document.getElementById("rh").value;
     const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
     canvas.getContext("2d").drawImage(imgRef,0,0,w,h);
-    const blob = await new Promise(res=>canvas.toBlob(res, file.type.includes("png")?"image/png":"image/jpeg", 0.92));
-    const outName = suffixedName(file, "resized", file.type.includes("png")?"png":"jpg");
+    const {mime, ext} = imgOutputFormat(file);
+    const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
+    const outName = suffixedName(file, "resized", ext);
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
@@ -5151,8 +5275,9 @@ TOOLS.imgcrop = function(){
     const cw=Math.max(1,Math.round(rect.w/dispScale)), ch=Math.max(1,Math.round(rect.h/dispScale));
     const canvas=document.createElement("canvas"); canvas.width=cw; canvas.height=ch;
     canvas.getContext("2d").drawImage(imgRef, cx,cy,cw,ch, 0,0,cw,ch);
-    const blob = await new Promise(res=>canvas.toBlob(res, file.type.includes("png")?"image/png":"image/jpeg", 0.92));
-    const outName = suffixedName(file, "cropped", file.type.includes("png")?"png":"jpg");
+    const {mime, ext} = imgOutputFormat(file);
+    const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
+    const outName = suffixedName(file, "cropped", ext);
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
@@ -5220,8 +5345,9 @@ TOOLS.imgwatermark = function(){
     ctx.rotate(-Math.PI/8);
     ctx.strokeText(text,0,0); ctx.fillText(text,0,0);
     ctx.restore();
-    const blob = await new Promise(res=>canvas.toBlob(res, file.type.includes("png")?"image/png":"image/jpeg", 0.92));
-    const outName = suffixedName(file, "watermarked", file.type.includes("png")?"png":"jpg");
+    const {mime, ext} = imgOutputFormat(file);
+    const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
+    const outName = suffixedName(file, "watermarked", ext);
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
@@ -5247,8 +5373,9 @@ TOOLS.imginvert = function(){
     const d = imgData.data;
     for(let px=0; px<d.length; px+=4){ d[px]=255-d[px]; d[px+1]=255-d[px+1]; d[px+2]=255-d[px+2]; }
     ctx.putImageData(imgData,0,0);
-    const blob = await new Promise(res=>canvas.toBlob(res, file.type.includes("png")?"image/png":"image/jpeg", 0.92));
-    const outName = suffixedName(file, "inverted", file.type.includes("png")?"png":"jpg");
+    const {mime, ext} = imgOutputFormat(file);
+    const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
+    const outName = suffixedName(file, "inverted", ext);
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
