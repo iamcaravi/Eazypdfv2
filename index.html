@@ -2320,6 +2320,81 @@ function winAnsiSafe(s){
     .replace(/…/g, "...")
     .replace(/[^\x00-\xFF]/g, "?");
 }
+const COMPRESS_PRESETS = {
+  high:      { quality: 0.85, maxDim: 2500 },
+  recommended: { quality: 0.6,  maxDim: 1600 },
+  max:       { quality: 0.35, maxDim: 1000 },
+};
+/* Recompresses only the embedded JPEG images inside a PDF, in place, at the
+   same object reference - page content streams (text, vector paths, fonts)
+   are never touched, so text stays exactly as sharp as the original
+   regardless of preset. This is deliberately narrow in scope: only
+   DCTDecode (JPEG) images with a plain RGB/Gray color space and no soft
+   mask are recompressed; anything else (CMYK/Indexed color, non-JPEG
+   filters, images with an alpha channel) is left completely untouched
+   rather than risking wrong colors or lost transparency. Real-world "PDF
+   is too big" cases are almost always driven by embedded photos/scans, so
+   this covers the common case without the risk of a broader rewrite. */
+async function recompressPdfImages(pdfBytes, presetName){
+  const preset = COMPRESS_PRESETS[presetName] || COMPRESS_PRESETS.recommended;
+  const doc = await PDFDocument.load(pdfBytes);
+  const { PDFName, PDFRawStream, PDFNumber } = PDFLib;
+  let touched = 0;
+  for(const [ref, obj] of doc.context.enumerateIndirectObjects()){
+    try{
+      if(!(obj instanceof PDFRawStream)) continue;
+      const dict = obj.dict;
+      const subtype = dict.lookup(PDFName.of("Subtype"));
+      if(!subtype || subtype.asString?.() !== "/Image") continue;
+      const filter = dict.lookup(PDFName.of("Filter"));
+      const filterName = filter && filter.asString ? filter.asString() : (Array.isArray(filter?.array) ? filter.array.map(f=>f.asString?.()).join(",") : "");
+      if(!filterName || !filterName.includes("DCTDecode")) continue; // only plain JPEG streams
+      if(dict.lookup(PDFName.of("SMask"))) continue; // has transparency - skip, JPEG can't keep it
+      const colorSpace = dict.lookup(PDFName.of("ColorSpace"));
+      const csName = colorSpace && colorSpace.asString ? colorSpace.asString() : "";
+      if(csName && !/DeviceRGB|DeviceGray|CalRGB|CalGray/.test(csName)) continue; // skip CMYK/Indexed etc.
+
+      const blob = new Blob([obj.contents], {type:"image/jpeg"});
+      // createImageBitmap() has been observed elsewhere in this app to hang
+      // indefinitely (never resolving or rejecting) rather than erroring on
+      // some inputs - without a timeout here, one bad image would silently
+      // block every remaining image in the PDF forever, since this runs in
+      // a sequential loop. Same "skip on failure" philosophy as CMYK/SMask
+      // above - a timed-out image just gets left untouched.
+      const bitmap = await Promise.race([
+        createImageBitmap(blob),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("decode timed out")), 8000))
+      ]).catch(()=>null);
+      if(!bitmap) continue; // not a browser-decodable JPEG (or timed out) - skip rather than guess
+
+      let {width, height} = bitmap;
+      const longest = Math.max(width, height);
+      if(longest > preset.maxDim){
+        const scale = preset.maxDim / longest;
+        width = Math.round(width*scale); height = Math.round(height*scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+      const newDataUrl = canvas.toDataURL("image/jpeg", preset.quality);
+      const newBytes = Uint8Array.from(atob(newDataUrl.split(",")[1]), c=>c.charCodeAt(0));
+      if(newBytes.length >= obj.contents.length) continue; // no gain - keep original for this image
+
+      const newDict = doc.context.obj({});
+      dict.keys().forEach(k=>newDict.set(k, dict.get(k))); // start from a copy of the original dict
+      newDict.set(PDFName.of("Width"), PDFNumber.of(width));
+      newDict.set(PDFName.of("Height"), PDFNumber.of(height));
+      newDict.set(PDFName.of("Filter"), PDFName.of("DCTDecode"));
+      newDict.set(PDFName.of("ColorSpace"), PDFName.of("DeviceRGB"));
+      newDict.set(PDFName.of("BitsPerComponent"), PDFNumber.of(8));
+      newDict.set(PDFName.of("Length"), PDFNumber.of(newBytes.length));
+      doc.context.assign(ref, PDFRawStream.of(newDict, newBytes));
+      touched++;
+    }catch(e){ /* leave this one object exactly as it was on any failure */ }
+  }
+  const outBytes = await doc.save();
+  return { bytes: outBytes, imagesRecompressed: touched };
+}
 function fmtSize(bytes){
   if(bytes < 1024) return bytes+" B";
   if(bytes < 1024*1024) return (bytes/1024).toFixed(1)+" KB";
@@ -3062,72 +3137,52 @@ TOOLS.compress = function(){
     <div class="panel-head"><h3>Compress PDF</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
       ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
-      <div class="field"><label>Target size in KB</label><input type="number" id="targetKb" placeholder="e.g. 500" min="20"></div>
+      <div class="field">
+        <label>Compression level</label>
+        <select id="preset">
+          <option value="high">High Quality — smaller size reduction, best for photos</option>
+          <option value="recommended" selected>Recommended — balanced</option>
+          <option value="max">Maximum Compression — smallest file</option>
+        </select>
+      </div>
+      <p style="margin:0;color:var(--ink-soft);font-size:.78rem;line-height:1.5">Only compresses the images inside your PDF — text stays exactly as sharp as the original at every level.</p>
       <button class="btn" id="go" disabled>Compress File</button>
       <div id="out"></div>
     </div>`);
   wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out = document.getElementById("out");
-    const targetKb = parseInt(document.getElementById("targetKb").value);
-    if(!targetKb){ toast("Enter a target size in KB first"); return; }
-    const targetBytes = targetKb*1024;
-    if(file.size <= targetBytes){
-      out.innerHTML = `<div class="status">This file is already ${fmtSize(file.size)}, which is smaller than the ${targetKb} KB target. No compression needed.</div>`;
-      return;
-    }
-    out.innerHTML = statusEl("Rendering pages...");
+    const preset = document.getElementById("preset").value;
+    out.innerHTML = statusEl("Compressing images...");
     const bytes = await file.arrayBuffer();
-    const pdfjsDoc = await pdfjsLib.getDocument({data: bytes.slice(0)}).promise;
-    const numPages = pdfjsDoc.numPages;
-
-    let quality = 0.75, scale = 1.3;
-    let bestBytes=null, bestBlobSize=Infinity;
-    for(let attempt=0; attempt<10; attempt++){
-      // Progress = how close the best result so far is to the target size (caps at 99% until we actually finish)
-      const refSize = bestBlobSize===Infinity ? file.size : bestBlobSize;
-      const pct = Math.min(99, Math.round((targetBytes/refSize)*100));
-      setStatus("Compressing...", false, pct);
-      const outDoc = await PDFDocument.create();
-      for(let p=1;p<=numPages;p++){
-        const page = await pdfjsDoc.getPage(p);
-        const vp = page.getViewport({scale});
-        const canvas = document.createElement("canvas");
-        canvas.width=vp.width; canvas.height=vp.height;
-        await page.render({canvasContext:canvas.getContext("2d"), viewport:vp}).promise;
-        const jpegUrl = canvas.toDataURL("image/jpeg", quality);
-        const jpegBytes = Uint8Array.from(atob(jpegUrl.split(",")[1]), c=>c.charCodeAt(0));
-        const img = await outDoc.embedJpg(jpegBytes);
-        const pageDoc = outDoc.addPage([vp.width/scale, vp.height/scale]);
-        pageDoc.drawImage(img, {x:0,y:0,width:vp.width/scale, height:vp.height/scale});
+    let finalBytes, usedOriginal = false, imagesRecompressed = 0;
+    try {
+      const result = await recompressPdfImages(bytes, preset);
+      imagesRecompressed = result.imagesRecompressed;
+      // Safety net: never hand back something bigger than what the user
+      // started with (e.g. a PDF with no compressible JPEGs at all).
+      if(result.bytes.length >= bytes.byteLength){
+        finalBytes = new Uint8Array(bytes);
+        usedOriginal = true;
+      } else {
+        finalBytes = result.bytes;
       }
-      const savedBytes = await outDoc.save();
-      const size = savedBytes.length;
-      setStatus("Compressing...", false, Math.min(99, Math.round((targetBytes/size)*100)));
-      if(size < bestBlobSize){ bestBlobSize=size; bestBytes=savedBytes; }
-      if(size <= targetBytes){ break; }
-      if(quality > 0.3) quality -= 0.11;
-      else if(scale > 0.45) { scale -= 0.2; quality=0.55; }
-      else break;
-    }
-    // Safety net: never hand back something bigger than what the user started with.
-    // Rasterizing text-heavy PDFs can sometimes bloat size instead of shrinking it,
-    // so if that happens we fall back to the original file untouched.
-    let finalBytes = bestBytes, usedOriginal = false;
-    if(bestBlobSize >= bytes.byteLength){
-      finalBytes = new Uint8Array(bytes);
-      usedOriginal = true;
+    } catch(e) {
+      out.innerHTML = `<div class="status" style="color:var(--rose)">Could not compress this PDF (${e.message}).</div>`;
+      return;
     }
     const blob = new Blob([finalBytes], {type:"application/pdf"});
     const {url} = downloadBlob(blob, "compressed.pdf");
     const {canvas} = await pdfThumb(finalBytes);
-    const reached = blob.size <= targetBytes;
+    const savedPct = Math.round((1 - blob.size/bytes.byteLength) * 100);
     if(usedOriginal){
-      setStatus(`This PDF is already tightly encoded — re-rendering it would have made it bigger, so we kept the original (${fmtSize(blob.size)}).`, true);
+      setStatus(imagesRecompressed===0
+        ? "No compressible images found in this PDF — kept the original file."
+        : "Re-compressing didn't reduce the size — kept the original file.", true);
     } else {
-      setStatus(reached ? "Target reached" : `Target not fully reachable — best result: ${fmtSize(blob.size)} at quality floor`, true);
+      setStatus(`Done — ${fmtSize(bytes.byteLength)} → ${fmtSize(blob.size)} (${savedPct}% smaller), text untouched`, true);
     }
-    out.appendChild(resultBox({sizeText:`${fmtSize(blob.size)} (target ${targetKb} KB)`, sizeGood:reached, previewNode:canvas, url, filename:"compressed.pdf", nextTool:{id:"edit", label:"Edit PDF", question:"Need to change the content before compressing?"}}));
+    out.appendChild(resultBox({sizeText:`${fmtSize(blob.size)}${usedOriginal?"":` (was ${fmtSize(bytes.byteLength)})`}`, sizeGood:!usedOriginal, previewNode:canvas, url, filename:"compressed.pdf", nextTool:{id:"edit", label:"Edit PDF", question:"Need to change the content before compressing?"}}));
   });
 };
 
