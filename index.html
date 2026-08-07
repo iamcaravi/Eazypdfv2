@@ -310,6 +310,7 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .btn.secondary{background:#fff; color:var(--ink); border:1px solid var(--line); box-shadow:none;}
 .btn.secondary:hover{border-color:var(--teal); color:var(--teal); transform:none; box-shadow:none;}
 .btn:disabled{opacity:0.45; cursor:not-allowed; box-shadow:none; transform:none;}
+.btn.btn-sm{padding:8px 14px; font-size:.82rem; border-radius:8px;}
 .filelist{display:flex; flex-direction:column; gap:6px; max-height:150px; overflow-y:auto;}
 .fileitem{
   display:flex; align-items:center; gap:8px; font-size:0.85rem;
@@ -381,6 +382,47 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .page-card:hover .page-remove{ opacity:1; }
 .page-grid-hint{ margin:0 0 8px; color:var(--ink-soft); font-size:.82rem; }
+.page-card{ transition:transform .18s ease, opacity .18s ease; }
+.page-card.removing{ opacity:0; transform:scale(.85); }
+.page-grid-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.page-grid-bulkbar{ display:none; align-items:center; gap:8px; flex-wrap:wrap; background:var(--paper-dim); border:1px solid var(--line); border-radius:10px; padding:8px 12px; flex:1 1 auto; }
+.bulkbar-count{ font-size:.8rem; font-weight:700; color:var(--ink-soft); margin-right:4px; }
+.bulkbar-btn{ background:var(--panel-bg); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:.8rem; font-weight:600; cursor:pointer; color:var(--ink); transition:.12s; }
+.bulkbar-btn:hover{ border-color:var(--red); color:var(--red); }
+.bulkbar-btn.bulkbar-danger:hover{ background:var(--red); color:#fff; }
+.page-grid-zoom{ display:flex; align-items:center; gap:6px; font-size:.78rem; color:var(--ink-soft); }
+.zoom-btn{ width:26px; height:26px; border-radius:6px; border:1px solid var(--line); background:var(--panel-bg); cursor:pointer; font-size:.72rem; font-weight:700; color:var(--ink-soft); }
+.zoom-btn.active{ background:var(--red); color:#fff; border-color:var(--red); }
+.page-grid-cards{ display:flex; flex-wrap:wrap; gap:16px; }
+.page-grid-cards.zoom-s .page-card{ width:120px; }
+.page-grid-cards.zoom-s .page-thumb{ height:110px; }
+.page-grid-cards.zoom-m .page-card{ width:198px; }
+.page-grid-cards.zoom-m .page-thumb{ height:180px; }
+.page-grid-cards.zoom-l .page-card{ width:280px; }
+.page-grid-cards.zoom-l .page-thumb{ height:260px; }
+.page-thumb{
+  position:relative; width:100%; height:180px; display:flex; align-items:center; justify-content:center; overflow:hidden;
+  border:2px solid var(--line); border-radius:8px; background:#fff; transition:border-color .18s ease, box-shadow .18s ease;
+}
+.page-thumb canvas{ max-width:100%; max-height:100%; width:auto; height:auto; display:block; transition:transform .18s ease; border:none; }
+.page-thumb canvas.rot-90{ transform:rotate(90deg); }
+.page-thumb canvas.rot-180{ transform:rotate(180deg); }
+.page-thumb canvas.rot-270{ transform:rotate(270deg); }
+.page-card:hover .page-thumb{ border-color:var(--red); }
+.page-card.drag-over .page-thumb{ border-color:var(--red); box-shadow:0 0 0 3px rgba(232,41,27,0.18); }
+.page-card.selected .page-thumb{ border-color:var(--red); box-shadow:0 0 0 3px rgba(232,41,27,0.18); }
+.page-thumb-actions{
+  position:absolute; left:0; right:0; bottom:0; display:flex; justify-content:center; gap:6px; padding:6px;
+  opacity:0; transition:opacity .12s ease; background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,0) 90%);
+}
+.page-card:hover .page-thumb-actions{ opacity:1; }
+.page-thumb-actions button{
+  width:24px; height:24px; border-radius:50%; border:none; background:rgba(255,255,255,.92); color:var(--ink);
+  display:flex; align-items:center; justify-content:center; font-size:12px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.3);
+}
+.page-thumb-actions button:hover{ background:var(--red); color:#fff; }
+.page-card .page-check.page-check-toggle{ display:flex; left:6px; right:auto; background:var(--panel-bg); border:1px solid var(--line); color:var(--ink-soft); }
+.page-card.selected .page-check.page-check-toggle{ background:var(--red); color:#fff; border-color:var(--red); }
 .status{font-size:0.85rem; color:var(--ink-soft); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 .progress-bar{ color:var(--red); font-weight:600; letter-spacing:1px; }
 .football-progress{ display:inline-flex; align-items:center; gap:9px; vertical-align:middle; white-space:nowrap; }
@@ -2653,49 +2695,241 @@ async function renderPdfPageCanvas(pdoc, pageNum, scale, timeoutMs=10000){
    mode "select": click a card to toggle it; getSelected() returns a Set
      of 0-based original page indices currently selected.
    removable (reorder mode only): shows a hover ✕ on each card to drop
-     that page entirely (used by Organize, not by pure Reorder). */
-async function buildPageGrid(container, bytes, {mode="reorder", removable=false} = {}){
+     that page entirely (used by Organize, not by pure Reorder).
+   rotatable: hover-reveal rotate-left/right buttons per card, plus a
+     bulk "Rotate Selected" action when a selection exists.
+   duplicable: hover-reveal duplicate button per card, plus a bulk
+     "Duplicate Selected" action.
+   multiSelect (reorder mode only): click-to-select alongside dragging,
+     via an always-visible checkbox in the corner (mode "select" already
+     gets click-to-select natively, no flag needed there).
+   zoomable: adds a Small/Medium/Large thumbnail-size toggle.
+   All new flags default to false, so existing callers (Delete Pages,
+   Extract Pages, plain Reorder) are unaffected. */
+async function buildPageGrid(container, bytes, {mode="reorder", removable=false, rotatable=false, duplicable=false, multiSelect=false, zoomable=false} = {}){
   const pdoc = await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
   const numPages = pdoc.numPages;
+  const selectionEnabled = mode==="select" || (mode==="reorder" && multiSelect);
+  const showBulkBar = selectionEnabled && (rotatable || duplicable || removable);
   container.innerHTML = "";
   container.classList.add("page-grid");
   document.querySelector(".panel-body")?.classList.toggle("has-file", numPages>0);
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "page-grid-toolbar";
+  let bulkBar = null;
+  if(showBulkBar){
+    bulkBar = document.createElement("div");
+    bulkBar.className = "page-grid-bulkbar";
+    toolbar.appendChild(bulkBar);
+  }
+  if(zoomable){
+    const zoomCtl = document.createElement("div");
+    zoomCtl.className = "page-grid-zoom";
+    zoomCtl.innerHTML = `<span>Size</span>
+      <button type="button" class="zoom-btn" data-zoom="s" draggable="false">S</button>
+      <button type="button" class="zoom-btn active" data-zoom="m" draggable="false">M</button>
+      <button type="button" class="zoom-btn" data-zoom="l" draggable="false">L</button>`;
+    toolbar.appendChild(zoomCtl);
+  }
+  if(toolbar.children.length) container.appendChild(toolbar);
+
+  const cardsWrap = document.createElement("div");
+  cardsWrap.className = "page-grid-cards zoom-m";
+  container.appendChild(cardsWrap);
+
   const firstVp = (await pdoc.getPage(1)).getViewport({scale:1});
   const scale = 260 / firstVp.height;
+
+  function rotateCard(card, delta){
+    const cur = ((parseInt(card.dataset.rotation||"0") + delta) % 360 + 360) % 360;
+    card.dataset.rotation = cur;
+    const cv = card.querySelector("canvas");
+    if(!cv) return;
+    cv.classList.remove("rot-90","rot-180","rot-270");
+    if(cur) cv.classList.add("rot-"+cur);
+  }
+
+  function duplicateCard(card){
+    const clone = card.cloneNode(true);
+    const srcCanvas = card.querySelector("canvas");
+    const dstCanvas = clone.querySelector("canvas");
+    if(srcCanvas && dstCanvas){
+      dstCanvas.width = srcCanvas.width; dstCanvas.height = srcCanvas.height;
+      dstCanvas.getContext("2d").drawImage(srcCanvas,0,0);
+    }
+    clone.classList.remove("selected","dragging","drag-over");
+    const lbl = clone.querySelector(".page-num");
+    if(lbl) lbl.textContent += " (copy)";
+    wireCard(clone);
+    card.after(clone);
+    updateBulkBar();
+  }
+
+  function updateBulkBar(){
+    if(!bulkBar) return;
+    const n = cardsWrap.querySelectorAll(".page-card.selected").length;
+    if(n===0){ bulkBar.innerHTML=""; bulkBar.style.display="none"; return; }
+    bulkBar.style.display = "flex";
+    bulkBar.innerHTML = `<span class="bulkbar-count">${n} selected</span>` +
+      (rotatable ? `<button type="button" class="bulkbar-btn" data-act="rotL" draggable="false">⟲ Rotate</button><button type="button" class="bulkbar-btn" data-act="rotR" draggable="false">⟳ Rotate</button>` : "") +
+      (duplicable ? `<button type="button" class="bulkbar-btn" data-act="dup" draggable="false">⧉ Duplicate</button>` : "") +
+      (removable ? `<button type="button" class="bulkbar-btn bulkbar-danger" data-act="del" draggable="false">✕ Delete</button>` : "") +
+      `<button type="button" class="bulkbar-btn" data-act="clear" draggable="false">Clear</button>`;
+    bulkBar.querySelectorAll("[data-act]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const act = btn.dataset.act;
+        const selected = [...cardsWrap.querySelectorAll(".page-card.selected")];
+        if(act==="rotL") selected.forEach(c=>rotateCard(c,-90));
+        if(act==="rotR") selected.forEach(c=>rotateCard(c,90));
+        if(act==="dup") selected.forEach(c=>duplicateCard(c));
+        if(act==="del") selected.forEach(c=>{ c.classList.add("removing"); setTimeout(()=>c.remove(),160); });
+        if(act==="clear") selected.forEach(c=>c.classList.remove("selected"));
+        updateBulkBar();
+      });
+    });
+  }
+
+  function wireCard(card){
+    if(mode==="select"){
+      card.onclick = ()=>{ card.classList.toggle("selected"); updateBulkBar(); };
+    } else if(multiSelect){
+      card.addEventListener("click", e=>{
+        if(e.target.closest(".page-thumb-actions,.page-remove,.page-check-toggle")) return;
+        card.classList.toggle("selected");
+        updateBulkBar();
+      });
+    }
+    const chkToggle = card.querySelector(".page-check-toggle");
+    if(chkToggle) chkToggle.onclick = e=>{ e.stopPropagation(); card.classList.toggle("selected"); updateBulkBar(); };
+    const rotL = card.querySelector(".page-rotate-left");
+    const rotR = card.querySelector(".page-rotate-right");
+    if(rotL) rotL.onclick = e=>{ e.stopPropagation(); rotateCard(card,-90); };
+    if(rotR) rotR.onclick = e=>{ e.stopPropagation(); rotateCard(card,90); };
+    const dup = card.querySelector(".page-dup-btn");
+    if(dup) dup.onclick = e=>{ e.stopPropagation(); duplicateCard(card); };
+    const rm = card.querySelector(".page-remove");
+    if(rm) rm.onclick = e=>{ e.stopPropagation(); card.classList.add("removing"); setTimeout(()=>card.remove(),160); };
+  }
+
   for(let i=1;i<=numPages;i++){
     const canvas = await renderPdfPageCanvas(pdoc, i, scale);
     const card = document.createElement("div");
     card.className = "page-card" + (mode==="select" ? " page-card-select" : "");
     card.dataset.page = i-1;
+    card.dataset.rotation = "0";
     card.draggable = mode === "reorder";
-    card.appendChild(canvas);
+
+    const thumb = document.createElement("div");
+    thumb.className = "page-thumb";
+    thumb.appendChild(canvas);
+    if(rotatable || duplicable){
+      const actions = document.createElement("div");
+      actions.className = "page-thumb-actions";
+      let html = "";
+      if(rotatable) html += `<button type="button" class="page-rotate-left" aria-label="Rotate page ${i} left" draggable="false">⟲</button><button type="button" class="page-rotate-right" aria-label="Rotate page ${i} right" draggable="false">⟳</button>`;
+      if(duplicable) html += `<button type="button" class="page-dup-btn" aria-label="Duplicate page ${i}" draggable="false">⧉</button>`;
+      actions.innerHTML = html;
+      thumb.appendChild(actions);
+    }
+    card.appendChild(thumb);
+
     const label = document.createElement("span");
     label.className = "page-num";
     label.textContent = "Page " + i;
     card.appendChild(label);
+
     if(mode==="select"){
       const chk = document.createElement("span");
       chk.className = "page-check";
       chk.textContent = "✓";
       card.appendChild(chk);
-      card.addEventListener("click", ()=>card.classList.toggle("selected"));
+    } else if(multiSelect){
+      const chk = document.createElement("span");
+      chk.className = "page-check page-check-toggle";
+      chk.setAttribute("draggable","false");
+      chk.textContent = "✓";
+      card.appendChild(chk);
     }
     if(mode==="reorder" && removable){
       const rm = document.createElement("button");
       rm.type = "button";
       rm.className = "page-remove";
       rm.setAttribute("aria-label", "Remove page "+i);
+      rm.setAttribute("draggable","false");
       rm.textContent = "✕";
-      rm.addEventListener("click", e=>{ e.stopPropagation(); card.remove(); });
       card.appendChild(rm);
     }
-    container.appendChild(card);
+    wireCard(card);
+    cardsWrap.appendChild(card);
   }
-  if(mode==="reorder") wirePageGridDrag(container);
+  if(mode==="reorder") wirePageGridDrag(cardsWrap);
+
+  if(zoomable){
+    toolbar.querySelectorAll(".zoom-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        toolbar.querySelectorAll(".zoom-btn").forEach(b=>b.classList.remove("active"));
+        btn.classList.add("active");
+        cardsWrap.classList.remove("zoom-s","zoom-m","zoom-l");
+        cardsWrap.classList.add("zoom-"+btn.dataset.zoom);
+      });
+    });
+  }
+
+  if(selectionEnabled){
+    function keyHandler(e){
+      if(!document.body.contains(container)){ document.removeEventListener("keydown", keyHandler); return; }
+      const active = document.activeElement;
+      if(active && /INPUT|TEXTAREA/.test(active.tagName)) return;
+      if((e.key==="Delete"||e.key==="Backspace") && removable){
+        const sel = cardsWrap.querySelectorAll(".page-card.selected");
+        if(sel.length){ e.preventDefault(); sel.forEach(c=>{ c.classList.add("removing"); setTimeout(()=>c.remove(),160); }); updateBulkBar(); }
+      } else if(e.key==="a" && (e.ctrlKey||e.metaKey)){
+        e.preventDefault();
+        cardsWrap.querySelectorAll(".page-card").forEach(c=>c.classList.add("selected"));
+        updateBulkBar();
+      } else if(e.key==="Escape"){
+        cardsWrap.querySelectorAll(".page-card.selected").forEach(c=>c.classList.remove("selected"));
+        updateBulkBar();
+      } else if(rotatable && (e.key==="r"||e.key==="R")){
+        const sel = cardsWrap.querySelectorAll(".page-card.selected");
+        if(sel.length) sel.forEach(c=>rotateCard(c, e.shiftKey ? -90 : 90));
+      }
+    }
+    document.addEventListener("keydown", keyHandler);
+  }
+
   return {
-    getOrder(){ return [...container.querySelectorAll(".page-card")].map(c=>parseInt(c.dataset.page)); },
-    getSelected(){ return new Set([...container.querySelectorAll(".page-card.selected")].map(c=>parseInt(c.dataset.page))); }
+    getOrder(){ return [...cardsWrap.querySelectorAll(".page-card")].map(c=>parseInt(c.dataset.page)); },
+    getSelected(){ return new Set([...cardsWrap.querySelectorAll(".page-card.selected")].map(c=>parseInt(c.dataset.page))); },
+    getPages(){ return [...cardsWrap.querySelectorAll(".page-card")].map(c=>({index:parseInt(c.dataset.page), rotation:parseInt(c.dataset.rotation||"0")})); },
+    getSelectedPages(){ return [...cardsWrap.querySelectorAll(".page-card.selected")].map(c=>({index:parseInt(c.dataset.page), rotation:parseInt(c.dataset.rotation||"0")})); },
+    selectOddEven(which){
+      [...cardsWrap.querySelectorAll(".page-card")].forEach((c,pos)=>{
+        const isOdd = pos % 2 === 0;
+        c.classList.toggle("selected", which==="odd" ? isOdd : !isOdd);
+      });
+      updateBulkBar();
+    },
+    selectAll(){ cardsWrap.querySelectorAll(".page-card").forEach(c=>c.classList.add("selected")); updateBulkBar(); },
+    clearSelection(){ cardsWrap.querySelectorAll(".page-card.selected").forEach(c=>c.classList.remove("selected")); updateBulkBar(); },
+    rotateAll(delta){ cardsWrap.querySelectorAll(".page-card").forEach(c=>rotateCard(c, delta)); }
   };
+}
+/* Copies pagesSpec ([{index, rotation}]) from srcDoc into a fresh
+   PDFDocument, applying each entry's extra rotation on top of whatever
+   rotation the source page already had. Shared by Split/Organize/Rotate
+   so none of them duplicate this copy+rotate logic. */
+async function buildPdfFromPages(srcDoc, pagesSpec){
+  const newDoc = await PDFDocument.create();
+  const order = pagesSpec.map(p=>p.index);
+  const pages = await newDoc.copyPages(srcDoc, order);
+  pages.forEach((p,pos)=>{
+    const rot = pagesSpec[pos].rotation || 0;
+    if(rot) p.setRotation(degrees((p.getRotation().angle + rot) % 360));
+    newDoc.addPage(p);
+  });
+  return newDoc;
 }
 function wirePageGridDrag(container){
   let dragEl = null;
@@ -3116,46 +3350,85 @@ TOOLS.merge = function(){
 
 /* ---- SPLIT ---- */
 TOOLS.split = function(){
-  let file=null;
+  let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Split PDF</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
       ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
-      <div class="field"><label>Page ranges (leave blank to split every page)</label><input type="text" id="ranges" placeholder="e.g. 1-3,4-6"></div>
+      <div class="field"><label>Page ranges (leave blank to use the page selection below, or split every page)</label><input type="text" id="ranges" placeholder="e.g. 1-3,4-6"></div>
+      <p class="page-grid-hint" id="gridHint" style="display:none">Drag to reorder, hover a page to rotate or remove it, or click pages to select which ones go into one file.</p>
+      <div class="row" id="quickSelectRow" style="display:none;gap:8px;margin-bottom:8px">
+        <button type="button" class="btn secondary btn-sm" id="selOdd">Select Odd Pages</button>
+        <button type="button" class="btn secondary btn-sm" id="selEven">Select Even Pages</button>
+        <button type="button" class="btn secondary btn-sm" id="selClear">Clear Selection</button>
+      </div>
+      <div class="page-grid" id="pageGrid"></div>
       <button class="btn" id="go" disabled>Split File</button>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(async fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{
+      file=null; gridApi=null;
+      document.getElementById("pageGrid").innerHTML="";
+      document.getElementById("gridHint").style.display="none";
+      document.getElementById("quickSelectRow").style.display="none";
+      document.getElementById("go").disabled=true;
+    });
+    const bytes = await file.arrayBuffer();
+    document.getElementById("gridHint").style.display="block";
+    document.getElementById("quickSelectRow").style.display="flex";
+    gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, multiSelect:true, zoomable:true});
+    document.getElementById("go").disabled=false;
+  });
+  document.getElementById("selOdd").addEventListener("click", ()=>gridApi && gridApi.selectOddEven("odd"));
+  document.getElementById("selEven").addEventListener("click", ()=>gridApi && gridApi.selectOddEven("even"));
+  document.getElementById("selClear").addEventListener("click", ()=>gridApi && gridApi.clearSelection());
   document.getElementById("go").addEventListener("click", async ()=>{
     const out = document.getElementById("out");
     out.innerHTML = statusEl("Splitting...");
-    await ensureJSZip();
     const bytes = await file.arrayBuffer();
     const src = await loadPdfSafe(bytes);
-    const total = src.getPageCount();
-    let groups = [];
     const rangeStr = document.getElementById("ranges").value.trim();
+    let groups;
     if(rangeStr){
       groups = rangeStr.split(",").map(r=>{
         r=r.trim();
-        if(r.includes("-")){ const [a,b]=r.split("-").map(n=>parseInt(n.trim())-1); return Array.from({length:b-a+1},(_,i)=>a+i); }
-        return [parseInt(r)-1];
+        if(r.includes("-")){ const [a,b]=r.split("-").map(n=>parseInt(n.trim())-1); return Array.from({length:b-a+1},(_,i)=>({index:a+i, rotation:0})); }
+        return [{index:parseInt(r)-1, rotation:0}];
       });
     } else {
-      groups = Array.from({length:total},(_,i)=>[i]);
+      const selected = gridApi.getSelectedPages();
+      groups = selected.length ? [selected] : gridApi.getPages().map(p=>[p]);
     }
-    const zip = new JSZip();
-    for(let i=0;i<groups.length;i++){
-      const doc = await PDFDocument.create();
-      const pages = await doc.copyPages(src, groups[i]);
-      pages.forEach(p=>doc.addPage(p));
+    if(groups.length===0 || groups.some(g=>g.length===0)){
+      toast("Nothing to split — check your ranges or page selection");
+      out.innerHTML="";
+      return;
+    }
+    setStatus("Splitting...", false, 0);
+    if(groups.length===1){
+      const doc = await buildPdfFromPages(src, groups[0]);
       const b = await doc.save();
-      zip.file(`part_${i+1}.pdf`, b);
+      const blob = new Blob([b], {type:"application/pdf"});
+      const {url} = downloadBlob(blob, "split.pdf");
+      const {canvas} = await pdfThumb(b);
+      setStatus("Done", true);
+      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"split.pdf", nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
+    } else {
+      await ensureJSZip();
+      const zip = new JSZip();
+      for(let i=0;i<groups.length;i++){
+        setStatus("Splitting...", false, Math.round((i/groups.length)*100));
+        const doc = await buildPdfFromPages(src, groups[i]);
+        const b = await doc.save();
+        zip.file(`part_${i+1}.pdf`, b);
+      }
+      const zipBlob = await zip.generateAsync({type:"blob"});
+      const {url} = downloadBlob(zipBlob, "split_parts.zip");
+      setStatus("Done — "+groups.length+" files", true);
+      out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:"split_parts.zip", nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
     }
-    const zipBlob = await zip.generateAsync({type:"blob"});
-    const {url} = downloadBlob(zipBlob, "split_parts.zip");
-    setStatus("Done — "+groups.length+" files", true);
-    out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:"split_parts.zip", nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
   });
 };
 
@@ -3217,25 +3490,49 @@ TOOLS.compress = function(){
 
 /* ---- ROTATE ---- */
 TOOLS.rotate = function(){
-  let file=null;
+  let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Rotate PDF</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
       ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Rotation</label>
-        <select id="deg"><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">270° clockwise</option></select>
+      <p class="page-grid-hint" id="gridHint" style="display:none">Hover any page to rotate it on its own, or select several pages and use "Apply to selected/all" below.</p>
+      <div class="row" id="rotateAllRow" style="display:none;gap:8px;align-items:flex-end;margin-bottom:8px">
+        <div class="field" style="margin:0"><label>Rotation</label>
+          <select id="deg"><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">270° (90° counter-clockwise)</option></select>
+        </div>
+        <button type="button" class="btn secondary btn-sm" id="rotAll">Apply to All Pages</button>
       </div>
-      <button class="btn" id="go" disabled>Rotate File</button>
+      <div class="page-grid" id="pageGrid"></div>
+      <button class="btn" id="go" disabled>Download Rotated PDF</button>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(async fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{
+      file=null; gridApi=null;
+      document.getElementById("pageGrid").innerHTML="";
+      document.getElementById("gridHint").style.display="none";
+      document.getElementById("rotateAllRow").style.display="none";
+      document.getElementById("go").disabled=true;
+    });
+    const bytes = await file.arrayBuffer();
+    document.getElementById("gridHint").style.display="block";
+    document.getElementById("rotateAllRow").style.display="flex";
+    gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select", rotatable:true, zoomable:true});
+    document.getElementById("go").disabled=false;
+  });
+  document.getElementById("rotAll").addEventListener("click", ()=>{
+    if(!gridApi) return;
+    const deg = parseInt(document.getElementById("deg").value);
+    gridApi.rotateAll(deg);
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Rotating...");
     const bytes=await file.arrayBuffer();
-    const doc=await loadPdfSafe(bytes);
-    const deg=parseInt(document.getElementById("deg").value);
-    doc.getPages().forEach(p=>p.setRotation(degrees((p.getRotation().angle+deg)%360)));
-    const outBytes=await doc.save();
+    const src=await loadPdfSafe(bytes);
+    const pagesSpec = gridApi.getPages();
+    const newDoc = await buildPdfFromPages(src, pagesSpec);
+    const outBytes=await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const {url}=downloadBlob(blob,"rotated.pdf");
     const {canvas}=await pdfThumb(outBytes);
@@ -3642,7 +3939,7 @@ TOOLS.organize = function(){
     <div class="panel-head"><h3>Organize PDF</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
       ${fileInputHTML("application/pdf", false)}
-      <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages to reorder them, or hover a page and click ✕ to remove it.</p>
+      <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages to reorder. Hover a page to rotate, duplicate, or remove it. Click to multi-select (Ctrl/Cmd+A select all, Delete to remove, Esc to clear).</p>
       <div class="page-grid" id="pageGrid"></div>
       <button class="btn" id="go" disabled>Apply</button>
       <div id="out"></div>
@@ -3651,18 +3948,16 @@ TOOLS.organize = function(){
     file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
     const bytes = await file.arrayBuffer();
     document.getElementById("gridHint").style.display="block";
-    gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true});
+    gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, duplicable:true, multiSelect:true, zoomable:true});
     document.getElementById("go").disabled=false;
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Applying...");
     const bytes=await file.arrayBuffer();
     const src=await loadPdfSafe(bytes);
-    const order = gridApi.getOrder();
-    if(order.length===0){ toast("At least one page must remain"); out.innerHTML=""; return; }
-    const newDoc = await PDFDocument.create();
-    const pages = await newDoc.copyPages(src, order);
-    pages.forEach(p=>newDoc.addPage(p));
+    const pagesSpec = gridApi.getPages();
+    if(pagesSpec.length===0){ toast("At least one page must remain"); out.innerHTML=""; return; }
+    const newDoc = await buildPdfFromPages(src, pagesSpec);
     const outBytes=await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const {url}=downloadBlob(blob,"organized.pdf");
