@@ -3928,6 +3928,45 @@ function styledParagraphXml(block){
   const pPr = block.listItem ? `<w:pPr><w:ind w:left="720"/></w:pPr>` : "";
   return `<w:p>${pPr}${runsXml}</w:p>`;
 }
+/* Detects table columns using pdf.js's synthetic whitespace items rather
+   than joining all text into one string and guessing from literal
+   multi-space characters (the old approach - unreliable, since many
+   table-generating PDFs never embed literal multi-space runs; the visual
+   gap between columns comes purely from each cell's text being positioned
+   separately, not from spacing characters). Verified empirically first:
+   pdf.js inserts a space-only text item to fill the gap between two
+   separately-positioned runs, and that item's own `width` IS the actual
+   visual gap size in PDF points - a gap noticeably wider than normal
+   single/double inter-word spacing reliably signals a real column
+   boundary. */
+function extractTableRows(content){
+  const lineTolerance = 3;
+  const lines = [];
+  for(const it of content.items){
+    const x = it.transform[4], y = it.transform[5];
+    let line = lines.find(l => Math.abs(l.y - y) <= lineTolerance);
+    if(!line){ line = {y, items:[]}; lines.push(line); }
+    line.items.push({str: it.str, x, width: it.width || 0, size: Math.abs(it.transform[0]) || 10});
+  }
+  lines.sort((a,b)=> b.y - a.y); // PDF y grows upward - top of page first
+  lines.forEach(l => l.items.sort((a,b)=>a.x-b.x));
+
+  return lines.map(line => {
+    const cells = [];
+    let current = "";
+    for(const item of line.items){
+      const isColumnGap = item.str.trim()==="" && item.width > Math.max(10, item.size*1.2);
+      if(isColumnGap && current.trim()){
+        cells.push(current.trim());
+        current = "";
+      } else {
+        current += item.str;
+      }
+    }
+    if(current.trim()) cells.push(current.trim());
+    return cells.length ? cells : [""];
+  });
+}
 async function buildBasicDocx(paragraphs){
   const zip = new JSZip();
   zip.file("[Content_Types].xml",
@@ -4195,17 +4234,7 @@ TOOLS.pdf2excel = function(){
           for(let r=0;r<heightRows;r++) rows.push([]);
         }catch(e){ /* keep the text-only row if rendering fails */ }
       } else {
-        const lineMap = new Map();
-        content.items.forEach(it=>{
-          const yKey = Math.round(it.transform[5]);
-          if(!lineMap.has(yKey)) lineMap.set(yKey, []);
-          lineMap.get(yKey).push(it.str);
-        });
-        const sortedY = [...lineMap.keys()].sort((a,b)=>b-a);
-        sortedY.forEach(y=>{
-          const cells = lineMap.get(y).join(" ").split(/\s{2,}/).filter(c=>c.trim());
-          rows.push(cells.length ? cells : [""]);
-        });
+        rows.push(...extractTableRows(content));
       }
       rows.push([]);
     }
