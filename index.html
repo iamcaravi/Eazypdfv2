@@ -125,6 +125,16 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
   --header-bg:#FFFFFF;
   --card-bg:#FFFFFF;
   --radius: 10px;
+  /* House-style animation timing (Phase 4): 180-220ms for anything the
+     user's attention is directly on (hover/press/drag feedback), 220ms
+     for larger UI motion (panel/dropzone state changes). Not applied
+     retroactively to every existing transition in this file - only to
+     the highest-traffic interactive surfaces below and to new work going
+     forward - but this is the shared reference going forward instead of
+     each new rule picking its own number. */
+  --t-fast: 180ms;
+  --t-base: 200ms;
+  --t-slow: 220ms;
 }
 [data-theme="dark"]{
   --paper:#16101F;
@@ -188,7 +198,7 @@ nav a.nav-donate:hover{background:var(--teal-deep); color:#fff !important;}
 
 .dropzone{
   border:2px dashed var(--line); border-radius:12px; padding:28px 16px;
-  text-align:center; cursor:pointer; transition:.15s; position:relative;
+  text-align:center; cursor:pointer; transition:var(--t-base); position:relative;
   background:var(--paper);
 }
 .dropzone.drag{border-color:var(--teal); background:rgba(11,95,88,0.06);}
@@ -301,7 +311,7 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .row > *{flex:1;}
 .btn{
   background:var(--teal); color:#fff; border:none; border-radius:10px; padding:14px 22px;
-  font-weight:700; font-size:0.98rem; cursor:pointer; transition:.15s;
+  font-weight:700; font-size:0.98rem; cursor:pointer; transition:var(--t-base);
   box-shadow:0 10px 24px -10px rgba(17,43,92,0.55);
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
 }
@@ -334,11 +344,14 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .file-card-remove{
   position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:50%;
   background:var(--ink); color:#fff; border:none; display:flex; align-items:center; justify-content:center;
-  font-size:12px; cursor:pointer; opacity:0; transition:opacity .12s ease; z-index:1;
+  font-size:12px; cursor:pointer; opacity:0; transition:opacity var(--t-fast) ease; z-index:1;
 }
 .file-card:hover .file-card-remove, .file-card:focus-within .file-card-remove{ opacity:1; }
 .file-card-name{ font-size:.78rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.file-card-meta{ display:flex; align-items:center; gap:6px; }
 .file-card-size{ font-size:.7rem; color:var(--ink-soft); }
+.file-card-pages{ font-size:.7rem; color:var(--ink-soft); }
+.file-card-pages:not(:empty)::before{ content:"·"; margin-right:6px; }
 .thumbs{display:flex; gap:8px; flex-wrap:wrap; max-height:180px; overflow-y:auto; padding:4px 0;}
 .crop-stage{ display:flex; justify-content:center; background:var(--paper-dim); border-radius:10px; padding:12px; }
 #cropCanvas{ max-width:100%; height:auto; border-radius:6px; cursor:crosshair; touch-action:none; }
@@ -382,7 +395,7 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .page-card:hover .page-remove{ opacity:1; }
 .page-grid-hint{ margin:0 0 8px; color:var(--ink-soft); font-size:.82rem; }
-.page-card{ transition:transform .18s ease, opacity .18s ease; }
+.page-card{ transition:transform var(--t-fast) ease, opacity var(--t-fast) ease; }
 .page-card.removing{ opacity:0; transform:scale(.85); }
 .page-grid-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
 .page-grid-bulkbar{ display:none; align-items:center; gap:8px; flex-wrap:wrap; background:var(--paper-dim); border:1px solid var(--line); border-radius:10px; padding:8px 12px; flex:1 1 auto; }
@@ -402,9 +415,9 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .page-grid-cards.zoom-l .page-thumb{ height:260px; }
 .page-thumb{
   position:relative; width:100%; height:180px; display:flex; align-items:center; justify-content:center; overflow:hidden;
-  border:2px solid var(--line); border-radius:8px; background:#fff; transition:border-color .18s ease, box-shadow .18s ease;
+  border:2px solid var(--line); border-radius:8px; background:#fff; transition:border-color var(--t-fast) ease, box-shadow var(--t-fast) ease;
 }
-.page-thumb canvas{ max-width:100%; max-height:100%; width:auto; height:auto; display:block; transition:transform .18s ease; border:none; }
+.page-thumb canvas{ max-width:100%; max-height:100%; width:auto; height:auto; display:block; transition:transform var(--t-fast) ease; border:none; }
 .page-thumb canvas.rot-90{ transform:rotate(90deg); }
 .page-thumb canvas.rot-180{ transform:rotate(180deg); }
 .page-thumb canvas.rot-270{ transform:rotate(270deg); }
@@ -2469,6 +2482,7 @@ function fileInputHTML(accept, multiple, label){
   return `<div class="dropzone" id="dz">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
     <div><strong>${label||'Drag and drop, or click to browse'}</strong></div>
+    <div class="hint">🔒 Files stay on this device — nothing is uploaded</div>
     <input type="file" id="fi" class="hidden" accept="${accept}" ${multiple?"multiple":""}>
   </div><div class="filelist" id="flist"></div><div class="thumbs" id="quickPreview"></div>`;
 }
@@ -2530,7 +2544,10 @@ function renderFileList(files, onRemove){
       <button type="button" class="file-card-remove" data-i="${i}" aria-label="Remove ${escapeAttr(f.name)}">✕</button>
       <div class="file-card-thumb" id="fcThumb${i}"><span class="file-card-kind">${kind}</span></div>
       <div class="file-card-name" title="${escapeAttr(f.name)}">${escapeAttr(f.name)}</div>
-      <div class="file-card-size mono">${fmtSize(f.size)}</div>
+      <div class="file-card-meta">
+        <span class="file-card-size mono">${fmtSize(f.size)}</span>
+        <span class="file-card-pages mono" id="fcPages${i}"></span>
+      </div>
     </div>`;
   }).join("");
   flist.querySelectorAll(".file-card-remove").forEach(b=>b.addEventListener("click", e=>{ e.stopPropagation(); onRemove(+b.dataset.i); }));
@@ -2542,8 +2559,14 @@ function renderFileList(files, onRemove){
       try{
         if(isPdfFile(f)){
           const bytes = await f.arrayBuffer();
-          const {canvas} = await pdfThumb(bytes, 1, 220);
-          if(document.getElementById("fcThumb"+i)===slot){ slot.innerHTML=""; slot.appendChild(canvas); }
+          const {canvas, numPages} = await pdfThumb(bytes, 1, 220);
+          // pdfThumb() returns {canvas:null, numPages:0} on its own internal
+          // timeout (see its own doc comment) rather than throwing - must
+          // guard here, since appendChild(null) throws and would otherwise
+          // also skip the page-count line below via the shared try/catch.
+          if(canvas && document.getElementById("fcThumb"+i)===slot){ slot.innerHTML=""; slot.appendChild(canvas); }
+          const pagesEl = document.getElementById("fcPages"+i);
+          if(pagesEl && numPages>0) pagesEl.textContent = numPages===1 ? "1 page" : `${numPages} pages`;
         } else if(f.type && f.type.startsWith("image/")){
           const img = document.createElement("img");
           img.src = URL.createObjectURL(f);
