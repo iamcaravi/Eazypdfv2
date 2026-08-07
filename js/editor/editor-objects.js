@@ -152,6 +152,17 @@
     if (e.key === 'Escape' && pendingPlacement) {
       pendingPlacement = null;
       setCrosshair(false);
+      // Stop navigation-manager.js's own Escape handler (also on
+      // `window`, registered after this one - see initEditorShell() in
+      // index.html) from also treating this same keystroke as "close the
+      // whole workspace" - it would otherwise close the editor out from
+      // under an in-progress placement instead of just canceling it.
+      // stopImmediatePropagation(), not stopPropagation(): both listeners
+      // are on the *same* target (window), and plain stopPropagation()
+      // only blocks propagation to *other* targets, not sibling listeners
+      // already registered on this one - confirmed the hard way, this
+      // exact bug reproduced with stopPropagation() alone before switching.
+      e.stopImmediatePropagation();
       return;
     }
     if ((e.key === 'Delete' || e.key === 'Backspace')) {
