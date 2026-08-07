@@ -2627,13 +2627,23 @@ async function pdfThumbInner(bytes, pageNum, maxH){
   await page.render({canvasContext:canvas.getContext("2d"), viewport:vp}).promise;
   return {canvas, numPages: doc.numPages};
 }
-async function renderPdfPageCanvas(pdoc, pageNum, scale){
+async function renderPdfPageCanvas(pdoc, pageNum, scale, timeoutMs=10000){
   const page = await pdoc.getPage(pageNum);
   const vp = page.getViewport({scale});
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(vp.width));
   canvas.height = Math.max(1, Math.round(vp.height));
-  await page.render({canvasContext:canvas.getContext("2d"), viewport:vp}).promise;
+  // page.render() has been observed elsewhere in this app to hang
+  // indefinitely (never resolving or rejecting) rather than erroring, on
+  // some inputs/environments - same category of issue as pdfThumb, fixed
+  // there earlier. This throws (rather than swallowing, like pdfThumb
+  // does) so callers - some of which use the rendered image as the actual
+  // deliverable, not just an optional preview - can decide how to handle
+  // a failure themselves.
+  await Promise.race([
+    page.render({canvasContext:canvas.getContext("2d"), viewport:vp}).promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Page render timed out")), timeoutMs))
+  ]);
   return canvas;
 }
 
@@ -3831,6 +3841,93 @@ TOOLS.html2pdf = function(){
 function escapeXml(s){
   return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+/* Extracts a page's text as structured paragraphs with per-run bold/
+   italic/size instead of one flat unstyled string, so PDF to Word can
+   preserve real formatting. Bold/italic come from pdf.js's internal font
+   objects (page.commonObjs), which expose the actual parsed font
+   descriptor's bold/italic flags - NOT content.styles[fontName].fontFamily,
+   which was verified empirically to only ever return a generic CSS
+   fallback ("sans-serif") regardless of the real embedded font, so it's
+   useless for this. Deliberately out of scope here: real table
+   reconstruction and precise text alignment (centered/right) detection -
+   both need much more structural inference than font/position data alone
+   reliably supports; a future pass could add them without touching this
+   function's output shape. */
+async function extractStyledParagraphs(pdoc, pageNum){
+  const page = await pdoc.getPage(pageNum);
+  await page.getOperatorList(); // populates commonObjs with real font descriptors
+  const content = await page.getTextContent();
+
+  const fontStyleCache = {};
+  async function styleFor(fontName){
+    if(fontStyleCache[fontName]) return fontStyleCache[fontName];
+    let style = {bold:false, italic:false};
+    try{
+      const f = await page.commonObjs.get(fontName);
+      if(f) style = {bold: !!f.bold, italic: !!f.italic};
+    }catch(e){ /* keep default (unstyled) if the font object isn't resolvable */ }
+    fontStyleCache[fontName] = style;
+    return style;
+  }
+
+  // Group text items into lines by Y-proximity (items on the same visual
+  // line can arrive in any order in the content stream), then sort lines
+  // top-to-bottom and items left-to-right within each line.
+  const lineTolerance = 3;
+  const lines = [];
+  for(const it of content.items){
+    if(!it.str) continue;
+    const size = Math.abs(it.transform[0]) || Math.abs(it.transform[3]) || 10;
+    const x = it.transform[4], y = it.transform[5];
+    const style = await styleFor(it.fontName);
+    let line = lines.find(l => Math.abs(l.y - y) <= lineTolerance);
+    if(!line){ line = {y, items:[]}; lines.push(line); }
+    line.items.push({str: it.str, x, size, bold: style.bold, italic: style.italic});
+  }
+  lines.sort((a,b)=> b.y - a.y); // PDF y grows upward - top of page first
+  lines.forEach(l => l.items.sort((a,b)=>a.x-b.x));
+
+  // Group lines into paragraphs: a vertical gap noticeably larger than the
+  // line's own font size means a new paragraph, not just a wrapped line.
+  // A fully blank line always forces a paragraph break.
+  const paragraphs = [];
+  let prevY = null, prevSize = null, current = null;
+  for(const line of lines){
+    const lineText = line.items.map(i=>i.str).join("");
+    if(!lineText.trim()){ current = null; continue; }
+    const size = line.items[0].size;
+    const gap = prevY!=null ? prevY - line.y : 0;
+    if(!current || (prevSize && gap > prevSize*1.6)){
+      current = {type:"paragraph", runs:[], listItem:false};
+      paragraphs.push(current);
+      if(/^\s*([•●▪‣\-*]|\d{1,3}[.)])\s+/.test(lineText)) current.listItem = true;
+    }
+    for(const item of line.items){
+      const last = current.runs[current.runs.length-1];
+      if(last && last.bold===item.bold && last.italic===item.italic && last.size===item.size){
+        last.text += item.str;
+      } else {
+        current.runs.push({text:item.str, bold:item.bold, italic:item.italic, size:item.size});
+      }
+    }
+    current.runs.push({text:" ", bold:false, italic:false, size});
+    prevY = line.y; prevSize = size;
+  }
+  return paragraphs;
+}
+function styledParagraphXml(block){
+  const runsXml = block.runs.map(r=>{
+    if(!r.text) return "";
+    const rPr = [];
+    if(r.bold) rPr.push("<w:b/>");
+    if(r.italic) rPr.push("<w:i/>");
+    if(r.size) rPr.push(`<w:sz w:val="${Math.max(2, Math.round(r.size*2))}"/>`); // DOCX sizes are half-points
+    const rPrXml = rPr.length ? `<w:rPr>${rPr.join("")}</w:rPr>` : "";
+    return `<w:r>${rPrXml}<w:t xml:space="preserve">${escapeXml(r.text)}</w:t></w:r>`;
+  }).join("");
+  const pPr = block.listItem ? `<w:pPr><w:ind w:left="720"/></w:pPr>` : "";
+  return `<w:p>${pPr}${runsXml}</w:p>`;
+}
 async function buildBasicDocx(paragraphs){
   const zip = new JSZip();
   zip.file("[Content_Types].xml",
@@ -3894,6 +3991,8 @@ ${hasImages ? '<Default Extension="png" ContentType="image/png"/>' : ''}
       if(cx > maxWidthEmu){ const ratio = maxWidthEmu/cx; cx = maxWidthEmu; cy = Math.round(cy*ratio); }
       return `<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="${imgCounter}" name="Picture ${imgCounter}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${imgCounter}" name="Picture ${imgCounter}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
     }
+    if(b.type === "pagebreak"){ return `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`; }
+    if(b.type === "paragraph"){ return styledParagraphXml(b); }
     if(!b.text || !b.text.trim()) return `<w:p/>`;
     return `<w:p><w:r><w:t xml:space="preserve">${escapeXml(b.text)}</w:t></w:r></w:p>`;
   }).join("");
@@ -3962,7 +4061,7 @@ TOOLS.pdf2word = function(){
   openPanel(`
     <div class="panel-head"><h3>PDF to Word</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
     <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Extracts editable text page by page. Pages with little or no extractable text (scans, diagrams, image-heavy pages) are inserted as images instead, so nothing gets lost.</p>
+      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Extracts editable text with real formatting (font size, bold, italic, paragraphs, basic lists) preserved. Pages with little or no extractable text (scans, diagrams, image-heavy pages) are inserted as images instead, so nothing gets lost.</p>
       ${fileInputHTML("application/pdf", false)}
       <button class="btn" id="go" disabled>Convert to Word</button>
       <div id="out"></div>
@@ -3976,20 +4075,17 @@ TOOLS.pdf2word = function(){
     const blocks=[];
     for(let i=1;i<=pdoc.numPages;i++){
       setStatus("Reading pages...", false, Math.round((i/pdoc.numPages)*100));
-      const page = await pdoc.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = content.items.map(it=>it.str).join(" ").trim();
-      if(pageText.length < 6){
+      const paragraphs = await extractStyledParagraphs(pdoc, i);
+      const pageHasText = paragraphs.some(p=>p.runs.some(r=>r.text.trim()));
+      if(!pageHasText){
         try{
           const canvas = await renderPdfPageCanvas(pdoc, i, 1.6);
           blocks.push({type:"image", pngBase64:canvasToPngBase64(canvas), width:canvas.width, height:canvas.height});
-        }catch(e){
-          blocks.push({type:"text", text:pageText});
-        }
+        }catch(e){ /* nothing extractable and nothing renderable - leave this page out */ }
       } else {
-        blocks.push({type:"text", text:pageText});
+        blocks.push(...paragraphs);
       }
-      if(i < pdoc.numPages) blocks.push({type:"text", text:""});
+      if(i < pdoc.numPages) blocks.push({type:"pagebreak"});
     }
     setStatus("Building document...");
     const blob = await buildMixedDocx(blocks);
