@@ -2932,11 +2932,22 @@ async function autoQuickPreview(fs){
   try{
     if(f.type==="application/pdf" || f.name.toLowerCase().endsWith(".pdf")){
       const bytes = await f.arrayBuffer();
-      const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
+      // .slice(0) here, not the original `bytes` - pdfjsLib.getDocument()
+      // can transfer/detach an ArrayBuffer to its worker, and pdfThumb()
+      // below calls getDocument() again on the same `bytes` for each
+      // page. Without the copy, that second call silently fails once the
+      // buffer's been detached, pdfThumb() returns {canvas:null}, and
+      // appendChild(null) throws - caught by this function's own outer
+      // catch, so the whole preview silently never rendered anything.
+      const pdoc = await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
       const maxShow = Math.min(pdoc.numPages, 6);
       for(let i=1;i<=maxShow;i++){
-        const {canvas} = await pdfThumb(bytes, i, 100);
-        qp.appendChild(canvas);
+        // Each pdfThumb() call internally does its own getDocument(), which
+        // detaches whatever buffer it's given - reusing `bytes` across this
+        // loop's iterations would only let page 1 succeed and silently fail
+        // every page after it. A fresh slice per call keeps each independent.
+        const {canvas} = await pdfThumb(bytes.slice(0), i, 100);
+        if(canvas) qp.appendChild(canvas);
       }
       if(pdoc.numPages>maxShow){
         const more = document.createElement("div");
