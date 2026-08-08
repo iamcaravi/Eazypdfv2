@@ -289,6 +289,32 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
    too for tools that ask for it. Additive only: every other tool keeps
    centering by default, unaffected. */
 .panel-body.compact{ justify-content:flex-start; padding-top:28px; }
+/* Split PDF's own bespoke single-column workspace - opts out of the
+   shared two-column layoutTwoColumn() shell (see its .no-auto-layout
+   guard) since the reference layout this tool follows is a centered
+   hero before upload and a full-width document workspace after,
+   neither of which is the shared file+sidebar shell every other
+   multi-field tool uses. Scoped entirely under .split-workspace so it
+   cannot leak into any other tool's styling. */
+.split-workspace{ max-width:900px; margin:0 auto; width:100%; }
+.split-hero{
+  text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px;
+  padding:8px 16px 4px; transition:padding var(--t-base) ease;
+}
+.split-hero h2{ font-size:1.9rem; margin:0; letter-spacing:-0.01em; }
+.split-hero p{ margin:0; color:var(--ink-soft); font-size:1rem; line-height:1.55; max-width:480px; }
+.split-upload-wrap{ display:flex; justify-content:center; padding:12px 0 4px; }
+.split-upload-wrap .dropzone{ max-width:480px; width:100%; }
+/* Loaded state: shrink the hero rather than remove it (Phase 3) - still
+   the same title/subtitle, just no longer the dominant element once the
+   document workspace itself is what the eye should land on. */
+.split-workspace.is-loaded .split-hero{ padding:4px 16px 0; }
+.split-workspace.is-loaded .split-hero h2{ font-size:1.3rem; }
+.split-workspace.is-loaded .split-hero p{ display:none; }
+@media (max-width:640px){
+  .split-hero h2{ font-size:1.5rem; }
+  .split-upload-wrap .dropzone{ max-width:100%; }
+}
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
@@ -2360,6 +2386,10 @@ const editorHoldingArea = document.createElement("div");
 function layoutTwoColumn(){
   const body = document.querySelector(".panel-body");
   if(!body || body.querySelector(".tool-layout")) return;
+  // Opt-out for tools building their own bespoke single-column workspace
+  // (currently just Split PDF) instead of the shared file+sidebar shell -
+  // additive only, no other tool sets this class so none are affected.
+  if(body.classList.contains("no-auto-layout")) return;
   const out = document.getElementById("out");
   const sidebarEls = [...body.querySelectorAll(".field, .row, #go")];
   if(sidebarEls.length === 0) return;
@@ -3658,9 +3688,14 @@ TOOLS.split = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Split PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact">
-      <p style="margin:0;color:var(--ink-soft);font-size:.88rem">Pull a page range into one PDF, or break every page out into its own file.</p>
-      ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+    <div class="panel-body compact no-auto-layout split-workspace" id="splitBody">
+      <div class="split-hero" id="splitHero">
+        <h2>Split PDF</h2>
+        <p>Separate a PDF into multiple files by page range, or break every page out into its own file.</p>
+      </div>
+      <div class="split-upload-wrap" id="splitUploadWrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
       <div class="field" id="rangesField" style="display:none"><label>Page ranges (leave blank to use the page selection below, or split every page)</label><input type="text" id="ranges" placeholder="e.g. 1-3,4-6"></div>
       <p class="page-grid-hint" id="gridHint" style="display:none">Drag to reorder, hover a page to rotate or remove it, or click pages to select which ones go into one file.</p>
       <div class="row" id="quickSelectRow" style="display:none;gap:8px;margin-bottom:8px">
@@ -3681,6 +3716,7 @@ TOOLS.split = function(){
       document.getElementById("quickSelectRow").style.display="none";
       document.getElementById("rangesField").style.display="none";
       document.getElementById("go").style.display="none";
+      document.getElementById("splitBody").classList.remove("is-loaded");
     });
     const bytes = await file.arrayBuffer();
     document.getElementById("gridHint").style.display="block";
@@ -3688,6 +3724,7 @@ TOOLS.split = function(){
     document.getElementById("rangesField").style.display="block";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, multiSelect:true, zoomable:true});
     document.getElementById("go").style.display="inline-flex";
+    document.getElementById("splitBody").classList.add("is-loaded");
   });
   document.getElementById("selOdd").addEventListener("click", ()=>gridApi && gridApi.selectOddEven("odd"));
   document.getElementById("selEven").addEventListener("click", ()=>gridApi && gridApi.selectOddEven("even"));
