@@ -513,13 +513,19 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   .tool-side-panel{ width:100%; position:sticky; top:0; z-index:2; }
 }
 
-/* Image Resize's loaded state: the shared quick-preview strip
+/* Image tools' loaded state: the shared quick-preview strip
    (#quickPreview, from fileInputHTML()/autoQuickPreview()) already shows
-   the uploaded image automatically - just make it the dominant visual
-   element here instead of a small thumbnail, since resize is inherently
-   about seeing the image. Scoped by this tool's own body id only. */
-#imgresizeBody #quickPreview{ justify-content:center; max-height:none; padding:8px 0; }
-#imgresizeBody #quickPreview img{ height:auto; max-height:320px; max-width:100%; border-radius:10px; }
+   the uploaded image automatically - moved into .tool-main-pane (the
+   app-workspace's main pane) and made the dominant visual element there,
+   since every image tool is inherently about seeing the image. Generic
+   rule, not scoped to one tool - used by Resize/Compress/Convert/
+   Watermark/Invert once each moves its #quickPreview here on load. */
+.tool-main-pane #quickPreview{
+  display:flex; align-items:center; justify-content:center;
+  min-height:320px; max-height:none; padding:20px;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+}
+.tool-main-pane #quickPreview img{ height:auto; max-width:100%; max-height:60vh; border-radius:8px; }
 
 /* .page-workspace modifier: for tools whose main content is a
    buildPageGrid() thumbnail grid (Rotate/Delete/Extract/Reorder/
@@ -6278,28 +6284,52 @@ TOOLS.imgcompress = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Image Compressor</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace" id="imgcompressBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgcompressBody">
+      <div class="tool-hero" id="imgcompressHero">
         <h2 class="tool-hero-title">Image Compressor</h2>
         <p class="tool-hero-desc">Shrink an image toward a target file size, right in your browser.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="imgcompressUploadWrap">
         ${fileInputHTML("image/*", false, "Drop an image here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="imgcompressToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <div class="field" style="margin:0"><label>Target size in KB</label><input type="number" id="targetKb" placeholder="e.g. 100"></div>
-        </div>
-        <button class="btn tool-toolbar-primary" id="go">Compress Image</button>
+      <p class="tool-privacy-hint" id="imgcompressPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="imgcompressWorkspace" style="display:none">
+        <div class="tool-main-pane" id="imgcompressPreviewPane"></div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Image Compressor</h3>
+          <div id="imgcompressFileSlot"></div>
+          <div class="field"><label>Target size in KB</label><input type="number" id="targetKb" placeholder="e.g. 100"></div>
+          <button class="btn tool-toolbar-primary" id="go">Compress Image</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("imgcompressHero");
+  const uploadWrap = document.getElementById("imgcompressUploadWrap");
+  const privacyHint = document.getElementById("imgcompressPrivacyHint");
+  const workspace = document.getElementById("imgcompressWorkspace");
+  const fileSlot = document.getElementById("imgcompressFileSlot");
+  const previewPane = document.getElementById("imgcompressPreviewPane");
+  const body = document.getElementById("imgcompressBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("imgcompressToolbar").style.display="none"; document.getElementById("imgcompressBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
-    document.getElementById("imgcompressToolbar").style.display="flex";
-    document.getElementById("imgcompressBody").classList.add("is-loaded");
+    renderFileList([file], ()=>{ file=null; showEmptyState(); });
+    fileSlot.appendChild(document.getElementById("flist"));
+    previewPane.appendChild(document.getElementById("quickPreview"));
+    showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out");
@@ -6338,34 +6368,58 @@ TOOLS.imgresize = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Resize Image</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace" id="imgresizeBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgresizeBody">
+      <div class="tool-hero" id="imgresizeHero">
         <h2 class="tool-hero-title">Resize Image</h2>
         <p class="tool-hero-desc">Change an image's dimensions, in your browser.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="imgresizeUploadWrap">
         ${fileInputHTML("image/*", false, "Drop an image here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="imgresizeToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <div class="field" style="margin:0"><label>Width (px)</label><input type="number" id="rw" placeholder="800"></div>
-          <div class="field" style="margin:0"><label>Height (px)</label><input type="number" id="rh" placeholder="600"></div>
-          <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;flex:none;"><input type="checkbox" id="keepRatio" checked> Maintain aspect ratio</label>
-        </div>
-        <button class="btn tool-toolbar-primary" id="go">Resize Image</button>
+      <p class="tool-privacy-hint" id="imgresizePrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="imgresizeWorkspace" style="display:none">
+        <div class="tool-main-pane" id="imgresizePreviewPane"></div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Resize Image</h3>
+          <div id="imgresizeFileSlot"></div>
+          <div class="field"><label>Width (px)</label><input type="number" id="rw" placeholder="800"></div>
+          <div class="field"><label>Height (px)</label><input type="number" id="rh" placeholder="600"></div>
+          <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="keepRatio" checked> Maintain aspect ratio</label>
+          <button class="btn tool-toolbar-primary" id="go">Resize Image</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("imgresizeHero");
+  const uploadWrap = document.getElementById("imgresizeUploadWrap");
+  const privacyHint = document.getElementById("imgresizePrivacyHint");
+  const workspace = document.getElementById("imgresizeWorkspace");
+  const fileSlot = document.getElementById("imgresizeFileSlot");
+  const previewPane = document.getElementById("imgresizePreviewPane");
+  const body = document.getElementById("imgresizeBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   let imgRef=null;
   wireDropzone(async fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; imgRef=null; document.getElementById("imgresizeToolbar").style.display="none"; document.getElementById("imgresizeBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; imgRef=null; showEmptyState(); });
+    fileSlot.appendChild(document.getElementById("flist"));
+    previewPane.appendChild(document.getElementById("quickPreview"));
     imgRef=await loadImage(file);
     document.getElementById("rw").value=imgRef.width;
     document.getElementById("rh").value=imgRef.height;
-    document.getElementById("imgresizeToolbar").style.display="flex";
-    document.getElementById("imgresizeBody").classList.add("is-loaded");
+    showWorkspace();
   });
   document.getElementById("rw").addEventListener("input", ()=>{
     if(document.getElementById("keepRatio").checked && imgRef){
@@ -6392,27 +6446,49 @@ TOOLS.imgcrop = function(){
   let file=null, imgRef=null, dispScale=1, rect=null, bgImageData=null;
   openPanel(`
     <div class="panel-head"><h3>Crop Image</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace" id="imgcropBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgcropBody">
+      <div class="tool-hero" id="imgcropHero">
         <h2 class="tool-hero-title">Crop Image</h2>
         <p class="tool-hero-desc">Drag to draw a selection, then use the corner/edge handles to fine-tune it.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="imgcropUploadWrap">
         ${fileInputHTML("image/*", false, "Drop an image here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="crop-stage tool-content-area" id="cropStage" style="display:none;">
-        <canvas id="cropCanvas"></canvas>
-      </div>
-      <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
-      <div class="tool-toolbar" id="cropToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
+      <p class="tool-privacy-hint" id="imgcropPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="imgcropWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <div class="crop-stage tool-content-area" id="cropStage">
+            <canvas id="cropCanvas"></canvas>
+          </div>
+          <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
         </div>
-        <button class="btn tool-toolbar-primary" id="go">Crop Image</button>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Crop Image</h3>
+          <div id="imgcropFileSlot"></div>
+          <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
+          <button class="btn tool-toolbar-primary" id="go">Crop Image</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("imgcropHero");
+  const uploadWrap = document.getElementById("imgcropUploadWrap");
+  const privacyHint = document.getElementById("imgcropPrivacyHint");
+  const workspace = document.getElementById("imgcropWorkspace");
+  const fileSlot = document.getElementById("imgcropFileSlot");
+  const body = document.getElementById("imgcropBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
 
   const cropState = {
     rect: null,
@@ -6448,17 +6524,14 @@ TOOLS.imgcrop = function(){
     file=fs[0];
     renderFileList([file], ()=>{
       file=null; imgRef=null;
-      document.getElementById("cropStage").style.display="none";
-      document.getElementById("cropToolbar").style.display="none";
       document.getElementById("cropReadout").textContent="";
-      document.getElementById("imgcropBody").classList.remove("is-loaded");
+      showEmptyState();
     });
+    fileSlot.appendChild(document.getElementById("flist"));
     imgRef = await loadImage(file);
     const qp = document.getElementById("quickPreview"); if(qp) qp.innerHTML = "";
-    const stage = document.getElementById("cropStage");
-    stage.style.display = "flex";
     const canvas = document.getElementById("cropCanvas");
-    const maxW = 420;
+    const maxW = 700; // wider cap than before - the main pane has real room now, not a small centered column
     dispScale = Math.min(1, maxW/imgRef.width);
     canvas.width = Math.round(imgRef.width*dispScale);
     canvas.height = Math.round(imgRef.height*dispScale);
@@ -6466,8 +6539,7 @@ TOOLS.imgcrop = function(){
     bgImageData = canvas.getContext("2d").getImageData(0,0,canvas.width,canvas.height);
     cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
     cropState.redraw();
-    document.getElementById("cropToolbar").style.display = "flex";
-    document.getElementById("imgcropBody").classList.add("is-loaded");
+    showWorkspace();
     wireCropCanvas(canvas, cropState);
     document.getElementById("resetCrop").onclick = ()=>{
       cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
@@ -6496,30 +6568,54 @@ TOOLS.imgconvert = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Convert Image Format</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace" id="imgconvertBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgconvertBody">
+      <div class="tool-hero" id="imgconvertHero">
         <h2 class="tool-hero-title">Convert Image Format</h2>
         <p class="tool-hero-desc">Convert an image between PNG, JPG, and WebP.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="imgconvertUploadWrap">
         ${fileInputHTML("image/*", false, "Drop an image here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="imgconvertToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <div class="field" style="margin:0"><label>Target format</label>
+      <p class="tool-privacy-hint" id="imgconvertPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="imgconvertWorkspace" style="display:none">
+        <div class="tool-main-pane" id="imgconvertPreviewPane"></div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Convert Image Format</h3>
+          <div id="imgconvertFileSlot"></div>
+          <div class="field"><label>Target format</label>
             <select id="fmt"><option value="image/png">PNG</option><option value="image/jpeg">JPG</option><option value="image/webp">WebP</option></select>
           </div>
-        </div>
-        <button class="btn tool-toolbar-primary" id="go">Convert Image</button>
+          <button class="btn tool-toolbar-primary" id="go">Convert Image</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("imgconvertHero");
+  const uploadWrap = document.getElementById("imgconvertUploadWrap");
+  const privacyHint = document.getElementById("imgconvertPrivacyHint");
+  const workspace = document.getElementById("imgconvertWorkspace");
+  const fileSlot = document.getElementById("imgconvertFileSlot");
+  const previewPane = document.getElementById("imgconvertPreviewPane");
+  const body = document.getElementById("imgconvertBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("imgconvertToolbar").style.display="none"; document.getElementById("imgconvertBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
-    document.getElementById("imgconvertToolbar").style.display="flex";
-    document.getElementById("imgconvertBody").classList.add("is-loaded");
+    renderFileList([file], ()=>{ file=null; showEmptyState(); });
+    fileSlot.appendChild(document.getElementById("flist"));
+    previewPane.appendChild(document.getElementById("quickPreview"));
+    showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Reading image...");
@@ -6543,31 +6639,55 @@ TOOLS.imgwatermark = function(){
   let file=null, imgRef=null;
   openPanel(`
     <div class="panel-head"><h3>Add Watermark to Image</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace" id="imgwatermarkBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgwatermarkBody">
+      <div class="tool-hero" id="imgwatermarkHero">
         <h2 class="tool-hero-title">Add Watermark to Image</h2>
         <p class="tool-hero-desc">Stamp diagonal text across an image, right in your browser.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="imgwatermarkUploadWrap">
         ${fileInputHTML("image/*", false, "Drop an image here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="imgwatermarkToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <div class="field" style="margin:0;flex:2 1 100%"><label>Watermark text</label><input type="text" id="wtext" placeholder="e.g. SAMPLE"></div>
-          <div class="field" style="margin:0"><label>Opacity</label><input type="number" id="opac" value="0.4" step="0.05" min="0.05" max="1"></div>
-          <div class="field" style="margin:0"><label>Font size (px)</label><input type="number" id="fsize" value="36"></div>
-        </div>
-        <button class="btn tool-toolbar-primary" id="go">Add Watermark</button>
+      <p class="tool-privacy-hint" id="imgwatermarkPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="imgwatermarkWorkspace" style="display:none">
+        <div class="tool-main-pane" id="imgwatermarkPreviewPane"></div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Add Watermark</h3>
+          <div id="imgwatermarkFileSlot"></div>
+          <div class="field"><label>Watermark text</label><input type="text" id="wtext" placeholder="e.g. SAMPLE"></div>
+          <div class="field"><label>Opacity</label><input type="number" id="opac" value="0.4" step="0.05" min="0.05" max="1"></div>
+          <div class="field"><label>Font size (px)</label><input type="number" id="fsize" value="36"></div>
+          <button class="btn tool-toolbar-primary" id="go">Add Watermark</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("imgwatermarkHero");
+  const uploadWrap = document.getElementById("imgwatermarkUploadWrap");
+  const privacyHint = document.getElementById("imgwatermarkPrivacyHint");
+  const workspace = document.getElementById("imgwatermarkWorkspace");
+  const fileSlot = document.getElementById("imgwatermarkFileSlot");
+  const previewPane = document.getElementById("imgwatermarkPreviewPane");
+  const body = document.getElementById("imgwatermarkBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(async fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; imgRef=null; document.getElementById("imgwatermarkToolbar").style.display="none"; document.getElementById("imgwatermarkBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; imgRef=null; showEmptyState(); });
+    fileSlot.appendChild(document.getElementById("flist"));
+    previewPane.appendChild(document.getElementById("quickPreview"));
     imgRef=await loadImage(file);
-    document.getElementById("imgwatermarkToolbar").style.display="flex";
-    document.getElementById("imgwatermarkBody").classList.add("is-loaded");
+    showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing image...");
@@ -6600,26 +6720,52 @@ TOOLS.imginvert = function(){
   let file=null, imgRef=null;
   openPanel(`
     <div class="panel-head"><h3>Invert Image Colors</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace" id="imginvertBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imginvertBody">
+      <div class="tool-hero" id="imginvertHero">
         <h2 class="tool-hero-title">Invert Image Colors</h2>
         <p class="tool-hero-desc">Flip an image to its color negative.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="imginvertUploadWrap">
         ${fileInputHTML("image/*", false, "Drop an image here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="imginvertToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Invert Image</button>
+      <p class="tool-privacy-hint" id="imginvertPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="imginvertWorkspace" style="display:none">
+        <div class="tool-main-pane" id="imginvertPreviewPane"></div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Invert Image Colors</h3>
+          <div id="imginvertFileSlot"></div>
+          <button class="btn tool-toolbar-primary" id="go">Invert Image</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("imginvertHero");
+  const uploadWrap = document.getElementById("imginvertUploadWrap");
+  const privacyHint = document.getElementById("imginvertPrivacyHint");
+  const workspace = document.getElementById("imginvertWorkspace");
+  const fileSlot = document.getElementById("imginvertFileSlot");
+  const previewPane = document.getElementById("imginvertPreviewPane");
+  const body = document.getElementById("imginvertBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(async fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("imginvertToolbar").style.display="none"; document.getElementById("imginvertBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
+    renderFileList([file], ()=>{ file=null; showEmptyState(); });
+    fileSlot.appendChild(document.getElementById("flist"));
+    previewPane.appendChild(document.getElementById("quickPreview"));
     imgRef=await loadImage(file);
-    document.getElementById("imginvertToolbar").style.display="flex";
-    document.getElementById("imginvertBody").classList.add("is-loaded");
+    showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing image...");
