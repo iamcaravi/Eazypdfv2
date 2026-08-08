@@ -535,10 +535,10 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .compare-filename{ font-size:.8rem; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; width:100%; }
 .compare-filename.has-file{ color:var(--ink); font-weight:600; }
 
-/* HTML to PDF's editor textarea - the shared .field textarea rule's
+/* HTML/TXT to PDF's editor textarea - the shared .field textarea rule's
    90px min-height is fine for short option fields elsewhere but reads as
    cramped for a tool whose entire job is typing/pasting real content. */
-#html2pdfBody textarea{ min-height:260px; }
+#html2pdfBody textarea, #txt2pdfBody textarea{ min-height:260px; }
 
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
@@ -5585,9 +5585,18 @@ TOOLS.pdf2txt = function(){
 TOOLS.txt2pdf = function(){
   openPanel(`
     <div class="panel-head"><h3>TXT to PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <div class="field"><label>Text</label><textarea id="txtIn" placeholder="Type or paste your text here"></textarea></div>
-      <button class="btn" id="go">Create PDF</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="txt2pdfBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">TXT to PDF</h2>
+        <p class="tool-hero-desc">Convert plain text into a PDF document.</p>
+      </div>
+      <div class="tool-content-area">
+        <label class="tool-content-area-label" for="txtIn">Plain text</label>
+        <div class="field" style="margin:0"><textarea id="txtIn" placeholder="Type or paste your text here"></textarea></div>
+      </div>
+      <div class="tool-toolbar">
+        <button class="btn tool-toolbar-primary" id="go">Convert to PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
   document.getElementById("go").addEventListener("click", async ()=>{
