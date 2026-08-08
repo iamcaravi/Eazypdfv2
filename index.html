@@ -475,6 +475,25 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   color:var(--ink); font-size:.8rem; padding:10px 14px; margin:4px 0;
 }
 .tool-workspace.is-loaded .tool-privacy-hint{ display:flex; }
+
+/* .page-workspace modifier: for tools whose main content is a
+   buildPageGrid() thumbnail grid (Rotate/Delete/Extract/Reorder/
+   Organize) rather than a plain file list. Generalizes the same
+   narrow-viewport thumbnail-sizing fix Split PDF already proved
+   (the shared zoom-m default of 198px cards only fits one per row on
+   a 375px phone) so every page-grid tool gets 2-per-row, not just
+   Split. Scoped to .page-workspace only - no other tool's page-grid
+   sizing changes. */
+@media (max-width:480px){
+  .page-workspace .page-grid-cards.zoom-m .page-card{ width:132px; }
+  .page-workspace .page-grid-cards.zoom-m .page-thumb{ height:120px; }
+  .page-workspace .page-grid-cards.zoom-s .page-card{ width:100px; }
+  .page-workspace .page-grid-cards.zoom-s .page-thumb{ height:90px; }
+  .page-workspace .page-grid-cards.zoom-l .page-card{ width:160px; }
+  .page-workspace .page-grid-cards.zoom-l .page-thumb{ height:146px; }
+  .page-workspace .page-grid-cards{ gap:10px; }
+}
+
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
@@ -4036,17 +4055,26 @@ TOOLS.rotate = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Rotate PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <p class="page-grid-hint" id="gridHint" style="display:none">Hover any page to rotate it on its own, or select several pages and use "Apply to selected/all" below.</p>
-      <div class="row" id="rotateAllRow" style="display:none;gap:8px;align-items:flex-end;margin-bottom:8px">
-        <div class="field" style="margin:0"><label>Rotation</label>
-          <select id="deg"><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">270° (90° counter-clockwise)</option></select>
-        </div>
-        <button type="button" class="btn secondary btn-sm" id="rotAll">Apply to All Pages</button>
+    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="rotateBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Rotate PDF</h2>
+        <p class="tool-hero-desc">Rotate specific pages or the whole document, then download the corrected PDF.</p>
       </div>
-      <div class="page-grid" id="pageGrid"></div>
-      <button class="btn" id="go" disabled>Download Rotated PDF</button>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="page-grid-hint" id="gridHint" style="display:none">Hover any page to rotate it on its own, or select several pages and use "Apply to selected/all" below.</p>
+      <div class="page-grid tool-content-area" id="pageGrid"></div>
+      <div class="tool-toolbar" id="rotateToolbar" style="display:none">
+        <div class="tool-toolbar-secondary" id="rotateAllRow">
+          <div class="field" style="margin:0"><label>Rotation</label>
+            <select id="deg"><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">270° (90° counter-clockwise)</option></select>
+          </div>
+          <button type="button" class="btn secondary btn-sm" id="rotAll">Apply to All Pages</button>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Rotate PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
   wireDropzone(async fs=>{
@@ -4055,14 +4083,14 @@ TOOLS.rotate = function(){
       file=null; gridApi=null;
       document.getElementById("pageGrid").innerHTML="";
       document.getElementById("gridHint").style.display="none";
-      document.getElementById("rotateAllRow").style.display="none";
-      document.getElementById("go").disabled=true;
+      document.getElementById("rotateToolbar").style.display="none";
+      document.getElementById("rotateBody").classList.remove("is-loaded");
     });
     const bytes = await file.arrayBuffer();
     document.getElementById("gridHint").style.display="block";
-    document.getElementById("rotateAllRow").style.display="flex";
+    document.getElementById("rotateToolbar").style.display="flex";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select", rotatable:true, zoomable:true});
-    document.getElementById("go").disabled=false;
+    document.getElementById("rotateBody").classList.add("is-loaded");
   });
   document.getElementById("rotAll").addEventListener("click", ()=>{
     if(!gridApi) return;
@@ -4090,19 +4118,29 @@ TOOLS.deletepages = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Delete Pages</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
+    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="deleteBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Delete Pages</h2>
+        <p class="tool-hero-desc">Select the pages you don't need and remove them from the PDF.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
       <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to delete.</p>
-      <div class="page-grid" id="pageGrid"></div>
-      <button class="btn" id="go" disabled>Delete Pages</button>
+      <div class="page-grid tool-content-area" id="pageGrid"></div>
+      <div class="tool-toolbar" id="deleteToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Delete Pages</button>
+      </div>
       <div id="out"></div>
     </div>`);
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
+    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("deleteToolbar").style.display="none"; document.getElementById("deleteBody").classList.remove("is-loaded");});
     const bytes = await file.arrayBuffer();
     document.getElementById("gridHint").style.display="block";
+    document.getElementById("deleteToolbar").style.display="flex";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select"});
-    document.getElementById("go").disabled=false;
+    document.getElementById("deleteBody").classList.add("is-loaded");
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
@@ -4128,19 +4166,29 @@ TOOLS.extractpages = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Extract Pages</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
+    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="extractBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Extract Pages</h2>
+        <p class="tool-hero-desc">Select the pages you want to keep and save them as a new PDF.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
       <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to keep.</p>
-      <div class="page-grid" id="pageGrid"></div>
-      <button class="btn" id="go" disabled>Extract Pages</button>
+      <div class="page-grid tool-content-area" id="pageGrid"></div>
+      <div class="tool-toolbar" id="extractToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Extract Pages</button>
+      </div>
       <div id="out"></div>
     </div>`);
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
+    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("extractToolbar").style.display="none"; document.getElementById("extractBody").classList.remove("is-loaded");});
     const bytes = await file.arrayBuffer();
     document.getElementById("gridHint").style.display="block";
+    document.getElementById("extractToolbar").style.display="flex";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select"});
-    document.getElementById("go").disabled=false;
+    document.getElementById("extractBody").classList.add("is-loaded");
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
@@ -4166,19 +4214,29 @@ TOOLS.reorder = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Reorder Pages</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
+    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="reorderBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Reorder Pages</h2>
+        <p class="tool-hero-desc">Drag pages into the order you want, then download the reordered PDF.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
       <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages into the order you want.</p>
-      <div class="page-grid" id="pageGrid"></div>
-      <button class="btn" id="go" disabled>Reorder Pages</button>
+      <div class="page-grid tool-content-area" id="pageGrid"></div>
+      <div class="tool-toolbar" id="reorderToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Reorder Pages</button>
+      </div>
       <div id="out"></div>
     </div>`);
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
+    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("reorderToolbar").style.display="none"; document.getElementById("reorderBody").classList.remove("is-loaded");});
     const bytes = await file.arrayBuffer();
     document.getElementById("gridHint").style.display="block";
+    document.getElementById("reorderToolbar").style.display="flex";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder"});
-    document.getElementById("go").disabled=false;
+    document.getElementById("reorderBody").classList.add("is-loaded");
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
@@ -4490,19 +4548,29 @@ TOOLS.organize = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Organize PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
+    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="organizeBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Organize PDF</h2>
+        <p class="tool-hero-desc">Reorder, rotate, duplicate, or remove pages — all in one place.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
       <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages to reorder. Hover a page to rotate, duplicate, or remove it. Click to multi-select (Ctrl/Cmd+A select all, Delete to remove, Esc to clear).</p>
-      <div class="page-grid" id="pageGrid"></div>
-      <button class="btn" id="go" disabled>Apply</button>
+      <div class="page-grid tool-content-area" id="pageGrid"></div>
+      <div class="tool-toolbar" id="organizeToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Organize PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("go").disabled=true;});
+    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("organizeToolbar").style.display="none"; document.getElementById("organizeBody").classList.remove("is-loaded");});
     const bytes = await file.arrayBuffer();
     document.getElementById("gridHint").style.display="block";
+    document.getElementById("organizeToolbar").style.display="flex";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, duplicable:true, multiSelect:true, zoomable:true});
-    document.getElementById("go").disabled=false;
+    document.getElementById("organizeBody").classList.add("is-loaded");
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Applying...");
