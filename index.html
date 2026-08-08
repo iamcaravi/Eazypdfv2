@@ -428,9 +428,14 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .tool-workspace #flist.file-grid .file-card + .file-card{ padding-top:10px; border-top:1px solid var(--line); }
 .tool-workspace .file-card-thumb{ width:34px; height:44px; flex:none; box-shadow:none; border-radius:5px; }
-.tool-workspace .file-card-name{ font-size:.92rem; white-space:normal; }
+/* flex:1 + min-width:0 is required for text-overflow:ellipsis to take
+   effect on a flex child - without min-width:0 the browser refuses to
+   shrink it below its content width and the sibling meta/remove button
+   get pushed off instead of the name truncating. */
+.tool-workspace .file-card-name{ font-size:.92rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tool-workspace .file-card-meta{ flex:none; }
 .tool-workspace .file-card-remove{
-  position:static; opacity:1; margin-left:auto; background:transparent; color:var(--ink-soft);
+  position:static; opacity:1; margin-left:auto; flex:none; background:transparent; color:var(--ink-soft);
   border:1px solid var(--line);
 }
 .tool-workspace .file-card-remove:hover{ background:var(--red); color:#fff; border-color:var(--red); }
@@ -4651,21 +4656,35 @@ TOOLS.pdf2jpg = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>PDF to JPG</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <button class="btn" id="go" disabled>Convert File</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="pdf2jpgBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">PDF to JPG</h2>
+        <p class="tool-hero-desc">Turn every page of a PDF into a high-quality JPG image.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="pdf2jpgToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Convert to JPG</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("pdf2jpgToolbar").style.display="none"; document.getElementById("pdf2jpgBody").classList.remove("is-loaded"); });
+    document.getElementById("pdf2jpgToolbar").style.display="flex";
+    document.getElementById("pdf2jpgBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Rendering pages...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Rendering PDF pages...");
     await ensureJSZip();
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     const zip = new JSZip();
     let firstBlob=null;
     for(let i=1;i<=pdoc.numPages;i++){
-      setStatus("Extracting images...", false, Math.round((i/pdoc.numPages)*100));
+      setStatus("Rendering PDF pages...", false, Math.round((i/pdoc.numPages)*100));
       const page = await pdoc.getPage(i);
       const vp = page.getViewport({scale:2});
       const canvas=document.createElement("canvas"); canvas.width=vp.width; canvas.height=vp.height;
@@ -4674,16 +4693,18 @@ TOOLS.pdf2jpg = function(){
       if(i===1) firstBlob=blob;
       zip.file(`page_${i}.jpg`, blob);
     }
-    setStatus("Done", true);
+    setStatus("Preparing download...");
     if(pdoc.numPages===1){
       const outName = suffixedName(file, "page1", "jpg");
       const {url}=downloadBlob(firstBlob,outName);
       const img=document.createElement("img"); img.src=url;
+      setStatus("Done", true);
       out.appendChild(resultBox({sizeText:fmtSize(firstBlob.size), sizeGood:true, previewNode:img, url, filename:outName}));
     } else {
       const zipBlob = await zip.generateAsync({type:"blob"});
       const outName = suffixedName(file, "pages", "zip");
       const {url}=downloadBlob(zipBlob,outName);
+      setStatus("Done", true);
       out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:outName}));
     }
   });
@@ -5020,21 +5041,34 @@ TOOLS.pdf2word = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>PDF to Word</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Extracts editable text with real formatting (font size, bold, italic, paragraphs, basic lists) preserved. Pages with little or no extractable text (scans, diagrams, image-heavy pages) are inserted as images instead, so nothing gets lost.</p>
-      ${fileInputHTML("application/pdf", false)}
-      <button class="btn" id="go" disabled>Convert to Word</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="pdf2wordBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">PDF to Word</h2>
+        <p class="tool-hero-desc">Extracts editable text with real formatting (font size, bold, italic, paragraphs, basic lists) preserved. Pages with little or no extractable text are inserted as images instead, so nothing gets lost.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="pdf2wordToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Convert to Word</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("pdf2wordToolbar").style.display="none"; document.getElementById("pdf2wordBody").classList.remove("is-loaded"); });
+    document.getElementById("pdf2wordToolbar").style.display="flex";
+    document.getElementById("pdf2wordBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Extracting content...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     await ensureJSZip();
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     const blocks=[];
     for(let i=1;i<=pdoc.numPages;i++){
-      setStatus("Reading pages...", false, Math.round((i/pdoc.numPages)*100));
+      setStatus("Extracting content...", false, Math.round((i/pdoc.numPages)*100));
       const paragraphs = await extractStyledParagraphs(pdoc, i);
       const pageHasText = paragraphs.some(p=>p.runs.some(r=>r.text.trim()));
       if(!pageHasText){
@@ -5047,9 +5081,10 @@ TOOLS.pdf2word = function(){
       }
       if(i < pdoc.numPages) blocks.push({type:"pagebreak"});
     }
-    setStatus("Building document...");
+    setStatus("Building Word document...");
     const blob = await buildMixedDocx(blocks);
     const outName = suffixedName(file, "converted", "docx");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
@@ -5128,22 +5163,35 @@ TOOLS.pdf2excel = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>PDF to Excel</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Extracts text into rows and columns, approximating table layout from spacing. Pages with little or no extractable text (scans, diagrams) are embedded as images instead so charts and illustrations aren't lost.</p>
-      ${fileInputHTML("application/pdf", false)}
-      <button class="btn" id="go" disabled>Convert to Excel</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="pdf2excelBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">PDF to Excel</h2>
+        <p class="tool-hero-desc">Extracts text into rows and columns, approximating table layout from spacing. Pages with little or no extractable text are embedded as images instead.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="pdf2excelToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Convert to Excel</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("pdf2excelToolbar").style.display="none"; document.getElementById("pdf2excelBody").classList.remove("is-loaded"); });
+    document.getElementById("pdf2excelToolbar").style.display="flex";
+    document.getElementById("pdf2excelBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Extracting content...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     await Promise.all([ensureXLSX(), ensureJSZip()]);
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     const rows=[];
     const imagePlacements=[];
     for(let i=1;i<=pdoc.numPages;i++){
-      setStatus("Reading pages...", false, Math.round((i/pdoc.numPages)*100));
+      setStatus("Detecting tables...", false, Math.round((i/pdoc.numPages)*100));
       const page = await pdoc.getPage(i);
       const content = await page.getTextContent();
       const pageText = content.items.map(it=>it.str).join(" ").trim();
@@ -5161,13 +5209,14 @@ TOOLS.pdf2excel = function(){
       }
       rows.push([]);
     }
-    setStatus("Building spreadsheet...");
+    setStatus("Building Excel workbook...");
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
     const wbout = XLSX.write(wb, {bookType:"xlsx", type:"array"});
     const blob = imagePlacements.length ? await embedImagesInXlsx(wbout, imagePlacements) : new Blob([wbout], {type:"application/octet-stream"});
     const outName = suffixedName(file, "converted", "xlsx");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
@@ -5232,24 +5281,40 @@ TOOLS.pdf2txt = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>PDF to TXT</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <button class="btn" id="go" disabled>Extract Text</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="pdf2txtBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">PDF to TXT</h2>
+        <p class="tool-hero-desc">Extract the plain text content of a PDF into a .txt file.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="pdf2txtToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Convert to TXT</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("pdf2txtToolbar").style.display="none"; document.getElementById("pdf2txtBody").classList.remove("is-loaded"); });
+    document.getElementById("pdf2txtToolbar").style.display="flex";
+    document.getElementById("pdf2txtBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Extracting text...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     let text="";
     for(let i=1;i<=pdoc.numPages;i++){
+      setStatus("Extracting text...", false, Math.round((i/pdoc.numPages)*100));
       const page = await pdoc.getPage(i);
       const content = await page.getTextContent();
       text += content.items.map(it=>it.str).join(" ") + "\n\n";
     }
     const blob = new Blob([text], {type:"text/plain"});
     const outName = suffixedName(file, "extracted", "txt");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
