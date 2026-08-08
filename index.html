@@ -4328,17 +4328,33 @@ TOOLS.pagenumbers = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Add Page Numbers</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Position</label>
-        <select id="pos"><option value="br">Bottom-right</option><option value="bc">Bottom-center</option><option value="bl">Bottom-left</option></select>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="pagenumbersBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Add Page Numbers</h2>
+        <p class="tool-hero-desc">Number every page of your PDF, positioned wherever you like.</p>
       </div>
-      <button class="btn" id="go" disabled>Add Page Numbers</button>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="pagenumbersToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0"><label>Position</label>
+            <select id="pos"><option value="br">Bottom-right</option><option value="bc">Bottom-center</option><option value="bl">Bottom-left</option></select>
+          </div>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Add Page Numbers</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("pagenumbersToolbar").style.display="none"; document.getElementById("pagenumbersBody").classList.remove("is-loaded"); });
+    document.getElementById("pagenumbersToolbar").style.display="flex";
+    document.getElementById("pagenumbersBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
     const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -4351,9 +4367,11 @@ TOOLS.pagenumbers = function(){
       let x = posMode==="br" ? width-tw-30 : posMode==="bl" ? 30 : (width-tw)/2;
       p.drawText(text, {x, y:20, size:10, font, color:rgb(0.2,0.2,0.2)});
     });
+    setStatus("Numbering pages...");
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "numbered", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
@@ -4366,25 +4384,40 @@ TOOLS.watermark = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Add Watermark</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Watermark text</label><input type="text" id="wtext" placeholder="e.g. CONFIDENTIAL"></div>
-      <div class="row">
-        <div class="field"><label>Opacity (0.1–1)</label><input type="number" id="opac" value="0.25" step="0.05" min="0.05" max="1"></div>
-        <div class="field"><label>Font size</label><input type="number" id="fsize" value="48"></div>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="watermarkBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Add Watermark</h2>
+        <p class="tool-hero-desc">Stamp diagonal text across every page of your PDF.</p>
       </div>
-      <button class="btn" id="go" disabled>Add Watermark</button>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="watermarkToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0;flex:2 1 100%"><label>Watermark text</label><input type="text" id="wtext" placeholder="e.g. CONFIDENTIAL"></div>
+          <div class="field" style="margin:0"><label>Opacity (0.1–1)</label><input type="number" id="opac" value="0.25" step="0.05" min="0.05" max="1"></div>
+          <div class="field" style="margin:0"><label>Font size</label><input type="number" id="fsize" value="48"></div>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Add Watermark</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("watermarkToolbar").style.display="none"; document.getElementById("watermarkBody").classList.remove("is-loaded"); });
+    document.getElementById("watermarkToolbar").style.display="flex";
+    document.getElementById("watermarkBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     const text = winAnsiSafe(document.getElementById("wtext").value || "WATERMARK");
     const opacity = parseFloat(document.getElementById("opac").value)||0.25;
     const fsize = parseInt(document.getElementById("fsize").value)||48;
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
     const font = await doc.embedFont(StandardFonts.HelveticaBold);
+    setStatus("Adding watermark...");
     doc.getPages().forEach(p=>{
       const {width,height} = p.getSize();
       const tw = font.widthOfTextAtSize(text, fsize);
@@ -4393,6 +4426,7 @@ TOOLS.watermark = function(){
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "watermarked", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
@@ -4405,21 +4439,38 @@ TOOLS.headerfooter = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Add Header & Footer</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Header text (optional)</label><input type="text" id="htext"></div>
-      <div class="field"><label>Footer text (optional)</label><input type="text" id="ftext"></div>
-      <button class="btn" id="go" disabled>Apply</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="headerfooterBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Add Header & Footer</h2>
+        <p class="tool-hero-desc">Add repeating text to the top and/or bottom of every page.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="headerfooterToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0"><label>Header text (optional)</label><input type="text" id="htext"></div>
+          <div class="field" style="margin:0"><label>Footer text (optional)</label><input type="text" id="ftext"></div>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Add Header & Footer</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("headerfooterToolbar").style.display="none"; document.getElementById("headerfooterBody").classList.remove("is-loaded"); });
+    document.getElementById("headerfooterToolbar").style.display="flex";
+    document.getElementById("headerfooterBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const h = winAnsiSafe(document.getElementById("htext").value);
     const f = winAnsiSafe(document.getElementById("ftext").value);
+    setStatus("Applying header & footer...");
     doc.getPages().forEach(p=>{
       const {width, height} = p.getSize();
       if(h) p.drawText(h, {x:30, y:height-25, size:9, font, color:rgb(0.3,0.3,0.3)});
@@ -4428,6 +4479,7 @@ TOOLS.headerfooter = function(){
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "header_footer", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
@@ -5485,22 +5537,39 @@ TOOLS.metadata = function(){
   let file=null, doc=null;
   openPanel(`
     <div class="panel-head"><h3>PDF Metadata Editor</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Title</label><input type="text" id="mtitle"></div>
-      <div class="field"><label>Author</label><input type="text" id="mauthor"></div>
-      <div class="field"><label>Subject</label><input type="text" id="msubject"></div>
-      <button class="btn" id="go" disabled>Save</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="metadataBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">PDF Metadata Editor</h2>
+        <p class="tool-hero-desc">View and edit a PDF's title, author, and subject.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="metadataToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0"><label>Title</label><input type="text" id="mtitle"></div>
+          <div class="field" style="margin:0"><label>Author</label><input type="text" id="mauthor"></div>
+          <div class="field" style="margin:0"><label>Subject</label><input type="text" id="msubject"></div>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Save</button>
+      </div>
       <div id="out"></div>
     </div>`);
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null;});
+    file=fs[0];
+    renderFileList([file], ()=>{
+      file=null; doc=null;
+      document.getElementById("metadataToolbar").style.display="none";
+      document.getElementById("metadataBody").classList.remove("is-loaded");
+    });
     const bytes = await file.arrayBuffer();
     doc = await loadPdfSafe(bytes);
     document.getElementById("mtitle").value = doc.getTitle()||"";
     document.getElementById("mauthor").value = doc.getAuthor()||"";
     document.getElementById("msubject").value = doc.getSubject()||"";
-    document.getElementById("go").disabled=false;
+    document.getElementById("metadataToolbar").style.display="flex";
+    document.getElementById("metadataBody").classList.add("is-loaded");
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Saving...");
@@ -5510,6 +5579,7 @@ TOOLS.metadata = function(){
     const outBytes = await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "metadata_updated", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
