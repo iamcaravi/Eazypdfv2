@@ -361,6 +361,24 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   .split-workspace .page-grid-cards.zoom-l .page-thumb{ height:146px; }
   .split-workspace .page-grid-cards{ gap:10px; }
 }
+/* Phase 5: split controls as one bounded toolbar - page range + odd/
+   even/clear as secondary controls in a row, Split PDF full-width and
+   visually dominant below, rather than form fields stacked loosely in
+   a sidebar. */
+.split-toolbar{
+  display:flex; flex-direction:column; gap:14px;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+  padding:16px 18px; margin:4px 0 8px;
+}
+.split-toolbar-row{ display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; }
+.split-toolbar-ranges{ flex:1; min-width:220px; margin:0; }
+.split-toolbar-quick{ display:flex; gap:8px; }
+.split-toolbar-primary{ width:100%; font-size:1.05rem; padding:16px 22px; }
+@media (max-width:640px){
+  .split-toolbar{ padding:14px; }
+  .split-toolbar-row{ flex-direction:column; align-items:stretch; }
+  .split-toolbar-quick .btn{ flex:1; }
+}
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
@@ -3742,15 +3760,19 @@ TOOLS.split = function(){
       <div class="split-upload-wrap" id="splitUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <div class="field" id="rangesField" style="display:none"><label>Page ranges (leave blank to use the page selection below, or split every page)</label><input type="text" id="ranges" placeholder="e.g. 1-3,4-6"></div>
       <p class="page-grid-hint" id="gridHint" style="display:none">Drag to reorder, hover a page to rotate or remove it, or click pages to select which ones go into one file.</p>
-      <div class="row" id="quickSelectRow" style="display:none;gap:8px;margin-bottom:8px">
-        <button type="button" class="btn secondary btn-sm" id="selOdd">Select Odd Pages</button>
-        <button type="button" class="btn secondary btn-sm" id="selEven">Select Even Pages</button>
-        <button type="button" class="btn secondary btn-sm" id="selClear">Clear Selection</button>
-      </div>
       <div class="page-grid" id="pageGrid"></div>
-      <button class="btn" id="go" style="display:none">Split File</button>
+      <div class="split-toolbar" id="splitToolbar" style="display:none">
+        <div class="split-toolbar-row">
+          <div class="field split-toolbar-ranges" id="rangesField"><label>Page ranges</label><input type="text" id="ranges" placeholder="e.g. 1-3,4-6 — blank splits every page"></div>
+          <div class="split-toolbar-quick" id="quickSelectRow">
+            <button type="button" class="btn secondary btn-sm" id="selOdd">Odd</button>
+            <button type="button" class="btn secondary btn-sm" id="selEven">Even</button>
+            <button type="button" class="btn secondary btn-sm" id="selClear">Clear</button>
+          </div>
+        </div>
+        <button class="btn split-toolbar-primary" id="go">Split PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
   wireDropzone(async fs=>{
@@ -3759,17 +3781,13 @@ TOOLS.split = function(){
       file=null; gridApi=null;
       document.getElementById("pageGrid").innerHTML="";
       document.getElementById("gridHint").style.display="none";
-      document.getElementById("quickSelectRow").style.display="none";
-      document.getElementById("rangesField").style.display="none";
-      document.getElementById("go").style.display="none";
+      document.getElementById("splitToolbar").style.display="none";
       document.getElementById("splitBody").classList.remove("is-loaded");
     });
     const bytes = await file.arrayBuffer();
     document.getElementById("gridHint").style.display="block";
-    document.getElementById("quickSelectRow").style.display="flex";
-    document.getElementById("rangesField").style.display="block";
+    document.getElementById("splitToolbar").style.display="flex";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, multiSelect:true, zoomable:true});
-    document.getElementById("go").style.display="inline-flex";
     document.getElementById("splitBody").classList.add("is-loaded");
   });
   document.getElementById("selOdd").addEventListener("click", ()=>gridApi && gridApi.selectOddEven("odd"));
