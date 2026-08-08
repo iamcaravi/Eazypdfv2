@@ -315,6 +315,38 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   .split-hero h2{ font-size:1.5rem; }
   .split-upload-wrap .dropzone{ max-width:100%; }
 }
+/* Phase 3: once loaded, the dropzone has done its job - hide it so the
+   document workspace (file identity strip + thumbnails) is what the eye
+   lands on, not an empty upload box sitting above real content. */
+.split-workspace.is-loaded .split-upload-wrap{ display:none; }
+/* File identity strip: reuses the existing file-card component
+   (renderFileList) - same thumbnail/name/size/pages/remove data, just
+   restyled from a large vertical card into a compact horizontal bar
+   fitting "Document name.pdf · 8 pages" in one line, no duplicate
+   component built. */
+.split-workspace #flist.file-grid{ padding:0; margin:4px 0 2px; max-height:none; }
+.split-workspace .file-card{
+  width:100%; flex-direction:row; align-items:center; gap:12px;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
+}
+.split-workspace .file-card-thumb{ width:34px; height:44px; flex:none; box-shadow:none; border-radius:5px; }
+.split-workspace .file-card-name{ font-size:.92rem; white-space:normal; }
+.split-workspace .file-card-remove{
+  position:static; opacity:1; margin-left:auto; background:transparent; color:var(--ink-soft);
+  border:1px solid var(--line);
+}
+.split-workspace .file-card-remove:hover{ background:var(--red); color:#fff; border-color:var(--red); }
+/* Workspace panel: a light, bounded surface for the thumbnails, so the
+   grid reads as "inside a defined document workspace" rather than
+   thumbnails floating loose on the page background. */
+.split-workspace .page-grid{
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+  padding:20px; margin:8px 0;
+}
+@media (max-width:640px){
+  .split-workspace .page-grid{ padding:12px; border-radius:10px; }
+  .split-workspace .file-card{ padding:8px 10px; gap:10px; }
+}
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
