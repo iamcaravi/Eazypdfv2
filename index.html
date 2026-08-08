@@ -5739,19 +5739,35 @@ TOOLS.imgcompress = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Image Compressor</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("image/*", false)}
-      <div class="field"><label>Target size in KB</label><input type="number" id="targetKb" placeholder="e.g. 100"></div>
-      <button class="btn" id="go" disabled>Compress Image</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="imgcompressBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Image Compressor</h2>
+        <p class="tool-hero-desc">Shrink an image toward a target file size, right in your browser.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("image/*", false, "Drop an image here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="imgcompressToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0"><label>Target size in KB</label><input type="number" id="targetKb" placeholder="e.g. 100"></div>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Compress Image</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("imgcompressToolbar").style.display="none"; document.getElementById("imgcompressBody").classList.remove("is-loaded"); });
+    document.getElementById("imgcompressToolbar").style.display="flex";
+    document.getElementById("imgcompressBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out");
     const targetKb = parseInt(document.getElementById("targetKb").value);
     if(!targetKb){ toast("Enter a target size in KB"); return; }
     const targetBytes = targetKb*1024;
-    out.innerHTML=statusEl("Compressing...");
+    out.innerHTML=statusEl("Reading image...");
     const img = await loadImage(file);
     let quality=0.85, scale=1;
     let best=null;
@@ -5770,6 +5786,7 @@ TOOLS.imgcompress = function(){
     let usedOriginal=false;
     if(best.size >= file.size){ best = file; usedOriginal = true; }
     const outName = suffixedName(file, "compressed", "jpg");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(best,outName);
     const im=document.createElement("img"); im.src=url;
     const reached = best.size<=targetBytes;
@@ -5904,24 +5921,42 @@ TOOLS.imgconvert = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Convert Image Format</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("image/*", false)}
-      <div class="field"><label>Target format</label>
-        <select id="fmt"><option value="image/png">PNG</option><option value="image/jpeg">JPG</option><option value="image/webp">WebP</option></select>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="imgconvertBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Convert Image Format</h2>
+        <p class="tool-hero-desc">Convert an image between PNG, JPG, and WebP.</p>
       </div>
-      <button class="btn" id="go" disabled>Convert Image</button>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("image/*", false, "Drop an image here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="imgconvertToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0"><label>Target format</label>
+            <select id="fmt"><option value="image/png">PNG</option><option value="image/jpeg">JPG</option><option value="image/webp">WebP</option></select>
+          </div>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Convert Image</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("imgconvertToolbar").style.display="none"; document.getElementById("imgconvertBody").classList.remove("is-loaded"); });
+    document.getElementById("imgconvertToolbar").style.display="flex";
+    document.getElementById("imgconvertBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Converting...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading image...");
     const img = await loadImage(file);
     const canvas=document.createElement("canvas"); canvas.width=img.width; canvas.height=img.height;
     canvas.getContext("2d").drawImage(img,0,0);
+    setStatus("Converting...");
     const fmt = document.getElementById("fmt").value;
     const ext = fmt.split("/")[1];
     const blob = await new Promise(res=>canvas.toBlob(res, fmt, 0.92));
     const outName = suffixedName(file, "converted", ext);
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
@@ -5974,14 +6009,29 @@ TOOLS.imginvert = function(){
   let file=null, imgRef=null;
   openPanel(`
     <div class="panel-head"><h3>Invert Image Colors</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("image/*", false)}
-      <button class="btn" id="go" disabled>Invert Colors</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="imginvertBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Invert Image Colors</h2>
+        <p class="tool-hero-desc">Flip an image to its color negative.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("image/*", false, "Drop an image here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="imginvertToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Invert Image</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(async fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); imgRef=await loadImage(file); document.getElementById("go").disabled=false; });
+  wireDropzone(async fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("imginvertToolbar").style.display="none"; document.getElementById("imginvertBody").classList.remove("is-loaded"); });
+    imgRef=await loadImage(file);
+    document.getElementById("imginvertToolbar").style.display="flex";
+    document.getElementById("imginvertBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Inverting...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing image...");
     const canvas=document.createElement("canvas"); canvas.width=imgRef.width; canvas.height=imgRef.height;
     const ctx=canvas.getContext("2d"); ctx.drawImage(imgRef,0,0);
     const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
@@ -5991,6 +6041,7 @@ TOOLS.imginvert = function(){
     const {mime, ext} = imgOutputFormat(file);
     const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
     const outName = suffixedName(file, "inverted", ext);
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
