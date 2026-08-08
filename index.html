@@ -535,6 +535,11 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .compare-filename{ font-size:.8rem; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; width:100%; }
 .compare-filename.has-file{ color:var(--ink); font-weight:600; }
 
+/* HTML to PDF's editor textarea - the shared .field textarea rule's
+   90px min-height is fine for short option fields elsewhere but reads as
+   cramped for a tool whose entire job is typing/pasting real content. */
+#html2pdfBody textarea{ min-height:260px; }
+
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
@@ -4965,10 +4970,18 @@ TOOLS.jpg2pdf = function(){
 TOOLS.html2pdf = function(){
   openPanel(`
     <div class="panel-head"><h3>HTML to PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Basic version: paste plain text or simple HTML, tags are stripped and the text is laid out as a formatted PDF. Complex layouts and CSS are not supported.</p>
-      <div class="field"><label>Content</label><textarea id="htmlIn" placeholder="Paste your text or simple HTML here"></textarea></div>
-      <button class="btn" id="go">Create PDF</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="html2pdfBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">HTML to PDF</h2>
+        <p class="tool-hero-desc">Basic version: paste plain text or simple HTML, tags are stripped and the text is laid out as a formatted PDF. Complex layouts and CSS are not supported.</p>
+      </div>
+      <div class="tool-content-area">
+        <label class="tool-content-area-label" for="htmlIn">HTML content</label>
+        <div class="field" style="margin:0"><textarea id="htmlIn" placeholder="Paste your text or simple HTML here"></textarea></div>
+      </div>
+      <div class="tool-toolbar">
+        <button class="btn tool-toolbar-primary" id="go">Convert to PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
   document.getElementById("go").addEventListener("click", async ()=>{
