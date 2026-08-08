@@ -481,6 +481,38 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .tool-workspace.is-loaded .tool-privacy-hint{ display:flex; }
 
+/* ============================================================
+   Application-style two-pane workspace
+   ------------------------------------------------------------
+   Opt-in via .tool-app-shell on top of .tool-workspace (reuses its
+   hero/upload-wrap/privacy-hint/file-card rules as-is; just overrides
+   the 900px cap for tools whose loaded state needs a wide page-grid +
+   sidebar layout instead of one narrow centered column). Used by the
+   page-manipulation tools (Organize/Split/Rotate/Delete/Extract/Reorder
+   Pages) - the document becomes the dominant working area, with a
+   persistent sidebar for file identity, tool-specific controls, and the
+   primary action, instead of a button trailing below the whole grid.
+   ============================================================ */
+.tool-workspace.tool-app-shell{ max-width:none; }
+.tool-app-shell .tool-hero, .tool-app-shell .tool-upload-wrap, .tool-app-shell .tool-privacy-hint{
+  max-width:900px; margin-left:auto; margin-right:auto;
+}
+.tool-app-workspace{ display:flex; align-items:flex-start; gap:24px; max-width:1400px; margin:0 auto; width:100%; }
+.tool-main-pane{ flex:1; min-width:0; }
+.tool-side-panel{
+  width:300px; flex:none; position:sticky; top:20px;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+  padding:20px; display:flex; flex-direction:column; gap:16px;
+}
+.tool-side-panel-title{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1.1rem; margin:0; }
+.tool-side-panel-section-label{ font-size:0.82rem; font-weight:600; display:block; margin-bottom:2px; }
+.tool-side-panel .tool-toolbar-primary{ width:100%; }
+.tool-side-panel .field{ margin:0; }
+@media (max-width:1024px){
+  .tool-app-workspace{ flex-direction:column; }
+  .tool-side-panel{ width:100%; position:sticky; top:0; z-index:2; }
+}
+
 /* Image Resize's loaded state: the shared quick-preview strip
    (#quickPreview, from fileInputHTML()/autoQuickPreview()) already shows
    the uploaded image automatically - just make it the dominant visual
@@ -3960,43 +3992,67 @@ TOOLS.split = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Split PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout split-workspace" id="splitBody">
-      <div class="split-hero" id="splitHero">
-        <h2>Split PDF</h2>
-        <p>Separate a PDF into multiple files by page range, or break every page out into its own file.</p>
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="splitBody">
+      <div class="tool-hero" id="splitHero">
+        <h2 class="tool-hero-title">Split PDF</h2>
+        <p class="tool-hero-desc">Separate a PDF into multiple files by page range, or break every page out into its own file.</p>
       </div>
-      <div class="split-upload-wrap" id="splitUploadWrap">
+      <div class="tool-upload-wrap" id="splitUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <p class="page-grid-hint" id="gridHint" style="display:none">Drag to reorder, hover a page to rotate or remove it, or click pages to select which ones go into one file.</p>
-      <div class="page-grid" id="pageGrid"></div>
-      <div class="split-toolbar" id="splitToolbar" style="display:none">
-        <div class="split-toolbar-row">
-          <div class="field split-toolbar-ranges" id="rangesField"><label>Page ranges</label><input type="text" id="ranges" placeholder="e.g. 1-3,4-6 — blank splits every page"></div>
-          <div class="split-toolbar-quick" id="quickSelectRow">
+      <p class="tool-privacy-hint" id="splitPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="splitWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <p class="page-grid-hint" id="gridHint" style="display:none">Drag to reorder, hover a page to rotate or remove it, or click pages to select which ones go into one file.</p>
+          <div class="page-grid tool-content-area" id="pageGrid"></div>
+        </div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Split PDF</h3>
+          <div id="splitFileSlot"></div>
+          <div class="field"><label>Page ranges</label><input type="text" id="ranges" placeholder="e.g. 1-3,4-6 — blank splits every page"></div>
+          <div class="row" id="quickSelectRow">
             <button type="button" class="btn secondary btn-sm" id="selOdd">Odd</button>
             <button type="button" class="btn secondary btn-sm" id="selEven">Even</button>
             <button type="button" class="btn secondary btn-sm" id="selClear">Clear</button>
           </div>
-        </div>
-        <button class="btn split-toolbar-primary" id="go">Split PDF</button>
+          <button class="btn tool-toolbar-primary" id="go">Split PDF</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("splitHero");
+  const uploadWrap = document.getElementById("splitUploadWrap");
+  const privacyHint = document.getElementById("splitPrivacyHint");
+  const workspace = document.getElementById("splitWorkspace");
+  const fileSlot = document.getElementById("splitFileSlot");
+  const gridHint = document.getElementById("gridHint");
+  const body = document.getElementById("splitBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(async fs=>{
     file=fs[0];
     renderFileList([file], ()=>{
       file=null; gridApi=null;
       document.getElementById("pageGrid").innerHTML="";
-      document.getElementById("gridHint").style.display="none";
-      document.getElementById("splitToolbar").style.display="none";
-      document.getElementById("splitBody").classList.remove("is-loaded");
+      gridHint.style.display="none";
+      showEmptyState();
     });
+    fileSlot.appendChild(document.getElementById("flist"));
     const bytes = await file.arrayBuffer();
-    document.getElementById("gridHint").style.display="block";
-    document.getElementById("splitToolbar").style.display="flex";
+    gridHint.style.display="block";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, multiSelect:true, zoomable:true});
-    document.getElementById("splitBody").classList.add("is-loaded");
+    showWorkspace();
   });
   document.getElementById("selOdd").addEventListener("click", ()=>gridApi && gridApi.selectOddEven("odd"));
   document.getElementById("selEven").addEventListener("click", ()=>gridApi && gridApi.selectOddEven("even"));
@@ -4136,42 +4192,65 @@ TOOLS.rotate = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Rotate PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="rotateBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="rotateBody">
+      <div class="tool-hero" id="rotateHero">
         <h2 class="tool-hero-title">Rotate PDF</h2>
         <p class="tool-hero-desc">Rotate specific pages or the whole document, then download the corrected PDF.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="rotateUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <p class="page-grid-hint" id="gridHint" style="display:none">Hover any page to rotate it on its own, or select several pages and use "Apply to selected/all" below.</p>
-      <div class="page-grid tool-content-area" id="pageGrid"></div>
-      <div class="tool-toolbar" id="rotateToolbar" style="display:none">
-        <div class="tool-toolbar-secondary" id="rotateAllRow">
-          <div class="field" style="margin:0"><label>Rotation</label>
+      <p class="tool-privacy-hint" id="rotatePrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="rotateWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <p class="page-grid-hint" id="gridHint" style="display:none">Hover any page to rotate it on its own, or select several pages and use "Apply to selected/all" below.</p>
+          <div class="page-grid tool-content-area" id="pageGrid"></div>
+        </div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Rotate PDF</h3>
+          <div id="rotateFileSlot"></div>
+          <div class="field"><label>Rotation</label>
             <select id="deg"><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">270° (90° counter-clockwise)</option></select>
           </div>
-          <button type="button" class="btn secondary btn-sm" id="rotAll">Apply to All Pages</button>
-        </div>
-        <button class="btn tool-toolbar-primary" id="go">Rotate PDF</button>
+          <button type="button" class="btn secondary" id="rotAll">Apply to All Pages</button>
+          <button class="btn tool-toolbar-primary" id="go">Rotate PDF</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("rotateHero");
+  const uploadWrap = document.getElementById("rotateUploadWrap");
+  const privacyHint = document.getElementById("rotatePrivacyHint");
+  const workspace = document.getElementById("rotateWorkspace");
+  const fileSlot = document.getElementById("rotateFileSlot");
+  const gridHint = document.getElementById("gridHint");
+  const body = document.getElementById("rotateBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(async fs=>{
     file=fs[0];
     renderFileList([file], ()=>{
       file=null; gridApi=null;
       document.getElementById("pageGrid").innerHTML="";
-      document.getElementById("gridHint").style.display="none";
-      document.getElementById("rotateToolbar").style.display="none";
-      document.getElementById("rotateBody").classList.remove("is-loaded");
+      gridHint.style.display="none";
+      showEmptyState();
     });
+    fileSlot.appendChild(document.getElementById("flist"));
     const bytes = await file.arrayBuffer();
-    document.getElementById("gridHint").style.display="block";
-    document.getElementById("rotateToolbar").style.display="flex";
+    gridHint.style.display="block";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select", rotatable:true, zoomable:true});
-    document.getElementById("rotateBody").classList.add("is-loaded");
+    showWorkspace();
   });
   document.getElementById("rotAll").addEventListener("click", ()=>{
     if(!gridApi) return;
@@ -4199,29 +4278,56 @@ TOOLS.deletepages = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Delete Pages</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="deleteBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="deleteBody">
+      <div class="tool-hero" id="deleteHero">
         <h2 class="tool-hero-title">Delete Pages</h2>
         <p class="tool-hero-desc">Select the pages you don't need and remove them from the PDF.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="deleteUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to delete.</p>
-      <div class="page-grid tool-content-area" id="pageGrid"></div>
-      <div class="tool-toolbar" id="deleteToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Delete Pages</button>
+      <p class="tool-privacy-hint" id="deletePrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="deleteWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to delete.</p>
+          <div class="page-grid tool-content-area" id="pageGrid"></div>
+        </div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Delete Pages</h3>
+          <div id="deleteFileSlot"></div>
+          <button class="btn tool-toolbar-primary" id="go">Delete Pages</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("deleteHero");
+  const uploadWrap = document.getElementById("deleteUploadWrap");
+  const privacyHint = document.getElementById("deletePrivacyHint");
+  const workspace = document.getElementById("deleteWorkspace");
+  const fileSlot = document.getElementById("deleteFileSlot");
+  const gridHint = document.getElementById("gridHint");
+  const body = document.getElementById("deleteBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("deleteToolbar").style.display="none"; document.getElementById("deleteBody").classList.remove("is-loaded");});
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; gridHint.style.display="none"; showEmptyState(); });
+    fileSlot.appendChild(document.getElementById("flist"));
     const bytes = await file.arrayBuffer();
-    document.getElementById("gridHint").style.display="block";
-    document.getElementById("deleteToolbar").style.display="flex";
+    gridHint.style.display="block";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select"});
-    document.getElementById("deleteBody").classList.add("is-loaded");
+    showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
@@ -4247,29 +4353,56 @@ TOOLS.extractpages = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Extract Pages</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="extractBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="extractBody">
+      <div class="tool-hero" id="extractHero">
         <h2 class="tool-hero-title">Extract Pages</h2>
         <p class="tool-hero-desc">Select the pages you want to keep and save them as a new PDF.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="extractUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to keep.</p>
-      <div class="page-grid tool-content-area" id="pageGrid"></div>
-      <div class="tool-toolbar" id="extractToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Extract Pages</button>
+      <p class="tool-privacy-hint" id="extractPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="extractWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to keep.</p>
+          <div class="page-grid tool-content-area" id="pageGrid"></div>
+        </div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Extract Pages</h3>
+          <div id="extractFileSlot"></div>
+          <button class="btn tool-toolbar-primary" id="go">Extract Pages</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("extractHero");
+  const uploadWrap = document.getElementById("extractUploadWrap");
+  const privacyHint = document.getElementById("extractPrivacyHint");
+  const workspace = document.getElementById("extractWorkspace");
+  const fileSlot = document.getElementById("extractFileSlot");
+  const gridHint = document.getElementById("gridHint");
+  const body = document.getElementById("extractBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("extractToolbar").style.display="none"; document.getElementById("extractBody").classList.remove("is-loaded");});
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; gridHint.style.display="none"; showEmptyState(); });
+    fileSlot.appendChild(document.getElementById("flist"));
     const bytes = await file.arrayBuffer();
-    document.getElementById("gridHint").style.display="block";
-    document.getElementById("extractToolbar").style.display="flex";
+    gridHint.style.display="block";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select"});
-    document.getElementById("extractBody").classList.add("is-loaded");
+    showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
@@ -4295,29 +4428,56 @@ TOOLS.reorder = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Reorder Pages</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="reorderBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="reorderBody">
+      <div class="tool-hero" id="reorderHero">
         <h2 class="tool-hero-title">Reorder Pages</h2>
         <p class="tool-hero-desc">Drag pages into the order you want, then download the reordered PDF.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="reorderUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages into the order you want.</p>
-      <div class="page-grid tool-content-area" id="pageGrid"></div>
-      <div class="tool-toolbar" id="reorderToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Reorder Pages</button>
+      <p class="tool-privacy-hint" id="reorderPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="reorderWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages into the order you want.</p>
+          <div class="page-grid tool-content-area" id="pageGrid"></div>
+        </div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Reorder Pages</h3>
+          <div id="reorderFileSlot"></div>
+          <button class="btn tool-toolbar-primary" id="go">Reorder Pages</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("reorderHero");
+  const uploadWrap = document.getElementById("reorderUploadWrap");
+  const privacyHint = document.getElementById("reorderPrivacyHint");
+  const workspace = document.getElementById("reorderWorkspace");
+  const fileSlot = document.getElementById("reorderFileSlot");
+  const gridHint = document.getElementById("gridHint");
+  const body = document.getElementById("reorderBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("reorderToolbar").style.display="none"; document.getElementById("reorderBody").classList.remove("is-loaded");});
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; gridHint.style.display="none"; showEmptyState(); });
+    fileSlot.appendChild(document.getElementById("flist"));
     const bytes = await file.arrayBuffer();
-    document.getElementById("gridHint").style.display="block";
-    document.getElementById("reorderToolbar").style.display="flex";
+    gridHint.style.display="block";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder"});
-    document.getElementById("reorderBody").classList.add("is-loaded");
+    showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
@@ -4731,29 +4891,61 @@ TOOLS.organize = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Organize PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace page-workspace" id="organizeBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="organizeBody">
+      <div class="tool-hero" id="organizeHero">
         <h2 class="tool-hero-title">Organize PDF</h2>
         <p class="tool-hero-desc">Reorder, rotate, duplicate, or remove pages — all in one place.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="organizeUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages to reorder. Hover a page to rotate, duplicate, or remove it. Click to multi-select (Ctrl/Cmd+A select all, Delete to remove, Esc to clear).</p>
-      <div class="page-grid tool-content-area" id="pageGrid"></div>
-      <div class="tool-toolbar" id="organizeToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Organize PDF</button>
+      <p class="tool-privacy-hint" id="organizePrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="organizeWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages to reorder. Hover a page to rotate, duplicate, or remove it. Click to multi-select (Ctrl/Cmd+A select all, Delete to remove, Esc to clear).</p>
+          <div class="page-grid tool-content-area" id="pageGrid"></div>
+        </div>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Organize PDF</h3>
+          <div id="organizeFileSlot"></div>
+          <button class="btn tool-toolbar-primary" id="go">Organize PDF</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("organizeHero");
+  const uploadWrap = document.getElementById("organizeUploadWrap");
+  const privacyHint = document.getElementById("organizePrivacyHint");
+  const workspace = document.getElementById("organizeWorkspace");
+  const fileSlot = document.getElementById("organizeFileSlot");
+  const gridHint = document.getElementById("gridHint");
+  const body = document.getElementById("organizeBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; document.getElementById("gridHint").style.display="none"; document.getElementById("organizeToolbar").style.display="none"; document.getElementById("organizeBody").classList.remove("is-loaded");});
+    file=fs[0];
+    renderFileList([file], ()=>{
+      file=null; gridApi=null;
+      document.getElementById("pageGrid").innerHTML="";
+      gridHint.style.display="none";
+      showEmptyState();
+    });
+    fileSlot.appendChild(document.getElementById("flist")); // move the file card into the sidebar, out of the (soon-hidden) upload area
     const bytes = await file.arrayBuffer();
-    document.getElementById("gridHint").style.display="block";
-    document.getElementById("organizeToolbar").style.display="flex";
+    gridHint.style.display="block";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, duplicable:true, multiSelect:true, zoomable:true});
-    document.getElementById("organizeBody").classList.add("is-loaded");
+    showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Applying...");
