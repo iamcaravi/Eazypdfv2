@@ -4719,27 +4719,49 @@ TOOLS.crop = function(){
   let file=null, dispScale=1, rect=null, bgImageData=null, fileBytesCache=null;
   openPanel(`
     <div class="panel-head"><h3>Crop PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace" id="cropBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="cropBody">
+      <div class="tool-hero" id="cropHero">
         <h2 class="tool-hero-title">Crop PDF</h2>
         <p class="tool-hero-desc">Drag to draw a selection on the first page, then use the corner/edge handles to fine-tune it — the same margins apply to every page.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="cropUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="crop-stage tool-content-area" id="cropStage" style="display:none;">
-        <canvas id="cropCanvas"></canvas>
-      </div>
-      <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
-      <div class="tool-toolbar" id="cropToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
+      <p class="tool-privacy-hint" id="cropPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="cropWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <div class="crop-stage tool-content-area" id="cropStage">
+            <canvas id="cropCanvas"></canvas>
+          </div>
+          <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
         </div>
-        <button class="btn tool-toolbar-primary" id="go">Crop PDF</button>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Crop PDF</h3>
+          <div id="cropFileSlot"></div>
+          <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
+          <button class="btn tool-toolbar-primary" id="go">Crop PDF</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("cropHero");
+  const uploadWrap = document.getElementById("cropUploadWrap");
+  const privacyHint = document.getElementById("cropPrivacyHint");
+  const workspace = document.getElementById("cropWorkspace");
+  const fileSlot = document.getElementById("cropFileSlot");
+  const body = document.getElementById("cropBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
 
   const cropState = {
     rect: null,
@@ -4771,30 +4793,26 @@ TOOLS.crop = function(){
     file=fs[0];
     renderFileList([file], ()=>{
       file=null;
-      document.getElementById("cropStage").style.display="none";
-      document.getElementById("cropToolbar").style.display="none";
       document.getElementById("cropReadout").textContent="";
-      document.getElementById("cropBody").classList.remove("is-loaded");
+      showEmptyState();
     });
+    fileSlot.appendChild(document.getElementById("flist"));
     const bytes = await file.arrayBuffer();
     fileBytesCache = bytes;
     const qp = document.getElementById("quickPreview"); if(qp) qp.innerHTML = "";
     const pdoc = await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
     const page = await pdoc.getPage(1);
     const vp1 = page.getViewport({scale:1});
-    const maxW = 420;
+    const maxW = 700; // wider cap than before - the main pane has real room now, not a small centered column
     dispScale = Math.min(1, maxW/vp1.width);
     const vp = page.getViewport({scale:dispScale});
-    const stage = document.getElementById("cropStage");
-    stage.style.display = "flex";
     const canvas = document.getElementById("cropCanvas");
     canvas.width = vp.width; canvas.height = vp.height;
     await page.render({canvasContext:canvas.getContext("2d"), viewport:vp}).promise;
     bgImageData = canvas.getContext("2d").getImageData(0,0,canvas.width,canvas.height);
     cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
     cropState.redraw();
-    document.getElementById("cropToolbar").style.display = "flex";
-    document.getElementById("cropBody").classList.add("is-loaded");
+    showWorkspace();
     wireCropCanvas(canvas, cropState);
     document.getElementById("resetCrop").onclick = ()=>{
       cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
@@ -6029,31 +6047,53 @@ TOOLS.sign = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Sign PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace" id="signBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="signBody">
+      <div class="tool-hero" id="signHero">
         <h2 class="tool-hero-title">Sign PDF</h2>
         <p class="tool-hero-desc">Add your signature to a PDF document and download the signed PDF.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="signUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-content-area" id="signCanvasArea" style="display:none">
-        <label class="tool-content-area-label">Draw your signature below</label>
-        <div class="canvas-wrap"><canvas id="sigCanvas" width="380" height="140"></canvas></div>
-        <button class="btn secondary" id="clearSig" type="button" style="margin-top:10px;">Clear</button>
-      </div>
-      <div class="tool-toolbar" id="signToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <div class="field" style="margin:0"><label>Page number</label><input type="number" id="pageNum" value="1" min="1"></div>
-          <div class="field" style="margin:0"><label>Position</label>
-            <select id="pos"><option value="br">Bottom-right</option><option value="bl">Bottom-left</option><option value="tr">Top-right</option></select>
+      <p class="tool-privacy-hint" id="signPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="signWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <div class="tool-content-area" id="signCanvasArea">
+            <label class="tool-content-area-label">Draw your signature below</label>
+            <div class="canvas-wrap"><canvas id="sigCanvas" width="380" height="140"></canvas></div>
           </div>
         </div>
-        <button class="btn tool-toolbar-primary" id="go">Sign PDF</button>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Sign PDF</h3>
+          <div id="signFileSlot"></div>
+          <div class="field"><label>Page number</label><input type="number" id="pageNum" value="1" min="1"></div>
+          <div class="field"><label>Position</label>
+            <select id="pos"><option value="br">Bottom-right</option><option value="bl">Bottom-left</option><option value="tr">Top-right</option></select>
+          </div>
+          <button class="btn secondary" id="clearSig" type="button">Clear</button>
+          <button class="btn tool-toolbar-primary" id="go">Sign PDF</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
+
+  const hero = document.getElementById("signHero");
+  const uploadWrap = document.getElementById("signUploadWrap");
+  const privacyHint = document.getElementById("signPrivacyHint");
+  const workspace = document.getElementById("signWorkspace");
+  const fileSlot = document.getElementById("signFileSlot");
+  const body = document.getElementById("signBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
 
   const canvas = document.getElementById("sigCanvas");
   const ctx = canvas.getContext("2d");
@@ -6077,13 +6117,10 @@ TOOLS.sign = function(){
     renderFileList([file], ()=>{
       file=null;
       ctx.clearRect(0,0,canvas.width,canvas.height); hasInk=false;
-      document.getElementById("signCanvasArea").style.display="none";
-      document.getElementById("signToolbar").style.display="none";
-      document.getElementById("signBody").classList.remove("is-loaded");
+      showEmptyState();
     });
-    document.getElementById("signCanvasArea").style.display="block";
-    document.getElementById("signToolbar").style.display="flex";
-    document.getElementById("signBody").classList.add("is-loaded");
+    fileSlot.appendChild(document.getElementById("flist"));
+    showWorkspace();
   });
 
   document.getElementById("go").addEventListener("click", async ()=>{
@@ -6119,32 +6156,53 @@ TOOLS.fillform = function(){
   let file=null, doc=null, loadToken=0;
   openPanel(`
     <div class="panel-head"><h3>Fill PDF Form</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body compact no-auto-layout tool-workspace" id="fillformBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="fillformBody">
+      <div class="tool-hero" id="fillformHero">
         <h2 class="tool-hero-title">Fill PDF Form</h2>
         <p class="tool-hero-desc">Fill in interactive fields in a PDF and download the completed document.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="fillformUploadWrap">
         ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-content-area" id="fieldsWrap" style="display:none">
-        <label class="tool-content-area-label">Fill PDF fields</label>
-        <div id="fieldsArea"></div>
-      </div>
-      <div class="tool-toolbar" id="fillformToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="flat"> Flatten after filling (locks the values in)</label>
+      <p class="tool-privacy-hint" id="fillformPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="fillformWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <div class="tool-content-area" id="fieldsWrap">
+            <label class="tool-content-area-label">Fill PDF fields</label>
+            <div id="fieldsArea"></div>
+          </div>
         </div>
-        <button class="btn tool-toolbar-primary" id="go">Fill PDF Form</button>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Fill PDF Form</h3>
+          <div id="fillformFileSlot"></div>
+          <div id="fillformActions" style="display:none">
+            <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;margin-bottom:14px;"><input type="checkbox" id="flat"> Flatten after filling (locks the values in)</label>
+            <button class="btn tool-toolbar-primary" id="go">Fill PDF Form</button>
+          </div>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
 
-  const fieldsWrap = document.getElementById("fieldsWrap");
+  const hero = document.getElementById("fillformHero");
+  const uploadWrap = document.getElementById("fillformUploadWrap");
+  const privacyHint = document.getElementById("fillformPrivacyHint");
+  const workspace = document.getElementById("fillformWorkspace");
+  const fileSlot = document.getElementById("fillformFileSlot");
   const fieldsArea = document.getElementById("fieldsArea");
-  const toolbar = document.getElementById("fillformToolbar");
+  const actions = document.getElementById("fillformActions");
   const body = document.getElementById("fillformBody");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
 
   /* Bumping loadToken invalidates any still-in-flight parse from a
      previous file (upload A -> remove A -> upload B, or upload A ->
@@ -6155,19 +6213,18 @@ TOOLS.fillform = function(){
     loadToken++;
     doc = null;
     fieldsArea.innerHTML = "";
-    fieldsWrap.style.display = "none";
-    toolbar.style.display = "none";
-    body.classList.remove("is-loaded");
+    actions.style.display = "none";
+    showEmptyState();
   }
 
   wireDropzone(async fs=>{
     file=fs[0];
     renderFileList([file], ()=>{ file=null; resetFormUI(); });
     resetFormUI();
+    fileSlot.appendChild(document.getElementById("flist"));
     const myToken = loadToken;
-    fieldsWrap.style.display = "block";
     fieldsArea.innerHTML = `<div class="status"><span class="spinner">⚽</span> Reading PDF form fields…</div>`;
-    body.classList.add("is-loaded");
+    showWorkspace();
 
     let parsedDoc, fields;
     try{
@@ -6195,7 +6252,7 @@ TOOLS.fillform = function(){
       if(f instanceof PDFLib.PDFCheckBox) return `<div class="field"><label>${name} (checkbox)</label><input type="checkbox" data-fname="${name}" data-ftype="check"></div>`;
       return `<div class="field"><label>${name}</label><input type="text" data-fname="${name}" data-ftype="text"></div>`;
     }).join("");
-    toolbar.style.display = "flex";
+    actions.style.display = "block";
   });
 
   document.getElementById("go").addEventListener("click", async ()=>{
