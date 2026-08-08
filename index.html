@@ -5814,32 +5814,88 @@ TOOLS.sign = function(){
 
 /* ---- FILL PDF FORM ---- */
 TOOLS.fillform = function(){
-  let file=null, doc=null;
+  let file=null, doc=null, loadToken=0;
   openPanel(`
     <div class="panel-head"><h3>Fill PDF Form</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <div id="fieldsArea"></div>
-      <label style="font-size:.8rem;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="flat"> Flatten after filling (locks the values in)</label>
-      <button class="btn" id="go" disabled>Fill & Save</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="fillformBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Fill PDF Form</h2>
+        <p class="tool-hero-desc">Fill in interactive fields in a PDF and download the completed document.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-content-area" id="fieldsWrap" style="display:none">
+        <label class="tool-content-area-label">Fill PDF fields</label>
+        <div id="fieldsArea"></div>
+      </div>
+      <div class="tool-toolbar" id="fillformToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="flat"> Flatten after filling (locks the values in)</label>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Fill PDF Form</button>
+      </div>
       <div id="out"></div>
     </div>`);
+
+  const fieldsWrap = document.getElementById("fieldsWrap");
+  const fieldsArea = document.getElementById("fieldsArea");
+  const toolbar = document.getElementById("fillformToolbar");
+  const body = document.getElementById("fillformBody");
+
+  /* Bumping loadToken invalidates any still-in-flight parse from a
+     previous file (upload A -> remove A -> upload B, or upload A ->
+     upload B before A finishes parsing): the async callback below checks
+     its own captured token against the current one before touching the
+     DOM, so a slow/late A can never overwrite B's fields. */
+  function resetFormUI(){
+    loadToken++;
+    doc = null;
+    fieldsArea.innerHTML = "";
+    fieldsWrap.style.display = "none";
+    toolbar.style.display = "none";
+    body.classList.remove("is-loaded");
+  }
+
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null;});
-    const bytes = await file.arrayBuffer();
-    doc = await loadPdfSafe(bytes);
-    const form = doc.getForm();
-    const fields = form.getFields();
-    const area = document.getElementById("fieldsArea");
-    if(fields.length===0){ area.innerHTML = `<p style="color:var(--ink-soft);font-size:.85rem">This PDF does not contain any fillable form fields.</p>`; return; }
-    area.innerHTML = fields.map(f=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; resetFormUI(); });
+    resetFormUI();
+    const myToken = loadToken;
+    fieldsWrap.style.display = "block";
+    fieldsArea.innerHTML = `<div class="status"><span class="spinner">⚽</span> Reading PDF form fields…</div>`;
+    body.classList.add("is-loaded");
+
+    let parsedDoc, fields;
+    try{
+      const bytes = await file.arrayBuffer();
+      parsedDoc = await loadPdfSafe(bytes);
+      fields = parsedDoc.getForm().getFields();
+    }catch(e){
+      if(myToken !== loadToken) return;
+      fieldsArea.innerHTML = `<div class="status" style="color:var(--rose)">Could not read this PDF (${e.message}). Try a different file.</div>`;
+      return;
+    }
+    if(myToken !== loadToken) return;
+    doc = parsedDoc;
+    if(fields.length===0){
+      fieldsArea.innerHTML = `<p style="color:var(--ink-soft);font-size:.85rem;margin:0">This PDF does not contain any fillable form fields.</p>`;
+      return;
+    }
+    fieldsArea.innerHTML = fields.map(f=>{
       const name = f.getName();
-      const type = f.constructor.name;
-      if(type==="PDFCheckBox") return `<div class="field"><label>${name} (checkbox)</label><input type="checkbox" data-fname="${name}" data-ftype="check"></div>`;
+      // f.constructor.name is unreliable here - this bundle's pdf-lib
+      // classes get minified (e.g. "PDFCheckBox" -> "e"), so every field
+      // silently fell through to the text-input branch regardless of its
+      // real type. instanceof against the actual exported class survives
+      // minification since it doesn't depend on the class's name string.
+      if(f instanceof PDFLib.PDFCheckBox) return `<div class="field"><label>${name} (checkbox)</label><input type="checkbox" data-fname="${name}" data-ftype="check"></div>`;
       return `<div class="field"><label>${name}</label><input type="text" data-fname="${name}" data-ftype="text"></div>`;
     }).join("");
-    document.getElementById("go").disabled=false;
+    toolbar.style.display = "flex";
   });
+
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Filling form...");
     const form = doc.getForm();
@@ -5858,6 +5914,7 @@ TOOLS.fillform = function(){
     const outBytes = await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "filled", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
