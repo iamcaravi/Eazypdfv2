@@ -799,7 +799,16 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   margin:-1px !important; overflow:hidden !important; clip:rect(0,0,0,0) !important;
   white-space:nowrap !important; border:0 !important;
 }
-.canvas-wrap{position:relative; display:inline-block;}
+/* max-width:100% on the canvas itself is deliberately NOT used here: the
+   signature pad's pos() reads clientX/clientY against
+   canvas.getBoundingClientRect() with no canvas.width/rect.width scale
+   correction (unlike the crop tools' getPos()), so shrinking the canvas's
+   CSS size would desync the drawn line from the actual pointer position.
+   Instead the wrap scrolls horizontally on viewports narrower than the
+   canvas's fixed 380px drawing surface, keeping a 1:1 pixel mapping
+   always - same "let wide content scroll in its own container" pattern
+   already used elsewhere rather than the page itself overflowing. */
+.canvas-wrap{position:relative; display:inline-block; max-width:100%; overflow-x:auto;}
 #sigCanvas{border:1px dashed var(--line); border-radius:8px; touch-action:none; background:#fff; cursor:crosshair;}
 .toast{
   position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
@@ -5718,22 +5727,31 @@ TOOLS.sign = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Sign PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Draw your signature below</label>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="signBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Sign PDF</h2>
+        <p class="tool-hero-desc">Add your signature to a PDF document and download the signed PDF.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-content-area" id="signCanvasArea" style="display:none">
+        <label class="tool-content-area-label">Draw your signature below</label>
         <div class="canvas-wrap"><canvas id="sigCanvas" width="380" height="140"></canvas></div>
-        <button class="btn secondary" id="clearSig" type="button" style="margin-top:6px;">Clear</button>
+        <button class="btn secondary" id="clearSig" type="button" style="margin-top:10px;">Clear</button>
       </div>
-      <div class="row">
-        <div class="field"><label>Page number</label><input type="number" id="pageNum" value="1" min="1"></div>
-        <div class="field"><label>Position</label>
-          <select id="pos"><option value="br">Bottom-right</option><option value="bl">Bottom-left</option><option value="tr">Top-right</option></select>
+      <div class="tool-toolbar" id="signToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0"><label>Page number</label><input type="number" id="pageNum" value="1" min="1"></div>
+          <div class="field" style="margin:0"><label>Position</label>
+            <select id="pos"><option value="br">Bottom-right</option><option value="bl">Bottom-left</option><option value="tr">Top-right</option></select>
+          </div>
         </div>
+        <button class="btn tool-toolbar-primary" id="go">Sign PDF</button>
       </div>
-      <button class="btn" id="go" disabled>Sign File</button>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
 
   const canvas = document.getElementById("sigCanvas");
   const ctx = canvas.getContext("2d");
@@ -5751,6 +5769,20 @@ TOOLS.sign = function(){
   canvas.addEventListener("mousedown",start); canvas.addEventListener("mousemove",move); window.addEventListener("mouseup",end);
   canvas.addEventListener("touchstart",start); canvas.addEventListener("touchmove",move); canvas.addEventListener("touchend",end);
   document.getElementById("clearSig").addEventListener("click", ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); hasInk=false; });
+
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{
+      file=null;
+      ctx.clearRect(0,0,canvas.width,canvas.height); hasInk=false;
+      document.getElementById("signCanvasArea").style.display="none";
+      document.getElementById("signToolbar").style.display="none";
+      document.getElementById("signBody").classList.remove("is-loaded");
+    });
+    document.getElementById("signCanvasArea").style.display="block";
+    document.getElementById("signToolbar").style.display="flex";
+    document.getElementById("signBody").classList.add("is-loaded");
+  });
 
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out");
@@ -5772,6 +5804,7 @@ TOOLS.sign = function(){
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "signed", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas:thumb}=await pdfThumb(outBytes, pn+1);
     setStatus("Done", true);
