@@ -239,7 +239,16 @@
     const blob = new Blob([outBytes], { type: 'application/pdf' });
     const fileName = outputFileName();
     if (typeof window.downloadBlob === 'function') {
-      window.downloadBlob(blob, fileName);
+      // downloadBlob() only creates the object URL and returns {url,
+      // filename} - every other caller in index.html hands that off to
+      // resultBox() to render a real <a href download> link. This export
+      // path has no resultBox() of its own, so it must trigger the
+      // download itself, the same way the fallback branch below already
+      // does - otherwise the object URL is created and immediately
+      // discarded with nothing ever downloaded.
+      const { url } = window.downloadBlob(blob, fileName);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName; a.click();
     } else {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
