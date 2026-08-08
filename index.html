@@ -481,6 +481,14 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .tool-workspace.is-loaded .tool-privacy-hint{ display:flex; }
 
+/* Image Resize's loaded state: the shared quick-preview strip
+   (#quickPreview, from fileInputHTML()/autoQuickPreview()) already shows
+   the uploaded image automatically - just make it the dominant visual
+   element here instead of a small thumbnail, since resize is inherently
+   about seeing the image. Scoped by this tool's own body id only. */
+#imgresizeBody #quickPreview{ justify-content:center; max-height:none; padding:8px 0; }
+#imgresizeBody #quickPreview img{ height:auto; max-height:320px; max-width:100%; border-radius:10px; }
+
 /* .page-workspace modifier: for tools whose main content is a
    buildPageGrid() thumbnail grid (Rotate/Delete/Extract/Reorder/
    Organize) rather than a plain file list. Generalizes the same
@@ -2917,6 +2925,13 @@ function renderFileList(files, onRemove){
     const i = +b.dataset.i;
     b.closest(".file-card")?.remove();
     document.querySelector(".panel-body")?.classList.toggle("has-file", flist.children.length>0);
+    // autoQuickPreview()'s strip is a separate sibling element populated
+    // independently of #flist - clear it too, otherwise a removed file's
+    // preview image/thumbnails linger even though the file list is empty.
+    if(flist.children.length===0){
+      const qp = document.getElementById("quickPreview");
+      if(qp) qp.innerHTML = "";
+    }
     onRemove(i);
   }));
   (async ()=>{
@@ -5915,18 +5930,35 @@ TOOLS.imgresize = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Resize Image</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("image/*", false)}
-      <div class="row">
-        <div class="field"><label>Width (px)</label><input type="number" id="rw" placeholder="800"></div>
-        <div class="field"><label>Height (px)</label><input type="number" id="rh" placeholder="600"></div>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="imgresizeBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Resize Image</h2>
+        <p class="tool-hero-desc">Change an image's dimensions, in your browser.</p>
       </div>
-      <label style="font-size:.8rem;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="keepRatio" checked> Maintain aspect ratio</label>
-      <button class="btn" id="go" disabled>Resize Image</button>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("image/*", false, "Drop an image here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="imgresizeToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0"><label>Width (px)</label><input type="number" id="rw" placeholder="800"></div>
+          <div class="field" style="margin:0"><label>Height (px)</label><input type="number" id="rh" placeholder="600"></div>
+          <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;flex:none;"><input type="checkbox" id="keepRatio" checked> Maintain aspect ratio</label>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Resize Image</button>
+      </div>
       <div id="out"></div>
     </div>`);
   let imgRef=null;
-  wireDropzone(async fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); imgRef=await loadImage(file); document.getElementById("rw").value=imgRef.width; document.getElementById("rh").value=imgRef.height; document.getElementById("go").disabled=false; });
+  wireDropzone(async fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; imgRef=null; document.getElementById("imgresizeToolbar").style.display="none"; document.getElementById("imgresizeBody").classList.remove("is-loaded"); });
+    imgRef=await loadImage(file);
+    document.getElementById("rw").value=imgRef.width;
+    document.getElementById("rh").value=imgRef.height;
+    document.getElementById("imgresizeToolbar").style.display="flex";
+    document.getElementById("imgresizeBody").classList.add("is-loaded");
+  });
   document.getElementById("rw").addEventListener("input", ()=>{
     if(document.getElementById("keepRatio").checked && imgRef){
       document.getElementById("rh").value = Math.round(document.getElementById("rw").value * imgRef.height/imgRef.width);
@@ -5940,6 +5972,7 @@ TOOLS.imgresize = function(){
     const {mime, ext} = imgOutputFormat(file);
     const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
     const outName = suffixedName(file, "resized", ext);
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
