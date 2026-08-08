@@ -347,6 +347,20 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   .split-workspace .page-grid{ padding:12px; border-radius:10px; }
   .split-workspace .file-card{ padding:8px 10px; gap:10px; }
 }
+/* Phase 4: the shared default Medium zoom (198px cards, buildPageGrid's
+   own default - unchanged for every other tool) only fits one column on
+   a 375px phone, wasting most of the row's width. Scoped to Split only,
+   narrow viewports only: shrink each zoom tier so two thumbnails share
+   a row instead of one - same cards, same grid, no shared code touched. */
+@media (max-width:480px){
+  .split-workspace .page-grid-cards.zoom-m .page-card{ width:132px; }
+  .split-workspace .page-grid-cards.zoom-m .page-thumb{ height:120px; }
+  .split-workspace .page-grid-cards.zoom-s .page-card{ width:100px; }
+  .split-workspace .page-grid-cards.zoom-s .page-thumb{ height:90px; }
+  .split-workspace .page-grid-cards.zoom-l .page-card{ width:160px; }
+  .split-workspace .page-grid-cards.zoom-l .page-thumb{ height:146px; }
+  .split-workspace .page-grid-cards{ gap:10px; }
+}
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
