@@ -6117,19 +6117,34 @@ TOOLS.imgwatermark = function(){
   let file=null, imgRef=null;
   openPanel(`
     <div class="panel-head"><h3>Add Watermark to Image</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("image/*", false)}
-      <div class="field"><label>Watermark text</label><input type="text" id="wtext" placeholder="e.g. SAMPLE"></div>
-      <div class="row">
-        <div class="field"><label>Opacity</label><input type="number" id="opac" value="0.4" step="0.05" min="0.05" max="1"></div>
-        <div class="field"><label>Font size (px)</label><input type="number" id="fsize" value="36"></div>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="imgwatermarkBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Add Watermark to Image</h2>
+        <p class="tool-hero-desc">Stamp diagonal text across an image, right in your browser.</p>
       </div>
-      <button class="btn" id="go" disabled>Add Watermark</button>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("image/*", false, "Drop an image here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="imgwatermarkToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0;flex:2 1 100%"><label>Watermark text</label><input type="text" id="wtext" placeholder="e.g. SAMPLE"></div>
+          <div class="field" style="margin:0"><label>Opacity</label><input type="number" id="opac" value="0.4" step="0.05" min="0.05" max="1"></div>
+          <div class="field" style="margin:0"><label>Font size (px)</label><input type="number" id="fsize" value="36"></div>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Add Watermark</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(async fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); imgRef=await loadImage(file); document.getElementById("go").disabled=false; });
+  wireDropzone(async fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; imgRef=null; document.getElementById("imgwatermarkToolbar").style.display="none"; document.getElementById("imgwatermarkBody").classList.remove("is-loaded"); });
+    imgRef=await loadImage(file);
+    document.getElementById("imgwatermarkToolbar").style.display="flex";
+    document.getElementById("imgwatermarkBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing image...");
     const canvas=document.createElement("canvas"); canvas.width=imgRef.width; canvas.height=imgRef.height;
     const ctx=canvas.getContext("2d"); ctx.drawImage(imgRef,0,0);
     const text = document.getElementById("wtext").value || "WATERMARK";
@@ -6147,6 +6162,7 @@ TOOLS.imgwatermark = function(){
     const {mime, ext} = imgOutputFormat(file);
     const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
     const outName = suffixedName(file, "watermarked", ext);
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
