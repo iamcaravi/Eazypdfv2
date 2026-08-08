@@ -2903,7 +2903,22 @@ function renderFileList(files, onRemove){
       </div>
     </div>`;
   }).join("");
-  flist.querySelectorAll(".file-card-remove").forEach(b=>b.addEventListener("click", e=>{ e.stopPropagation(); onRemove(+b.dataset.i); }));
+  /* Centralized removal cleanup: many callers only reset their own tool
+     state in onRemove (null the file var, hide a toolbar) without ever
+     re-rendering #flist, leaving a stale file-card on screen even though
+     the tool's internal state is empty. Removing the card and re-syncing
+     .has-file HERE, before calling the tool's own onRemove, means every
+     caller gets a correctly-cleared file list for free - no per-tool
+     cleanup required. Multi-file tools whose onRemove re-renders the
+     whole list anyway (Merge's refresh()) just get an instant, harmless
+     no-op re-render on top of this. */
+  flist.querySelectorAll(".file-card-remove").forEach(b=>b.addEventListener("click", e=>{
+    e.stopPropagation();
+    const i = +b.dataset.i;
+    b.closest(".file-card")?.remove();
+    document.querySelector(".panel-body")?.classList.toggle("has-file", flist.children.length>0);
+    onRemove(i);
+  }));
   (async ()=>{
     for(let i=0;i<files.length;i++){
       const f = files[i];
