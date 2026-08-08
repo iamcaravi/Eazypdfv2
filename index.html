@@ -379,6 +379,102 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   .split-toolbar-row{ flex-direction:column; align-items:stretch; }
   .split-toolbar-quick .btn{ flex:1; }
 }
+
+/* ============================================================
+   Shared Tool Workspace primitives
+   ------------------------------------------------------------
+   Generalized, tool-agnostic versions of the .split-* patterns
+   above, extracted so other tools can opt into the same UX
+   language without copy-pasting Split-scoped selectors. Split PDF
+   itself is left completely untouched (still runs on its own
+   .split-* rules) — these are parallel primitives, not a
+   refactor of working code. Any tool opts in the same way Split
+   did: .panel-body gets "compact no-auto-layout tool-workspace".
+   ============================================================ */
+.tool-workspace{ max-width:900px; margin:0 auto; width:100%; }
+
+.tool-hero{
+  text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px;
+  padding:8px 16px 4px; transition:padding var(--t-base) ease;
+}
+.tool-hero-title{ font-size:1.9rem; margin:0; letter-spacing:-0.01em; }
+.tool-hero-desc{ margin:0; color:var(--ink-soft); font-size:1rem; line-height:1.55; max-width:480px; }
+.tool-workspace.is-loaded .tool-hero{ padding:4px 16px 0; }
+.tool-workspace.is-loaded .tool-hero-title{ font-size:1.3rem; }
+.tool-workspace.is-loaded .tool-hero-desc{ display:none; }
+@media (max-width:640px){ .tool-hero-title{ font-size:1.5rem; } }
+
+.tool-upload-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:12px 0 4px; }
+.tool-upload-wrap .dropzone{ max-width:480px; width:100%; }
+@media (max-width:640px){ .tool-upload-wrap .dropzone{ max-width:100%; } }
+/* Single-file tools (Compress) hide the dropzone once a file is loaded -
+   nothing left to add. Multi-file tools (Merge) instead override this
+   per-instance via .keep-upload so users can keep adding files. */
+.tool-workspace.is-loaded .tool-upload-wrap .dropzone{ display:none; }
+.tool-workspace.is-loaded.keep-upload .tool-upload-wrap .dropzone{ display:flex; }
+
+/* File list -> compact card(s), generalized from Split's file-card
+   restyle. Deliberately targets #flist itself (not a separate wrapper)
+   so it keeps working wherever fileInputHTML()/renderFileList() put it,
+   and gains a bounded "panel" look only once it actually has content. */
+.tool-workspace #flist.file-grid{ display:flex; flex-direction:column; gap:8px; padding:0; margin:0; max-height:none; width:100%; align-self:stretch; }
+.tool-workspace #flist.file-grid:not(:empty){
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+  padding:14px; margin:10px 0 4px;
+}
+.tool-workspace .file-card{
+  width:100%; flex-direction:row; align-items:center; gap:12px;
+  background:transparent; border:none; padding:0;
+}
+.tool-workspace #flist.file-grid .file-card + .file-card{ padding-top:10px; border-top:1px solid var(--line); }
+.tool-workspace .file-card-thumb{ width:34px; height:44px; flex:none; box-shadow:none; border-radius:5px; }
+.tool-workspace .file-card-name{ font-size:.92rem; white-space:normal; }
+.tool-workspace .file-card-remove{
+  position:static; opacity:1; margin-left:auto; background:transparent; color:var(--ink-soft);
+  border:1px solid var(--line);
+}
+.tool-workspace .file-card-remove:hover{ background:var(--red); color:#fff; border-color:var(--red); }
+
+/* Bounded content surface for whatever a tool's main content actually
+   is (options panel, page grid, etc.) — generalized from Split's
+   .page-grid panel treatment so it isn't thumbnail-specific. */
+.tool-content-area{
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+  padding:18px; margin:8px 0;
+}
+.tool-content-area-label{ font-size:0.82rem; font-weight:600; display:block; margin-bottom:12px; }
+@media (max-width:640px){ .tool-content-area{ padding:14px; border-radius:10px; } }
+
+/* Bottom toolbar: optional secondary controls (0-N fields) + one
+   dominant primary action. Generalized from Split's ranges+odd/even+Split
+   button bar so it flexes down to zero secondary controls (Compress) or
+   up to several (future tools) without looking empty or cramped. */
+.tool-toolbar{
+  display:flex; flex-direction:column; gap:14px;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+  padding:16px 18px; margin:4px 0 8px;
+}
+.tool-toolbar-secondary{ display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; }
+.tool-toolbar-secondary .field{ flex:1; min-width:220px; margin:0; }
+.tool-toolbar-primary{ width:100%; font-size:1.05rem; padding:16px 22px; }
+@media (max-width:640px){
+  .tool-toolbar{ padding:14px; }
+  .tool-toolbar-secondary{ flex-direction:column; align-items:stretch; }
+}
+
+/* Compact privacy reassurance for tools that opt out of the shared
+   sidebar (layoutTwoColumn() normally injects .tool-sidebar-tip with
+   this same message) — shown once content exists, since fileInputHTML()'s
+   own dropzone already carries a short privacy hint pre-upload and
+   showing both at once would duplicate the message. Same teal-tint
+   language as .tool-sidebar-tip, just a compact single-line bar instead
+   of a sidebar card. */
+.tool-privacy-hint{
+  display:none; align-items:center; gap:8px; justify-content:center;
+  background:rgba(23,190,187,0.1); border:1px solid rgba(23,190,187,0.35); border-radius:10px;
+  color:var(--ink); font-size:.8rem; padding:10px 14px; margin:4px 0;
+}
+.tool-workspace.is-loaded .tool-privacy-hint{ display:flex; }
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
@@ -3720,13 +3816,25 @@ TOOLS.merge = function(){
   let files=[];
   openPanel(`
     <div class="panel-head"><h3>Merge PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.88rem">Select multiple PDFs — they will merge in the order you add them.</p>
-      ${fileInputHTML("application/pdf", true, "Drop PDF files here")}
-      <button class="btn" id="go" disabled>Merge Files</button>
+    <div class="panel-body compact no-auto-layout tool-workspace keep-upload" id="mergeBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Merge PDF</h2>
+        <p class="tool-hero-desc">Combine multiple PDF files into one document, in the order you add them.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", true, "Drop PDF files here")}
+      </div>
+      <div class="tool-toolbar" id="mergeToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go" disabled>Merge PDFs</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  const refresh = ()=>{ renderFileList(files, i=>{files.splice(i,1); refresh();}); document.getElementById("go").disabled = files.length<2; };
+  const refresh = ()=>{
+    renderFileList(files, i=>{files.splice(i,1); refresh();});
+    document.getElementById("go").disabled = files.length<2;
+    document.getElementById("mergeToolbar").style.display = files.length ? "flex" : "none";
+    document.getElementById("mergeBody").classList.toggle("is-loaded", files.length>0);
+  };
   wireDropzone(fs=>{ files = files.concat(fs.filter(f=>f.type==="application/pdf"||f.name.endsWith(".pdf"))); refresh(); });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out = document.getElementById("out");
@@ -3848,21 +3956,44 @@ TOOLS.compress = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Compress PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
-      <div class="field">
-        <label>Compression level</label>
-        <select id="preset">
-          <option value="high">High Quality — smaller size reduction, best for photos</option>
-          <option value="recommended" selected>Recommended — balanced</option>
-          <option value="max">Maximum Compression — smallest file</option>
-        </select>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="compressBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Compress PDF</h2>
+        <p class="tool-hero-desc">Reduce PDF file size while keeping quality as high as possible.</p>
       </div>
-      <p style="margin:0;color:var(--ink-soft);font-size:.78rem;line-height:1.5">Only compresses the images inside your PDF — text stays exactly as sharp as the original at every level.</p>
-      <button class="btn" id="go" disabled>Compress File</button>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-content-area" id="compressOptions" style="display:none">
+        <label class="tool-content-area-label">Compression options</label>
+        <div class="field" style="margin:0">
+          <label for="preset">Compression level</label>
+          <select id="preset">
+            <option value="high">High Quality — smaller size reduction, best for photos</option>
+            <option value="recommended" selected>Recommended — balanced</option>
+            <option value="max">Maximum Compression — smallest file</option>
+          </select>
+        </div>
+        <p style="margin:10px 0 0;color:var(--ink-soft);font-size:.78rem;line-height:1.5">Only compresses the images inside your PDF — text stays exactly as sharp as the original at every level.</p>
+      </div>
+      <div class="tool-toolbar" id="compressToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Compress PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{
+      file=null;
+      document.getElementById("compressOptions").style.display="none";
+      document.getElementById("compressToolbar").style.display="none";
+      document.getElementById("compressBody").classList.remove("is-loaded");
+    });
+    document.getElementById("compressOptions").style.display="block";
+    document.getElementById("compressToolbar").style.display="flex";
+    document.getElementById("compressBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out = document.getElementById("out");
     const preset = document.getElementById("preset").value;
