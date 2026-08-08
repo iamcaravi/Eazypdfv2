@@ -4505,15 +4505,28 @@ TOOLS.invertpdf = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Invert PDF Colors</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Renders each page and inverts its colors — useful for a dark-mode / negative version of a document. Output pages become image-based.</p>
-      ${fileInputHTML("application/pdf", false)}
-      <button class="btn" id="go" disabled>Invert Colors</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="invertpdfBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Invert PDF Colors</h2>
+        <p class="tool-hero-desc">Renders each page and inverts its colors — useful for a dark-mode / negative version of a document. Output pages become image-based.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="invertpdfToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Invert Colors</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("invertpdfToolbar").style.display="none"; document.getElementById("invertpdfBody").classList.remove("is-loaded"); });
+    document.getElementById("invertpdfToolbar").style.display="flex";
+    document.getElementById("invertpdfBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Rendering and inverting pages...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     const outDoc = await PDFDocument.create();
@@ -4541,6 +4554,7 @@ TOOLS.invertpdf = function(){
     const outBytes = await outDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "inverted", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
@@ -4599,21 +4613,36 @@ TOOLS.flatten = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Flatten PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Any form fields present will be permanently flattened into the page content.</p>
-      ${fileInputHTML("application/pdf", false)}
-      <button class="btn" id="go" disabled>Flatten File</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="flattenBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Flatten PDF</h2>
+        <p class="tool-hero-desc">Any form fields present will be permanently flattened into the page content.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="flattenToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Flatten PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("flattenToolbar").style.display="none"; document.getElementById("flattenBody").classList.remove("is-loaded"); });
+    document.getElementById("flattenToolbar").style.display="flex";
+    document.getElementById("flattenBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
+    setStatus("Flattening document...");
     try{ const form = doc.getForm(); form.flatten(); }catch(e){}
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "flattened", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
@@ -5619,20 +5648,34 @@ TOOLS.extractimages = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Extract Images</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.82rem">Renders each page as a full image. Extracting individual embedded images from the page content is not supported yet.</p>
-      ${fileInputHTML("application/pdf", false)}
-      <button class="btn" id="go" disabled>Extract Images</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="extractimagesBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Extract Images from PDF</h2>
+        <p class="tool-hero-desc">Renders each page as a full image. Extracting individual embedded images from the page content is not supported yet.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="extractimagesToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Extract Images</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("extractimagesToolbar").style.display="none"; document.getElementById("extractimagesBody").classList.remove("is-loaded"); });
+    document.getElementById("extractimagesToolbar").style.display="flex";
+    document.getElementById("extractimagesBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Rendering...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     await ensureJSZip();
     const bytes=await file.arrayBuffer();
     const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
     const zip = new JSZip();
     for(let i=1;i<=pdoc.numPages;i++){
+      setStatus("Extracting images...", false, Math.round((i/pdoc.numPages)*100));
       const page = await pdoc.getPage(i);
       const vp = page.getViewport({scale:2});
       const canvas=document.createElement("canvas"); canvas.width=vp.width; canvas.height=vp.height;
@@ -5640,6 +5683,7 @@ TOOLS.extractimages = function(){
       const blob = await new Promise(res=>canvas.toBlob(res,"image/png"));
       zip.file(`page_${i}.png`, blob);
     }
+    setStatus("Preparing download...");
     const zipBlob = await zip.generateAsync({type:"blob"});
     const outName = suffixedName(file, "images", "zip");
     const {url}=downloadBlob(zipBlob,outName);
