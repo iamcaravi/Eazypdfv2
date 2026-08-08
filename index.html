@@ -163,7 +163,20 @@ h1,h2,h3, .display{
 a{color:inherit;}
 
 header{
-  position:sticky; top:0; z-index:50;
+  /* z-index:150, not 50: header establishes its own stacking context
+     (position:sticky + z-index), so every descendant - the Convert PDF/
+     All PDF Tools dropdown panels, search results - is capped at
+     header's OWN z-index when compared against elements outside header,
+     regardless of those descendants' own (higher) z-index values. Since
+     .overlay (the tool-panel backdrop) is a DOM sibling of header at
+     z-index:100, header needed to beat 100, not just have its children
+     individually out-z-index it - confirmed via elementFromPoint(): the
+     dropdown was rendering with correct geometry and pointer-events, but
+     .overlay was still the hit-tested element at that pixel because the
+     whole header subtree was capped at 50. Stays below the Quick Action
+     modal (.qa-overlay, 200) and the toast (200) on purpose - those are
+     blocking, page-level modals that should still cover the header. */
+  position:sticky; top:0; z-index:150;
   display:flex; align-items:center; justify-content:space-between;
   padding:20px 28px;
   background:transparent;
@@ -269,6 +282,13 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
    iLovePDF's tight, top-anchored workspace once there's real content,
    rather than a big centered block with growing whitespace around it. */
 .panel-body.has-file{ justify-content:flex-start; padding-top:28px; }
+/* Opt-in for tools whose empty state itself has enough content (an intro
+   line, a dropzone, trust info) that centering it in the full viewport
+   height leaves a large gap above - same top-anchored treatment
+   .has-file gets once real content exists, just available before that
+   too for tools that ask for it. Additive only: every other tool keeps
+   centering by default, unaffected. */
+.panel-body.compact{ justify-content:flex-start; padding-top:28px; }
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
@@ -3638,10 +3658,10 @@ TOOLS.split = function(){
   let file=null, gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>Split PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.88rem">Pull a page range into one PDF, or break every page out into its own file. Once your PDF is loaded you can also reorder, rotate, or hand-pick pages first.</p>
+    <div class="panel-body compact">
+      <p style="margin:0;color:var(--ink-soft);font-size:.88rem">Pull a page range into one PDF, or break every page out into its own file.</p>
       ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
-      <div class="field"><label>Page ranges (leave blank to use the page selection below, or split every page)</label><input type="text" id="ranges" placeholder="e.g. 1-3,4-6"></div>
+      <div class="field" id="rangesField" style="display:none"><label>Page ranges (leave blank to use the page selection below, or split every page)</label><input type="text" id="ranges" placeholder="e.g. 1-3,4-6"></div>
       <p class="page-grid-hint" id="gridHint" style="display:none">Drag to reorder, hover a page to rotate or remove it, or click pages to select which ones go into one file.</p>
       <div class="row" id="quickSelectRow" style="display:none;gap:8px;margin-bottom:8px">
         <button type="button" class="btn secondary btn-sm" id="selOdd">Select Odd Pages</button>
@@ -3649,7 +3669,7 @@ TOOLS.split = function(){
         <button type="button" class="btn secondary btn-sm" id="selClear">Clear Selection</button>
       </div>
       <div class="page-grid" id="pageGrid"></div>
-      <button class="btn" id="go" disabled>Split File</button>
+      <button class="btn" id="go" style="display:none">Split File</button>
       <div id="out"></div>
     </div>`);
   wireDropzone(async fs=>{
@@ -3659,13 +3679,15 @@ TOOLS.split = function(){
       document.getElementById("pageGrid").innerHTML="";
       document.getElementById("gridHint").style.display="none";
       document.getElementById("quickSelectRow").style.display="none";
-      document.getElementById("go").disabled=true;
+      document.getElementById("rangesField").style.display="none";
+      document.getElementById("go").style.display="none";
     });
     const bytes = await file.arrayBuffer();
     document.getElementById("gridHint").style.display="block";
     document.getElementById("quickSelectRow").style.display="flex";
+    document.getElementById("rangesField").style.display="block";
     gridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, multiSelect:true, zoomable:true});
-    document.getElementById("go").disabled=false;
+    document.getElementById("go").style.display="inline-flex";
   });
   document.getElementById("selOdd").addEventListener("click", ()=>gridApi && gridApi.selectOddEven("odd"));
   document.getElementById("selEven").addEventListener("click", ()=>gridApi && gridApi.selectOddEven("even"));
