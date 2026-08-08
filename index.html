@@ -591,7 +591,11 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .file-card-pages{ font-size:.7rem; color:var(--ink-soft); }
 .file-card-pages:not(:empty)::before{ content:"·"; margin-right:6px; }
 .thumbs{display:flex; gap:8px; flex-wrap:wrap; max-height:180px; overflow-y:auto; padding:4px 0;}
-.crop-stage{ display:flex; justify-content:center; background:var(--paper-dim); border-radius:10px; padding:12px; }
+/* Visual chrome (background/border/radius/padding) now comes from
+   .tool-content-area on the same element (see Crop PDF/Image Crop) -
+   this just adds the flex-centering .tool-content-area doesn't need for
+   its other (block-content) uses. */
+.crop-stage{ display:flex; justify-content:center; }
 #cropCanvas{ max-width:100%; height:auto; border-radius:6px; cursor:crosshair; touch-action:none; }
 .thumbs canvas, .thumbs img{
   border:1px solid var(--line); border-radius:6px; height:110px; width:auto; background:#fff;
@@ -4507,15 +4511,25 @@ TOOLS.crop = function(){
   let file=null, dispScale=1, rect=null, bgImageData=null, fileBytesCache=null;
   openPanel(`
     <div class="panel-head"><h3>Crop PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Drag to draw a selection on the first page, then use the corner/edge handles to fine-tune it — the same margins apply to every page.</p>
-      <div class="crop-stage" id="cropStage" style="display:none;">
+    <div class="panel-body compact no-auto-layout tool-workspace" id="cropBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Crop PDF</h2>
+        <p class="tool-hero-desc">Drag to draw a selection on the first page, then use the corner/edge handles to fine-tune it — the same margins apply to every page.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="crop-stage tool-content-area" id="cropStage" style="display:none;">
         <canvas id="cropCanvas"></canvas>
       </div>
-      <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);"></div>
-      <button class="btn secondary" id="resetCrop" type="button" style="display:none;">Reset Selection</button>
-      <button class="btn" id="go" disabled>Crop File</button>
+      <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
+      <div class="tool-toolbar" id="cropToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Crop PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
 
@@ -4546,7 +4560,14 @@ TOOLS.crop = function(){
   };
 
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;});
+    file=fs[0];
+    renderFileList([file], ()=>{
+      file=null;
+      document.getElementById("cropStage").style.display="none";
+      document.getElementById("cropToolbar").style.display="none";
+      document.getElementById("cropReadout").textContent="";
+      document.getElementById("cropBody").classList.remove("is-loaded");
+    });
     const bytes = await file.arrayBuffer();
     fileBytesCache = bytes;
     const qp = document.getElementById("quickPreview"); if(qp) qp.innerHTML = "";
@@ -4557,15 +4578,15 @@ TOOLS.crop = function(){
     dispScale = Math.min(1, maxW/vp1.width);
     const vp = page.getViewport({scale:dispScale});
     const stage = document.getElementById("cropStage");
-    stage.style.display = "block";
+    stage.style.display = "flex";
     const canvas = document.getElementById("cropCanvas");
     canvas.width = vp.width; canvas.height = vp.height;
     await page.render({canvasContext:canvas.getContext("2d"), viewport:vp}).promise;
     bgImageData = canvas.getContext("2d").getImageData(0,0,canvas.width,canvas.height);
     cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
     cropState.redraw();
-    document.getElementById("resetCrop").style.display = "";
-    document.getElementById("go").disabled = false;
+    document.getElementById("cropToolbar").style.display = "flex";
+    document.getElementById("cropBody").classList.add("is-loaded");
     wireCropCanvas(canvas, cropState);
     document.getElementById("resetCrop").onclick = ()=>{
       cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
@@ -4574,7 +4595,7 @@ TOOLS.crop = function(){
   });
 
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Applying crop...");
     const canvas = document.getElementById("cropCanvas");
     const cw=canvas.width, ch=canvas.height;
     const leftPt = rect.x/dispScale;
@@ -4593,6 +4614,7 @@ TOOLS.crop = function(){
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "cropped", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas:thumb}=await pdfThumb(outBytes);
     setStatus("Done", true);
@@ -5984,15 +6006,25 @@ TOOLS.imgcrop = function(){
   let file=null, imgRef=null, dispScale=1, rect=null, bgImageData=null;
   openPanel(`
     <div class="panel-head"><h3>Crop Image</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("image/*", false)}
-      <p style="margin:0;color:var(--ink-soft);font-size:.82rem">Drag to draw a selection, then use the corner/edge handles to fine-tune it.</p>
-      <div class="crop-stage" id="cropStage" style="display:none;">
+    <div class="panel-body compact no-auto-layout tool-workspace" id="imgcropBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Crop Image</h2>
+        <p class="tool-hero-desc">Drag to draw a selection, then use the corner/edge handles to fine-tune it.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("image/*", false, "Drop an image here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="crop-stage tool-content-area" id="cropStage" style="display:none;">
         <canvas id="cropCanvas"></canvas>
       </div>
-      <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);"></div>
-      <button class="btn secondary" id="resetCrop" type="button" style="display:none;">Reset Selection</button>
-      <button class="btn" id="go" disabled>Crop Image</button>
+      <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
+      <div class="tool-toolbar" id="cropToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Crop Image</button>
+      </div>
       <div id="out"></div>
     </div>`);
 
@@ -6027,11 +6059,18 @@ TOOLS.imgcrop = function(){
   };
 
   wireDropzone(async fs=>{
-    file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;});
+    file=fs[0];
+    renderFileList([file], ()=>{
+      file=null; imgRef=null;
+      document.getElementById("cropStage").style.display="none";
+      document.getElementById("cropToolbar").style.display="none";
+      document.getElementById("cropReadout").textContent="";
+      document.getElementById("imgcropBody").classList.remove("is-loaded");
+    });
     imgRef = await loadImage(file);
     const qp = document.getElementById("quickPreview"); if(qp) qp.innerHTML = "";
     const stage = document.getElementById("cropStage");
-    stage.style.display = "block";
+    stage.style.display = "flex";
     const canvas = document.getElementById("cropCanvas");
     const maxW = 420;
     dispScale = Math.min(1, maxW/imgRef.width);
@@ -6041,8 +6080,8 @@ TOOLS.imgcrop = function(){
     bgImageData = canvas.getContext("2d").getImageData(0,0,canvas.width,canvas.height);
     cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
     cropState.redraw();
-    document.getElementById("resetCrop").style.display = "";
-    document.getElementById("go").disabled = false;
+    document.getElementById("cropToolbar").style.display = "flex";
+    document.getElementById("imgcropBody").classList.add("is-loaded");
     wireCropCanvas(canvas, cropState);
     document.getElementById("resetCrop").onclick = ()=>{
       cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
@@ -6059,6 +6098,7 @@ TOOLS.imgcrop = function(){
     const {mime, ext} = imgOutputFormat(file);
     const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
     const outName = suffixedName(file, "cropped", ext);
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
     setStatus("Done", true);
