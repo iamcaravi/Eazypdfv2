@@ -507,6 +507,34 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   .page-workspace .page-grid-cards{ gap:10px; }
 }
 
+/* Compare PDF's two-document layout - genuinely new shape (two equal
+   side-by-side upload cards + a divider) that no existing primitive
+   covers, so it gets its own small scoped grid. Each card still reuses
+   .tool-content-area for its chrome (background/border/radius/padding)
+   rather than duplicating that styling here. Stacks to one column on
+   narrow viewports via normal flex-wrap, no separate mobile rule needed. */
+.compare-upload-grid{ display:flex; align-items:stretch; gap:16px; flex-wrap:wrap; justify-content:center; }
+/* min-width:0 overrides the flex item's implicit min-width:auto, which
+   otherwise equals its content's min-content size - a nowrap filename
+   would grow the whole card to fit itself instead of letting the card
+   shrink and the filename ellipsis-truncate within it. */
+.compare-upload-card{ flex:1 1 260px; min-width:0; display:flex; flex-direction:column; gap:10px; text-align:center; }
+.compare-vs{
+  display:flex; align-items:center; justify-content:center; flex:none;
+  font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:.85rem;
+  color:var(--ink-soft); min-width:32px;
+}
+.compare-file-input{
+  width:100%; font-family:inherit; font-size:.85rem; padding:9px; box-sizing:border-box;
+  border:1px dashed var(--line); border-radius:8px; background:#fff; cursor:pointer;
+}
+/* min-width:0 is required for text-overflow:ellipsis on a flex child -
+   without it a nowrap text node grows the box past its column-flex
+   container's width instead of clipping (same fix already applied to
+   .tool-workspace .file-card-name). */
+.compare-filename{ font-size:.8rem; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; width:100%; }
+.compare-filename.has-file{ color:var(--ink); font-weight:600; }
+
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
@@ -5687,15 +5715,59 @@ TOOLS.pagesize = function(){
 TOOLS.compare = function(){
   openPanel(`
     <div class="panel-head"><h3>Compare PDFs</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <div class="field"><label>PDF A</label><input type="file" id="fa" accept="application/pdf"></div>
-      <div class="field"><label>PDF B</label><input type="file" id="fb" accept="application/pdf"></div>
-      <button class="btn" id="go">Compare Files</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="compareBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Compare PDF</h2>
+        <p class="tool-hero-desc">Compare two PDF files and see their differences side by side.</p>
+      </div>
+      <div class="compare-upload-grid" id="compareGrid">
+        <div class="tool-content-area compare-upload-card">
+          <label class="tool-content-area-label" for="fa">PDF A</label>
+          <input type="file" id="fa" accept="application/pdf" class="compare-file-input">
+          <div class="compare-filename" id="faName">No file selected</div>
+        </div>
+        <div class="compare-vs" aria-hidden="true">VS</div>
+        <div class="tool-content-area compare-upload-card">
+          <label class="tool-content-area-label" for="fb">PDF B</label>
+          <input type="file" id="fb" accept="application/pdf" class="compare-file-input">
+          <div class="compare-filename" id="fbName">No file selected</div>
+        </div>
+      </div>
+      <div class="tool-toolbar" id="compareToolbar">
+        <button class="btn tool-toolbar-primary" id="go" disabled>Compare PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  document.getElementById("go").addEventListener("click", async ()=>{
-    const fA = document.getElementById("fa").files[0], fB = document.getElementById("fb").files[0];
-    const out=document.getElementById("out");
+
+  const compareGrid = document.getElementById("compareGrid");
+  const compareToolbar = document.getElementById("compareToolbar");
+  const out = document.getElementById("out");
+  const faInput = document.getElementById("fa"), fbInput = document.getElementById("fb");
+  const faName = document.getElementById("faName"), fbName = document.getElementById("fbName");
+  const goBtn = document.getElementById("go");
+
+  function syncFileLabel(input, label){
+    const f = input.files[0];
+    label.textContent = f ? f.name : "No file selected";
+    label.classList.toggle("has-file", !!f);
+  }
+  function syncGoEnabled(){
+    goBtn.disabled = !(faInput.files[0] && fbInput.files[0]);
+  }
+  faInput.addEventListener("change", ()=>{ syncFileLabel(faInput, faName); syncGoEnabled(); });
+  fbInput.addEventListener("change", ()=>{ syncFileLabel(fbInput, fbName); syncGoEnabled(); });
+
+  function resetAll(){
+    faInput.value = ""; fbInput.value = "";
+    syncFileLabel(faInput, faName); syncFileLabel(fbInput, fbName);
+    syncGoEnabled();
+    out.innerHTML = "";
+    compareGrid.classList.remove("hidden");
+    compareToolbar.classList.remove("hidden");
+  }
+
+  goBtn.addEventListener("click", async ()=>{
+    const fA = faInput.files[0], fB = fbInput.files[0];
     if(!fA||!fB){ toast("Select both PDFs first"); return; }
     out.innerHTML = statusEl("Extracting text...");
     async function extractLines(f){
@@ -5709,15 +5781,25 @@ TOOLS.compare = function(){
       }
       return lines.filter(l=>l.trim());
     }
-    const linesA = await extractLines(fA), linesB = await extractLines(fB);
+    let linesA, linesB;
+    try{
+      [linesA, linesB] = await Promise.all([extractLines(fA), extractLines(fB)]);
+    }catch(e){
+      out.innerHTML = `<div class="status" style="color:var(--rose)">Could not read one of these PDFs (${e.message}). Try different files.</div>`;
+      return;
+    }
     const setB = new Set(linesB);
     const setA = new Set(linesA);
     const onlyA = linesA.filter(l=>!setB.has(l)).slice(0,25);
     const onlyB = linesB.filter(l=>!setA.has(l)).slice(0,25);
     setStatus("Done", true);
-    const box = document.createElement("div"); box.className="result-box";
-    box.innerHTML = `<div><strong>Only in ${fA.name} (${onlyA.length}${onlyA.length===25?'+':''}):</strong><div class="mono" style="font-size:.78rem;max-height:120px;overflow-y:auto;margin-top:6px;color:var(--rose)">${onlyA.map(l=>l.slice(0,90)).join("<br>")||'—'}</div></div>
-      <div><strong>Only in ${fB.name} (${onlyB.length}${onlyB.length===25?'+':''}):</strong><div class="mono" style="font-size:.78rem;max-height:120px;overflow-y:auto;margin-top:6px;color:var(--teal)">${onlyB.map(l=>l.slice(0,90)).join("<br>")||'—'}</div></div>`;
+    compareGrid.classList.add("hidden");
+    compareToolbar.classList.add("hidden");
+    const box = document.createElement("div"); box.className="result-box result-success";
+    box.innerHTML = `<div class="result-head"><button type="button" class="result-back" aria-label="Start over">←</button><h3>✅ Comparison complete</h3></div>
+      <div><strong>Only in ${escapeAttr(fA.name)} (${onlyA.length}${onlyA.length===25?'+':''}):</strong><div class="mono" style="font-size:.78rem;max-height:120px;overflow-y:auto;margin-top:6px;color:var(--rose)">${onlyA.map(l=>l.slice(0,90)).join("<br>")||'—'}</div></div>
+      <div style="margin-top:12px"><strong>Only in ${escapeAttr(fB.name)} (${onlyB.length}${onlyB.length===25?'+':''}):</strong><div class="mono" style="font-size:.78rem;max-height:120px;overflow-y:auto;margin-top:6px;color:var(--teal)">${onlyB.map(l=>l.slice(0,90)).join("<br>")||'—'}</div></div>`;
+    box.querySelector(".result-back").addEventListener("click", resetAll);
     out.appendChild(box);
   });
 };
