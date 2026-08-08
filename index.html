@@ -5096,15 +5096,28 @@ TOOLS.word2pdf = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Word to PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Basic version: reads the text from your .docx and lays it out as a PDF. Complex formatting and images are not preserved.</p>
-      ${fileInputHTML(".docx", false)}
-      <button class="btn" id="go" disabled>Convert to PDF</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="word2pdfBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Word to PDF</h2>
+        <p class="tool-hero-desc">Basic version: reads the text from your .docx and lays it out as a PDF. Complex formatting and images are not preserved.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML(".docx", false, "Drop a .docx file here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="word2pdfToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Convert to PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("word2pdfToolbar").style.display="none"; document.getElementById("word2pdfBody").classList.remove("is-loaded"); });
+    document.getElementById("word2pdfToolbar").style.display="flex";
+    document.getElementById("word2pdfBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading document...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading Word document...");
     await ensureMammoth();
     const arrayBuffer = await file.arrayBuffer();
     let result;
@@ -5125,7 +5138,7 @@ TOOLS.word2pdf = function(){
       return;
     }
     const text = winAnsiSafe(result.value);
-    setStatus("Building PDF...");
+    setStatus("Rendering pages...");
     let outBytes;
     try {
       const doc = await PDFDocument.create();
@@ -5151,6 +5164,7 @@ TOOLS.word2pdf = function(){
     }
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "converted", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
@@ -5228,13 +5242,26 @@ TOOLS.excel2pdf = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Excel to PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Basic version: converts the first sheet into a simple table PDF. Cell styling and multiple sheets are not preserved.</p>
-      ${fileInputHTML(".xlsx,.xls,.csv", false)}
-      <button class="btn" id="go" disabled>Convert to PDF</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="excel2pdfBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Excel to PDF</h2>
+        <p class="tool-hero-desc">Basic version: converts the first sheet into a simple table PDF. Cell styling and multiple sheets are not preserved.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML(".xlsx,.xls,.csv", false, "Drop a spreadsheet here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="excel2pdfToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Convert to PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("excel2pdfToolbar").style.display="none"; document.getElementById("excel2pdfBody").classList.remove("is-loaded"); });
+    document.getElementById("excel2pdfToolbar").style.display="flex";
+    document.getElementById("excel2pdfBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Reading spreadsheet...");
     await ensureXLSX();
@@ -5244,7 +5271,7 @@ TOOLS.excel2pdf = function(){
       const wb = XLSX.read(bytes, {type:"array"});
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:""});
-      setStatus("Building PDF...");
+      setStatus("Generating PDF pages...");
       const doc = await PDFDocument.create();
       const font = await doc.embedFont(StandardFonts.Helvetica);
       const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -5269,6 +5296,7 @@ TOOLS.excel2pdf = function(){
     }
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "converted", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
