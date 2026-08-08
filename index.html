@@ -4266,23 +4266,41 @@ TOOLS.addblank = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Add Blank Page</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Position (page number after which to insert, 0 = beginning)</label><input type="number" id="pos" value="0" min="0"></div>
-      <button class="btn" id="go" disabled>Add Page</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="addblankBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Add Blank Page</h2>
+        <p class="tool-hero-desc">Insert a blank page anywhere in your PDF.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="addblankToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0"><label>Position (page number after which to insert, 0 = beginning)</label><input type="number" id="pos" value="0" min="0"></div>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Add Blank Page</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("addblankToolbar").style.display="none"; document.getElementById("addblankBody").classList.remove("is-loaded"); });
+    document.getElementById("addblankToolbar").style.display="flex";
+    document.getElementById("addblankBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
+    setStatus("Adding blank page...");
     const pos = parseInt(document.getElementById("pos").value)||0;
     const ref = doc.getPage(0).getSize();
     doc.insertPage(pos, [ref.width, ref.height]);
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "with_blank", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
@@ -5457,28 +5475,45 @@ TOOLS.pagesize = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>PDF Page Size Converter</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Changes the page canvas size (content position stays fixed and does not automatically rescale).</p>
-      ${fileInputHTML("application/pdf", false)}
-      <div class="field"><label>Target size</label>
-        <select id="size">
-          <option value="595,842">A4</option><option value="612,792">Letter</option>
-          <option value="420,595">A5</option><option value="842,1191">A3</option>
-        </select>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="pagesizeBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">PDF Page Size Converter</h2>
+        <p class="tool-hero-desc">Changes the page canvas size (content position stays fixed and does not automatically rescale).</p>
       </div>
-      <button class="btn" id="go" disabled>Convert File</button>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="pagesizeToolbar" style="display:none">
+        <div class="tool-toolbar-secondary">
+          <div class="field" style="margin:0"><label>Target size</label>
+            <select id="size">
+              <option value="595,842">A4</option><option value="612,792">Letter</option>
+              <option value="420,595">A5</option><option value="842,1191">A3</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn tool-toolbar-primary" id="go">Convert Page Size</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("pagesizeToolbar").style.display="none"; document.getElementById("pagesizeBody").classList.remove("is-loaded"); });
+    document.getElementById("pagesizeToolbar").style.display="flex";
+    document.getElementById("pagesizeBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
     const [w,h] = document.getElementById("size").value.split(",").map(Number);
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
+    setStatus("Resizing pages...");
     doc.getPages().forEach(p=>p.setSize(w,h));
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "resized", "pdf");
+    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
