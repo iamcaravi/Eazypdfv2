@@ -4285,7 +4285,7 @@ TOOLS.addblank = function(){
     </div>`);
   wireDropzone(fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("addblankToolbar").style.display="none"; document.getElementById("addblankBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; document.getElementById("addblankToolbar").style.display="none"; document.getElementById("addblankBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
     document.getElementById("addblankToolbar").style.display="flex";
     document.getElementById("addblankBody").classList.add("is-loaded");
   });
@@ -4539,7 +4539,7 @@ TOOLS.invertpdf = function(){
     </div>`);
   wireDropzone(fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("invertpdfToolbar").style.display="none"; document.getElementById("invertpdfBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; document.getElementById("invertpdfToolbar").style.display="none"; document.getElementById("invertpdfBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
     document.getElementById("invertpdfToolbar").style.display="flex";
     document.getElementById("invertpdfBody").classList.add("is-loaded");
   });
@@ -4647,7 +4647,7 @@ TOOLS.flatten = function(){
     </div>`);
   wireDropzone(fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("flattenToolbar").style.display="none"; document.getElementById("flattenBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; document.getElementById("flattenToolbar").style.display="none"; document.getElementById("flattenBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
     document.getElementById("flattenToolbar").style.display="flex";
     document.getElementById("flattenBody").classList.add("is-loaded");
   });
@@ -4673,27 +4673,42 @@ TOOLS.repair = function(){
   let file=null;
   openPanel(`
     <div class="panel-head"><h3>Repair PDF</h3><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div>
-    <div class="panel-body">
-      <p style="margin:0;color:var(--ink-soft);font-size:.85rem">Attempts to fix minor structural issues. Severely corrupted files may not load.</p>
-      ${fileInputHTML("application/pdf", false)}
-      <button class="btn" id="go" disabled>Repair File</button>
+    <div class="panel-body compact no-auto-layout tool-workspace" id="repairBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Repair PDF</h2>
+        <p class="tool-hero-desc">Attempts to recover common structural issues in a PDF. Severely corrupted files may not be recoverable in-browser.</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, "Drop a PDF here")}
+      </div>
+      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-toolbar" id="repairToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">Repair PDF</button>
+      </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{ file=fs[0]; renderFileList([file], ()=>{file=null; document.getElementById("go").disabled=true;}); document.getElementById("go").disabled=false; });
+  wireDropzone(fs=>{
+    file=fs[0];
+    renderFileList([file], ()=>{ file=null; document.getElementById("repairToolbar").style.display="none"; document.getElementById("repairBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
+    document.getElementById("repairToolbar").style.display="flex";
+    document.getElementById("repairBody").classList.add("is-loaded");
+  });
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Repairing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Analyzing PDF...");
     try{
       const bytes=await file.arrayBuffer();
       const doc=await loadPdfSafe(bytes, {ignoreEncryption:true, throwOnInvalidObject:false});
+      setStatus("Attempting repair...");
       const outBytes=await doc.save({useObjectStreams:false});
       const blob=new Blob([outBytes],{type:"application/pdf"});
       const outName = suffixedName(file, "repaired", "pdf");
+      setStatus("Preparing download...");
       const {url}=downloadBlob(blob,outName);
       const {canvas}=await pdfThumb(outBytes);
       setStatus("Done", true);
       out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
     }catch(e){
-      setStatus("This file is too damaged to repair in-browser.", true);
+      out.innerHTML = `<div class="status" style="color:var(--rose)">This file could not be repaired (${e.message}). It may be too severely damaged to recover in-browser.</div>`;
     }
   });
 };
@@ -5499,7 +5514,7 @@ TOOLS.pagesize = function(){
     </div>`);
   wireDropzone(fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("pagesizeToolbar").style.display="none"; document.getElementById("pagesizeBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; document.getElementById("pagesizeToolbar").style.display="none"; document.getElementById("pagesizeBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
     document.getElementById("pagesizeToolbar").style.display="flex";
     document.getElementById("pagesizeBody").classList.add("is-loaded");
   });
@@ -5699,7 +5714,7 @@ TOOLS.extractimages = function(){
     </div>`);
   wireDropzone(fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("extractimagesToolbar").style.display="none"; document.getElementById("extractimagesBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; document.getElementById("extractimagesToolbar").style.display="none"; document.getElementById("extractimagesBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
     document.getElementById("extractimagesToolbar").style.display="flex";
     document.getElementById("extractimagesBody").classList.add("is-loaded");
   });
@@ -5758,7 +5773,7 @@ TOOLS.imgcompress = function(){
     </div>`);
   wireDropzone(fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("imgcompressToolbar").style.display="none"; document.getElementById("imgcompressBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; document.getElementById("imgcompressToolbar").style.display="none"; document.getElementById("imgcompressBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
     document.getElementById("imgcompressToolbar").style.display="flex";
     document.getElementById("imgcompressBody").classList.add("is-loaded");
   });
@@ -5942,7 +5957,7 @@ TOOLS.imgconvert = function(){
     </div>`);
   wireDropzone(fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("imgconvertToolbar").style.display="none"; document.getElementById("imgconvertBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; document.getElementById("imgconvertToolbar").style.display="none"; document.getElementById("imgconvertBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
     document.getElementById("imgconvertToolbar").style.display="flex";
     document.getElementById("imgconvertBody").classList.add("is-loaded");
   });
@@ -6025,7 +6040,7 @@ TOOLS.imginvert = function(){
     </div>`);
   wireDropzone(async fs=>{
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("imginvertToolbar").style.display="none"; document.getElementById("imginvertBody").classList.remove("is-loaded"); });
+    renderFileList([file], ()=>{ file=null; document.getElementById("imginvertToolbar").style.display="none"; document.getElementById("imginvertBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
     imgRef=await loadImage(file);
     document.getElementById("imginvertToolbar").style.display="flex";
     document.getElementById("imginvertBody").classList.add("is-loaded");
