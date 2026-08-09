@@ -4,7 +4,7 @@
    Sticky Trust Status Bar — data source configuration.
 
    This bar shows only genuine, static trust indicators — things that are
-   always true about how EazyPDF works, not numbers that pretend to be
+   always true about how YOYOPDF works, not numbers that pretend to be
    "live." There is no random-number generator, no counter that ticks up on
    a timer, and no fabricated "Users Online" style figure anywhere in this
    file or the two it pairs with (css/trust-status-bar.css,
@@ -51,7 +51,7 @@
         id: "unlimited",
         icon: "∞",
         label: "Unlimited Usage",
-        description: "Use EazyPDF without mandatory registration or daily limits."
+        description: "Use YOYOPDF without mandatory registration or daily limits."
       },
       {
         id: "fast",

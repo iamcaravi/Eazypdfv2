@@ -59,7 +59,7 @@ for (const slug of Object.keys(SLUG_TO_TOOLID)) {
 }
 
 const OUT_DIR = path.join(__dirname, "..");
-const DOMAIN = "https://eazypdf.in";
+const DOMAIN = "https://yoyopdf.in";
 
 function esc(s){
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -142,14 +142,14 @@ function renderTool(tool){
 <link rel="canonical" href="${canonical}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${canonical}">
-<meta property="og:site_name" content="EazyPDF">
+<meta property="og:site_name" content="YOYOPDF">
 <meta property="og:title" content="${esc(tool.title)}">
 <meta property="og:description" content="${esc(tool.description)}">
-<meta property="og:image" content="${DOMAIN}/assets/og/eazypdf-default-og.png">
+<meta property="og:image" content="${DOMAIN}/assets/og/yoyopdf-default-og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(tool.title)}">
 <meta name="twitter:description" content="${esc(tool.description)}">
-<meta name="theme-color" content="#6C3CE0">
+<meta name="theme-color" content="#B3121A">
 <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -159,7 +159,7 @@ function renderTool(tool){
 </head>
 <body>
 <header>
-  <a class="brand" href="/"><span class="mark"></span>EazyPDF</a>
+  <a class="brand" href="/"><span class="mark"></span>YOYOPDF</a>
   <a class="back-link" href="/">← All PDF Tools</a>
 </header>
 <div class="wrap">
@@ -220,7 +220,7 @@ function renderTool(tool){
   </section>
 </div>
 <footer>
-  <div class="wrap">© ${new Date().getFullYear()} EazyPDF. All processing happens locally in your browser.</div>
+  <div class="wrap">© ${new Date().getFullYear()} YOYOPDF. All processing happens locally in your browser.</div>
 </footer>
 </body>
 </html>
@@ -239,7 +239,7 @@ for (const slug of slugs) {
   // does is otherwise still accurate.
   if (slug === "edit-pdf") {
     tool = JSON.parse(JSON.stringify(tool));
-    tool.title = "Edit PDF Online Free — Add Text & Annotate | EazyPDF";
+    tool.title = "Edit PDF Online Free — Add Text & Annotate | YOYOPDF";
     tool.description = "Edit PDF documents directly in your browser — add text, images, shapes, and annotations. Free, no upload, no sign-up.";
     tool.faqs[0] = {
       q: "Is Edit PDF available now?",
@@ -250,7 +250,7 @@ for (const slug of slugs) {
   // Same fix as edit-pdf above - this tool is also actually live now.
   if (slug === "pdf-to-word") {
     tool = JSON.parse(JSON.stringify(tool));
-    tool.title = "PDF to Word Converter Free Online | EazyPDF";
+    tool.title = "PDF to Word Converter Free Online | YOYOPDF";
     tool.description = "Convert PDF into an editable Word document, free and browser-based. No upload, no sign-up.";
     tool.faqs[0] = {
       q: "Is PDF to Word available now?",

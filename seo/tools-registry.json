@@ -1,11 +1,11 @@
 {
   "site": {
-    "name": "EazyPDF",
-    "domain": "https://eazypdf.in",
-    "defaultTitle": "EazyPDF — Free Online PDF Tools, No Upload Required",
+    "name": "YOYOPDF",
+    "domain": "https://yoyopdf.in",
+    "defaultTitle": "YOYOPDF — Free Online PDF Tools, No Upload Required",
     "defaultDescription": "Edit, merge, split, compress and convert PDFs free, right in your browser. No sign-up, no file size limits, no files ever leave your device.",
-    "ogImage": "https://eazypdf.in/assets/og/eazypdf-default-og.png",
-    "logo": "https://eazypdf.in/assets/icons/eazypdf-logo.png",
+    "ogImage": "https://yoyopdf.in/assets/og/yoyopdf-default-og.png",
+    "logo": "https://yoyopdf.in/assets/icons/yoyopdf-logo.png",
     "sameAs": []
   },
   "categories": {
@@ -113,7 +113,7 @@
       "status": "live",
       "name": "Merge PDF",
       "category": "organize",
-      "title": "Merge PDF Files Free Online — Combine PDFs | EazyPDF",
+      "title": "Merge PDF Files Free Online — Combine PDFs | YOYOPDF",
       "description": "Combine multiple PDF files into one document in your browser. Drag to reorder, no upload to any server, no file limits, completely free.",
       "keywords": [
         "merge pdf",
@@ -283,7 +283,7 @@
       "status": "live",
       "name": "Split PDF",
       "category": "organize",
-      "title": "Split PDF Files Free Online — Extract Pages | EazyPDF",
+      "title": "Split PDF Files Free Online — Extract Pages | YOYOPDF",
       "description": "Split a PDF into separate files by page range or extract every page individually. Free, browser-based, no file uploads.",
       "keywords": [
         "split pdf",
@@ -427,7 +427,7 @@
       "status": "live",
       "name": "Rotate PDF",
       "category": "organize",
-      "title": "Rotate PDF Pages Free Online — Fix Orientation | EazyPDF",
+      "title": "Rotate PDF Pages Free Online — Fix Orientation | YOYOPDF",
       "description": "Rotate individual pages or the entire PDF 90, 180 or 270 degrees. Free, fast, and processed entirely in your browser.",
       "keywords": [
         "rotate pdf",
@@ -466,7 +466,7 @@
       "status": "live",
       "name": "Delete Pages",
       "category": "organize",
-      "title": "Delete Pages from PDF Free Online | EazyPDF",
+      "title": "Delete Pages from PDF Free Online | YOYOPDF",
       "description": "Remove unwanted pages from a PDF in a few clicks. Preview every page first. Free, browser-based, no uploads.",
       "keywords": [
         "delete pdf pages",
@@ -486,7 +486,7 @@
         },
         {
           "q": "Is the original file changed?",
-          "a": "No, your source file is untouched — EazyPDF generates a new PDF for download."
+          "a": "No, your source file is untouched — YOYOPDF generates a new PDF for download."
         }
       ],
       "relatedSlugs": [
@@ -504,7 +504,7 @@
       "status": "live",
       "name": "Extract Pages",
       "category": "organize",
-      "title": "Extract Pages from PDF Free Online | EazyPDF",
+      "title": "Extract Pages from PDF Free Online | YOYOPDF",
       "description": "Pull specific pages out of a PDF into a new document. Visual page picker, free, and processed locally in your browser.",
       "keywords": [
         "extract pdf pages",
@@ -542,7 +542,7 @@
       "status": "live",
       "name": "Organize PDF",
       "category": "organize",
-      "title": "Organize & Reorder PDF Pages Free Online | EazyPDF",
+      "title": "Organize & Reorder PDF Pages Free Online | YOYOPDF",
       "description": "Drag and drop to reorder, rotate, or remove PDF pages in one visual workspace. Free, browser-based, no file uploads.",
       "keywords": [
         "organize pdf",
@@ -580,7 +580,7 @@
       "status": "live",
       "name": "Crop PDF",
       "category": "edit",
-      "title": "Crop PDF Pages Free Online — Trim Margins | EazyPDF",
+      "title": "Crop PDF Pages Free Online — Trim Margins | YOYOPDF",
       "description": "Crop margins or unwanted areas from PDF pages with a visual crop box. Apply to one page or the whole document, free.",
       "keywords": [
         "crop pdf",
@@ -618,7 +618,7 @@
       "status": "live",
       "name": "Watermark PDF",
       "category": "edit",
-      "title": "Add Watermark to PDF Free Online | EazyPDF",
+      "title": "Add Watermark to PDF Free Online | YOYOPDF",
       "description": "Add a text watermark to your PDF with live preview — control position, opacity, size and rotation. Free, no uploads.",
       "keywords": [
         "watermark pdf",
@@ -656,7 +656,7 @@
       "status": "live",
       "name": "Add Page Numbers",
       "category": "edit",
-      "title": "Add Page Numbers to PDF Free Online | EazyPDF",
+      "title": "Add Page Numbers to PDF Free Online | YOYOPDF",
       "description": "Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads.",
       "keywords": [
         "add page numbers to pdf",
@@ -694,7 +694,7 @@
       "status": "live",
       "name": "Protect PDF",
       "category": "security",
-      "title": "Password Protect PDF Free Online | EazyPDF",
+      "title": "Password Protect PDF Free Online | YOYOPDF",
       "description": "Add a password to a PDF to restrict opening or editing. Free, browser-based encryption — see the tool for encryption details.",
       "keywords": [
         "password protect pdf",
@@ -732,7 +732,7 @@
       "status": "live",
       "name": "Compress PDF",
       "category": "optimize",
-      "title": "Compress PDF to Target Size Free Online | EazyPDF",
+      "title": "Compress PDF to Target Size Free Online | YOYOPDF",
       "description": "Shrink a PDF's file size down to an exact KB target you set. Free, fast, entirely in-browser compression.",
       "keywords": [
         "compress pdf",
@@ -876,8 +876,8 @@
       "status": "landing-only",
       "name": "Edit PDF",
       "category": "edit",
-      "title": "Edit PDF Online Free — Coming Soon | EazyPDF",
-      "description": "Edit PDF documents directly in your browser — add text, fill forms, and annotate. In active development, launching soon on EazyPDF.",
+      "title": "Edit PDF Online Free — Coming Soon | YOYOPDF",
+      "description": "Edit PDF documents directly in your browser — add text, fill forms, and annotate. In active development, launching soon on YOYOPDF.",
       "keywords": [
         "edit pdf",
         "edit pdf online",
@@ -892,11 +892,11 @@
         },
         {
           "q": "Will editing require an upload to a server?",
-          "a": "No. Like every EazyPDF tool, Edit PDF is being built to run entirely in your browser, with no file upload."
+          "a": "No. Like every YOYOPDF tool, Edit PDF is being built to run entirely in your browser, with no file upload."
         },
         {
           "q": "Will it be free?",
-          "a": "Yes. Edit PDF will follow the same free, no-registration model as every other EazyPDF tool."
+          "a": "Yes. Edit PDF will follow the same free, no-registration model as every other YOYOPDF tool."
         }
       ],
       "relatedSlugs": [
@@ -969,11 +969,11 @@
           },
           {
             "title": "Planned: runs in your browser",
-            "desc": "Planned to edit locally the moment you open a file — no server upload, matching how every EazyPDF tool works."
+            "desc": "Planned to edit locally the moment you open a file — no server upload, matching how every YOYOPDF tool works."
           },
           {
             "title": "No sign-up",
-            "desc": "Won't require signing up — open it and start editing, like every other EazyPDF tool."
+            "desc": "Won't require signing up — open it and start editing, like every other YOYOPDF tool."
           },
           {
             "title": "Free",
@@ -1019,8 +1019,8 @@
       "status": "landing-only",
       "name": "PDF to Word",
       "category": "convert",
-      "title": "PDF to Word Converter Free — Coming Soon | EazyPDF",
-      "description": "Convert PDF into an editable Word document. In active development, launching soon on EazyPDF — free, browser-based, no uploads.",
+      "title": "PDF to Word Converter Free — Coming Soon | YOYOPDF",
+      "description": "Convert PDF into an editable Word document. In active development, launching soon on YOYOPDF — free, browser-based, no uploads.",
       "keywords": [
         "pdf to word",
         "convert pdf to word",
@@ -1039,7 +1039,7 @@
         },
         {
           "q": "Will my file be uploaded to convert it?",
-          "a": "The plan is the same as every other EazyPDF tool: conversion runs in your browser, with no file upload to a server."
+          "a": "The plan is the same as every other YOYOPDF tool: conversion runs in your browser, with no file upload to a server."
         }
       ],
       "relatedSlugs": [
@@ -1104,7 +1104,7 @@
           },
           {
             "title": "Planned: runs in your browser",
-            "desc": "Planned to convert locally the moment you choose a file — no server upload, the same model every EazyPDF tool follows."
+            "desc": "Planned to convert locally the moment you choose a file — no server upload, the same model every YOYOPDF tool follows."
           },
           {
             "title": ".docx output",
@@ -1112,7 +1112,7 @@
           },
           {
             "title": "No sign-up",
-            "desc": "Won't require an account — open it and convert, consistent with the rest of EazyPDF."
+            "desc": "Won't require an account — open it and convert, consistent with the rest of YOYOPDF."
           },
           {
             "title": "No file limit",
