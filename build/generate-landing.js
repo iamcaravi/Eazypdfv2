@@ -1,20 +1,21 @@
 const fs = require("fs");
 const path = require("path");
 
+const ROOT = path.join(__dirname, "..");
 const registry = JSON.parse(fs.readFileSync(
-  path.join(__dirname, "..", "seo", "tools-registry.json"),
+  path.join(ROOT, "seo", "tools-registry.json"),
   "utf8"
 ));
 const additional = JSON.parse(fs.readFileSync(
-  path.join(__dirname, "..", "seo", "additional-tools.json"),
+  path.join(ROOT, "seo", "additional-tools.json"),
   "utf8"
 ));
 
 // Maps registry slug -> this app's actual TOOLS.xxx id (used for ?tool=).
 // protect-pdf is intentionally excluded: the registry describes a
 // password-protect feature that doesn't exist as a TOOLS.xxx in this
-// build (no TOOLS.protect) - generating a page whose CTA opens nothing
-// would be worse than not generating it at all.
+// build (no TOOLS.protect) - generating a page for it would expose a
+// route with nothing behind it.
 const SLUG_TO_TOOLID = {
   "merge-pdf": "merge",
   "split-pdf": "split",
@@ -38,17 +39,17 @@ for (const t of additional.tools) SLUG_TO_TOOLID[t.slug] = t.toolId;
 // sources identically.
 const additionalNormalized = additional.tools.map(t => ({
   ...t,
-  landing: { hero: { valueProp: t.heroValueProp, ctaLabel: "Use " + t.name } }
+  landing: { hero: { valueProp: t.heroValueProp } }
 }));
 
-// Combined lookup across both content sources, so relatedSlugs/related-tool
-// links resolve correctly regardless of which file a tool's content lives in.
+// Combined lookup across both content sources, so relatedSlugs links
+// resolve correctly regardless of which file a tool's content lives in.
 const ALL_TOOLS = [...registry.tools, ...additionalNormalized];
 function findTool(slug){ return ALL_TOOLS.find(t => t.slug === slug); }
 
-// Maps ANY slug appearing in relatedSlugs -> our landing page filename, so
-// "related tools" links only point at pages that actually exist on this
-// build. Derived from each entry's own `file` field rather than assumed
+// Maps ANY slug appearing in relatedSlugs -> this build's landing filename,
+// so "related tools" links only point at pages that actually exist here.
+// Derived from each entry's own `file` field rather than assumed
 // slug-to-filename patterns - add-page-numbers's own file is actually
 // page-numbers.html, not add-page-numbers.html, which a hand-written map
 // got wrong once already.
@@ -58,173 +59,163 @@ for (const slug of Object.keys(SLUG_TO_TOOLID)) {
   if (t) SLUG_TO_FILE[slug] = t.file;
 }
 
-const OUT_DIR = path.join(__dirname, "..");
 const DOMAIN = "https://yoyopdf.in";
 
 function esc(s){
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-function renderTool(tool){
-  const toolId = SLUG_TO_TOOLID[tool.slug];
+/* ---------------------------------------------------------------------
+ * Architecture: each tool's canonical clean URL (e.g. /merge-pdf) must be
+ * BOTH the actual interactive app AND its own SEO landing content on one
+ * page - not the interactive app at one URL and a separate marketing page
+ * shadowing it at the same URL (the old two-system setup this replaces).
+ *
+ * Rather than hand-duplicating the app's markup/CSS/JS per tool (which
+ * would make index.html and 37 near-copies drift out of sync), this
+ * generator takes index.html itself - the single source of truth for the
+ * app shell - and, per tool, swaps its homepage-specific <head> metadata/
+ * JSON-LD and hero copy for that tool's own, then appends a dedicated
+ * SEO content section (why-use/how-it-works/features/use-cases/FAQ/
+ * related-tools, built from this same registry data) right before the
+ * footer. Everything else - header, tool workspace overlay, the actual
+ * TOOLS.xxx implementations in js/app.js, styling - stays byte-identical
+ * to index.html, so there is exactly one place tool logic/markup lives.
+ * ------------------------------------------------------------------- */
+
+const TEMPLATE = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+
+const MARKERS = {
+  title: '<title>YOYOPDF — Free Online PDF Tools: Merge, Split, Compress & Convert</title>',
+  description: '<meta name="description" content="Merge, split, compress, convert and edit PDF files online — 100% free, no sign-up, no file limits. Every tool runs locally in your browser, so your files never leave your device.">',
+  canonical: '<link rel="canonical" href="https://yoyopdf.in/">',
+  ogUrl: '<meta property="og:url" content="https://yoyopdf.in/">',
+  ogTitle: '<meta property="og:title" content="YOYOPDF — Free Online PDF Tools: Merge, Split, Compress & Convert">',
+  ogDescription: '<meta property="og:description" content="Merge, split, compress, convert and edit PDF files online — 100% free, no sign-up, no file limits. Every tool runs locally in your browser, so your files never leave your device.">',
+  twitterTitle: '<meta name="twitter:title" content="YOYOPDF — Free Online PDF Tools: Merge, Split, Compress & Convert">',
+  twitterDescription: '<meta name="twitter:description" content="Merge, split, compress, convert and edit PDF files online — 100% free, no sign-up, no file limits. Every tool runs locally in your browser.">',
+  hero: '<h1><span class="hero-line1">All-in-One <span class="accent">PDF</span></span><span class="hero-line2">Tools. Simple. Fast. Secure.</span></h1>',
+  tagline: '<p class="tagline">YOYOPDF makes it easy to edit, convert, compress, merge, split and manage your PDF files online. All tools are free, secure and easy to use.</p>',
+  footer: '<footer class="site-footer">',
+};
+
+// The homepage's own generic JSON-LD (SoftwareApplication + FAQPage) -
+// swapped out per tool page for that tool's BreadcrumbList (+ FAQPage
+// only where the tool actually has genuine FAQ content), so each
+// canonical page provides exactly one set of structured data that
+// matches what's actually on it, instead of two competing/duplicate
+// blocks.
+const SOFTWAREAPP_JSONLD_RE = /<script type="application\/ld\+json">[\s\S]*?"@type":\s*"SoftwareApplication"[\s\S]*?<\/script>\s*/;
+const FAQPAGE_JSONLD_RE = /<script type="application\/ld\+json">[\s\S]*?"@type":\s*"FAQPage"[\s\S]*?<\/script>\s*/;
+
+for (const [key, marker] of Object.entries(MARKERS)) {
+  if (!TEMPLATE.includes(marker)) {
+    throw new Error(`index.html marker not found (page content changed?): ${key}`);
+  }
+}
+if (!SOFTWAREAPP_JSONLD_RE.test(TEMPLATE)) throw new Error("index.html: SoftwareApplication JSON-LD block not found");
+if (!FAQPAGE_JSONLD_RE.test(TEMPLATE)) throw new Error("index.html: homepage FAQPage JSON-LD block not found");
+
+function renderSeoSection(tool){
   const l = tool.landing || {};
-  // Use tool.file (what actually gets written to disk / served), not
-  // tool.slug - they differ for add-page-numbers (file: page-numbers.html,
-  // slug: add-page-numbers), and a canonical tag must point at the URL
-  // that actually serves this content, not an unrelated slug.
+
+  const whyBlock = (l.whyUse && l.whyUse.points && l.whyUse.points.length) ? `
+  <div class="tool-seo-block">
+    <h2>Why use ${esc(tool.name)}?</h2>
+    <p class="tool-seo-intro">${esc(l.whyUse.intro || "")}</p>
+    <div class="tool-seo-grid">${l.whyUse.points.map(p => `
+      <div class="tool-seo-card"><h3>${esc(p.title)}</h3><p>${esc(p.desc)}</p></div>`).join("")}
+    </div>
+  </div>` : "";
+
+  const howBlock = (l.howItWorks && l.howItWorks.length) ? `
+  <div class="tool-seo-block">
+    <h2>How it works</h2>
+    <div class="tool-seo-steps">${l.howItWorks.map(s => `
+      <div class="tool-seo-step"><h3>${esc(s.title)}</h3><p>${esc(s.desc)}</p></div>`).join("")}
+    </div>
+  </div>` : "";
+
+  const featuresBlock = (l.keyFeatures && l.keyFeatures.length) ? `
+  <div class="tool-seo-block">
+    <h2>Key features</h2>
+    <div class="tool-seo-grid">${l.keyFeatures.map(f => `
+      <div class="tool-seo-card"><h3>${esc(f.title)}</h3><p>${esc(f.desc)}</p></div>`).join("")}
+    </div>
+  </div>` : "";
+
+  const useCasesBlock = (l.useCases && l.useCases.length) ? `
+  <div class="tool-seo-block">
+    <h2>Who uses ${esc(tool.name)}?</h2>
+    <div class="tool-seo-grid">${l.useCases.map(u => `
+      <div class="tool-seo-card"><h3>${esc(u.title)}</h3><p>${esc(u.desc)}</p></div>`).join("")}
+    </div>
+  </div>` : "";
+
+  const faqBlock = (tool.faqs && tool.faqs.length) ? `
+  <div class="tool-seo-block">
+    <h2>Frequently asked questions</h2>
+    ${tool.faqs.map(f => `
+    <details class="tool-seo-faq"><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join("")}
+  </div>` : "";
+
+  const relatedSlugs = (tool.relatedSlugs || []).filter(s => SLUG_TO_FILE[s] && s !== tool.slug);
+  const relatedBlock = relatedSlugs.length ? `
+  <div class="tool-seo-block">
+    <h2>Related tools</h2>
+    <div class="tool-seo-related">${relatedSlugs.map(s => `
+      <a href="/${SLUG_TO_FILE[s].replace(/\.html$/, "")}">${esc(findTool(s)?.name || s)}</a>`).join("")}
+    </div>
+  </div>` : "";
+
+  const body = [whyBlock, howBlock, featuresBlock, useCasesBlock, faqBlock, relatedBlock].join("");
+  if (!body.trim()) return "";
+  return `\n<section class="tool-seo-content">${body}\n</section>\n\n`;
+}
+
+function renderTool(tool){
+  const l = tool.landing || {};
   const urlPath = tool.file.replace(/\.html$/, "");
   const canonical = `${DOMAIN}/${urlPath}`;
-  const faqJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": tool.faqs.map(f => ({
-      "@type": "Question",
-      "name": f.q,
-      "acceptedAnswer": { "@type": "Answer", "text": f.a }
-    }))
-  };
-  const breadcrumbJsonLd = {
+  const h1 = tool.h1 || tool.name;
+  const valueProp = l.hero?.valueProp || tool.description;
+
+  const jsonLdBlocks = [];
+  jsonLdBlocks.push(`<script type="application/ld+json">${JSON.stringify({
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN + "/" },
       { "@type": "ListItem", "position": 2, "name": tool.name, "item": canonical }
     ]
-  };
+  }, null, 2)}</script>\n`);
+  if (tool.faqs && tool.faqs.length){
+    jsonLdBlocks.push(`<script type="application/ld+json">${JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": tool.faqs.map(f => ({
+        "@type": "Question",
+        "name": f.q,
+        "acceptedAnswer": { "@type": "Answer", "text": f.a }
+      }))
+    }, null, 2)}</script>\n`);
+  }
 
-  const relatedLinks = (tool.relatedSlugs || [])
-    .filter(s => SLUG_TO_FILE[s])
-    .map(s => `<a href="/${SLUG_TO_FILE[s]}">${esc(findTool(s)?.name || s)}</a>`)
-    .join("\n      ");
-
-  const whyCards = (l.whyUse?.points || []).map(p => `
-      <div class="why-card">
-        <h3>${esc(p.title)}</h3>
-        <p>${esc(p.desc)}</p>
-      </div>`).join("");
-
-  const stepCards = (l.howItWorks || []).map(s => `
-      <div class="step">
-        <h3>${esc(s.title)}</h3>
-        <p>${esc(s.desc)}</p>
-      </div>`).join("");
-
-  const featureCards = (l.keyFeatures || []).map(f => `
-      <div class="feature-card">
-        <h3>${esc(f.title)}</h3>
-        <p>${esc(f.desc)}</p>
-      </div>`).join("");
-
-  const useCards = (l.useCases || []).map(u => `
-      <div class="usecase-card">
-        <h3>${esc(u.title)}</h3>
-        <p>${esc(u.desc)}</p>
-      </div>`).join("");
-
-  const faqItems = tool.faqs.map(f => `
-    <details class="faq-item">
-      <summary>${esc(f.q)}</summary>
-      <p>${esc(f.a)}</p>
-    </details>`).join("");
-
-  const trustBadges = (l.hero?.trustBadges || []).map(b => `<span>${esc(b)}</span>`).join("\n        ");
-
-  const nextTool = l.cta ? findTool(l.cta.targetSlug) : null;
-  const nextToolFile = nextTool ? SLUG_TO_FILE[nextTool.slug] : null;
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${esc(tool.title)}</title>
-<meta name="description" content="${esc(tool.description)}">
-<link rel="canonical" href="${canonical}">
-<meta property="og:type" content="website">
-<meta property="og:url" content="${canonical}">
-<meta property="og:site_name" content="YOYOPDF">
-<meta property="og:title" content="${esc(tool.title)}">
-<meta property="og:description" content="${esc(tool.description)}">
-<meta property="og:image" content="${DOMAIN}/assets/og/yoyopdf-default-og.png">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${esc(tool.title)}">
-<meta name="twitter:description" content="${esc(tool.description)}">
-<meta name="theme-color" content="#B3121A">
-<link rel="icon" type="image/svg+xml" href="/assets/icons/favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/landing.css">
-<script type="application/ld+json">${JSON.stringify(faqJsonLd, null, 2)}</script>
-<script type="application/ld+json">${JSON.stringify(breadcrumbJsonLd, null, 2)}</script>
-</head>
-<body>
-<header>
-  <a class="brand" href="/"><span class="mark"></span>YOYOPDF</a>
-  <a class="back-link" href="/">← All PDF Tools</a>
-</header>
-<div class="wrap">
-  <nav class="breadcrumb" aria-label="Breadcrumb">
-    <a href="/">Home</a> / <span aria-current="page">${esc(tool.name)}</span>
-  </nav>
-
-  <section class="hero">
-    <h1>${esc(tool.h1)}</h1>
-    <p class="value-prop">${esc(l.hero?.valueProp || tool.description)}</p>
-    <div class="trust-badges">
-        ${trustBadges}
-    </div>
-    <a class="cta-btn" href="/?tool=${toolId}">${esc(l.hero?.ctaLabel || ("Use " + tool.name))} →</a>
-  </section>
-
-  ${l.whyUse ? `<section class="section">
-    <h2>Why use ${esc(tool.name)}?</h2>
-    <p style="color:var(--ink-soft);margin-bottom:20px;max-width:680px;line-height:1.6">${esc(l.whyUse.intro)}</p>
-    <div class="why-grid">${whyCards}
-    </div>
-  </section>` : ""}
-
-  ${l.howItWorks ? `<section class="section">
-    <h2>How it works</h2>
-    <div class="steps">${stepCards}
-    </div>
-  </section>` : ""}
-
-  ${l.keyFeatures ? `<section class="section">
-    <h2>Key features</h2>
-    <div class="features-grid">${featureCards}
-    </div>
-  </section>` : ""}
-
-  ${l.useCases ? `<section class="section">
-    <h2>Who uses ${esc(tool.name)}?</h2>
-    <div class="usecase-grid">${useCards}
-    </div>
-  </section>` : ""}
-
-  <section class="section">
-    <h2>Frequently asked questions</h2>
-    ${faqItems}
-  </section>
-
-  ${relatedLinks ? `<section class="section">
-    <h2>Related tools</h2>
-    <div class="related-grid">
-      ${relatedLinks}
-    </div>
-  </section>` : ""}
-
-  <section class="cta-section">
-    <h2>Ready to ${esc(tool.name.toLowerCase())}?</h2>
-    <a class="cta-btn" href="/?tool=${toolId}">${esc(l.hero?.ctaLabel || ("Use " + tool.name))} →</a>
-    ${nextTool ? `<p style="margin-top:24px;color:var(--ink-soft);font-size:.9rem">${esc(l.cta.question)} <a href="/${nextToolFile}" style="color:var(--teal-deep);font-weight:700">${esc(l.cta.label)} →</a></p>` : ""}
-  </section>
-</div>
-<footer>
-  <div class="wrap">© ${new Date().getFullYear()} YOYOPDF. All processing happens locally in your browser.</div>
-</footer>
-</body>
-</html>
-`;
+  let out = TEMPLATE;
+  out = out.replace(MARKERS.title, `<title>${esc(tool.title)}</title>`);
+  out = out.replace(MARKERS.description, `<meta name="description" content="${esc(tool.description)}">`);
+  out = out.replace(MARKERS.canonical, `<link rel="canonical" href="${canonical}">`);
+  out = out.replace(MARKERS.ogUrl, `<meta property="og:url" content="${canonical}">`);
+  out = out.replace(MARKERS.ogTitle, `<meta property="og:title" content="${esc(tool.title)}">`);
+  out = out.replace(MARKERS.ogDescription, `<meta property="og:description" content="${esc(tool.description)}">`);
+  out = out.replace(MARKERS.twitterTitle, `<meta name="twitter:title" content="${esc(tool.title)}">`);
+  out = out.replace(MARKERS.twitterDescription, `<meta name="twitter:description" content="${esc(tool.description)}">`);
+  out = out.replace(MARKERS.hero, `<h1>${esc(h1)}</h1>`);
+  out = out.replace(MARKERS.tagline, `<p class="tagline">${esc(valueProp)}</p>`);
+  out = out.replace(SOFTWAREAPP_JSONLD_RE, "");
+  out = out.replace(FAQPAGE_JSONLD_RE, jsonLdBlocks.join(""));
+  out = out.replace(MARKERS.footer, renderSeoSection(tool) + MARKERS.footer);
+  return out;
 }
 
 const slugs = Object.keys(SLUG_TO_TOOLID);
@@ -254,21 +245,15 @@ for (const slug of slugs) {
     tool.description = "Convert PDF into an editable Word document, free and browser-based. No upload, no sign-up.";
     tool.faqs[0] = {
       q: "Is PDF to Word available now?",
-      a: "Yes. PDF to Word runs entirely in your browser — extracted text and images are laid out into a downloadable .docx file, no upload required."
+      a: "Yes. PDF to Word runs entirely in your browser — no upload, no sign-up, no waiting."
     };
-    tool.faqs[1] = {
-      q: "Will the converted file be fully editable?",
-      a: "Text is extracted as editable content; pages with little extractable text (scans, image-heavy pages) are inserted as images instead, so nothing is lost."
-    };
-    tool.faqs[2] = {
-      q: "Is my file uploaded to convert it?",
-      a: "No. Conversion runs in your browser using pdf.js and pdf-lib, with no file upload to any server."
-    };
+    tool.landing.hero.valueProp = "Convert PDF into an editable Word document directly in your browser — no upload, no sign-up.";
   }
+
   const html = renderTool(tool);
-  const outPath = path.join(OUT_DIR, tool.file);
-  fs.writeFileSync(outPath, html, "utf8");
+  fs.writeFileSync(path.join(ROOT, tool.file), html);
   generated.push(tool.file);
   console.log("Generated:", tool.file);
 }
-console.log("\nDone. Generated files:", generated.join(", "));
+
+console.log(`\nDone. Generated files: ${generated.join(", ")}`);

@@ -1,1 +1,11 @@
+# Every tool's clean URL (e.g. /merge-pdf) is served directly by its own
+# generated static file (merge-pdf.html - see build/generate-landing.js),
+# which Netlify resolves automatically via pretty-URL matching before this
+# file is even consulted. That generated file IS the interactive tool: the
+# app shell/JS is identical to index.html, just with that tool's own
+# title/meta/canonical/JSON-LD and SEO content section swapped in. No
+# per-route redirect entries are needed for tool paths.
+#
+# This catch-all only matters for paths with no matching static file at
+# all - the homepage, and any other in-app route.
 /*    /index.html   200
