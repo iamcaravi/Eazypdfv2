@@ -57,7 +57,7 @@
 
   --duration-fast:120ms; --duration-base:150ms; --ease-standard:ease;
 
-  --font-body:'IBM Plex Sans', sans-serif;
+  --font-body:'Plus Jakarta Sans', sans-serif;
   --font-mono:'IBM Plex Mono', monospace;
   --fs-small:0.85rem; --fs-caption:0.76rem; --fw-semibold:600;
 }
