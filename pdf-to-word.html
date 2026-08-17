@@ -86,7 +86,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- Sticky Live Activity Bar (replaces the old footer visitor-badge embed) -->
-<link rel="stylesheet" href="css/trust-status-bar.css">
+<link rel="stylesheet" href="css/trust-status-bar.css?v=2">
 <!-- pdf-lib and pdf.js stay eager/blocking: js/app.js references PDFLib/
      pdfjsLib synchronously at its very top (`const {PDFDocument,...} =
      PDFLib`), and (like any non-module script) runs in document order
@@ -95,6 +95,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <!-- jszip/mammoth/xlsx are each only needed by a handful of specific
      tools (Split/Extract Pages/Extract Images, PDF to Word, PDF<->Excel)
      - loaded on demand via ensureJSZip()/ensureMammoth()/ensureXLSX()
@@ -211,7 +212,10 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
   --ochre: var(--accent-lime);
   --success: var(--accent-lime);
   --success-rgb: var(--accent-lime-rgb);
-  --glow-shadow: 0 0 0 1px rgba(var(--accent-lime-rgb),0.45), 0 10px 34px -6px rgba(var(--accent-lime-rgb),0.35);
+  /* Layered, not one blurry shadow: sharp border -> near glow -> outer
+     glow -> large low-opacity ambient - fades naturally outward instead
+     of reading as a single pasted-on neon rectangle. */
+  --glow-shadow: 0 0 0 1px rgba(var(--accent-lime-rgb),0.9), 0 0 10px rgba(var(--accent-lime-rgb),0.45), 0 0 25px rgba(var(--accent-lime-rgb),0.28), 0 0 45px rgba(var(--accent-lime-rgb),0.12);
 }
 *{box-sizing:border-box;}
 /* ---- Magnetic / Dock targets ----
@@ -301,10 +305,11 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .grid{
   display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:14px;
 }
-#toolsGrid{ transition:height .22s ease; overflow:hidden; align-content:start; }
+#toolsGrid{ transition:height .22s ease; overflow:visible; align-content:start; perspective:1200px; perspective-origin:center center; }
 .card{
   background:var(--card-bg); border:1px solid var(--line); border-radius:var(--radius);
-  padding:16px; cursor:pointer; transition:transform .2s ease, opacity .18s ease, box-shadow .2s ease, border-color .2s ease; position:relative;
+  padding:16px; cursor:pointer; transition:box-shadow .2s ease, border-color .2s ease; position:relative;
+  transform-origin:center center; will-change:transform; transform-style:preserve-3d; backface-visibility:hidden;
   display:flex; flex-direction:column; gap:8px; min-height:0; overflow:hidden;
 }
 .card::before{
@@ -319,14 +324,21 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
    brief's "subtle...do not use a giant bright blob." */
 .card::after{
   content:""; position:absolute; inset:0; z-index:0; opacity:0; pointer-events:none;
-  background:radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(var(--brand-shadow-rgb),0.14), transparent 45%);
+  background:radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(var(--brand-shadow-rgb),0.16), rgba(var(--brand-shadow-rgb),0.05) 30%, transparent 65%);
   transition:opacity .25s ease;
 }
 .card:hover::after{ opacity:1; }
 .card > *{ position:relative; z-index:1; } /* keep real content above the spotlight layer */
-.card:hover{ transform:translateY(-2px); box-shadow:var(--glow-shadow); border-color:rgba(var(--brand-shadow-rgb),0.55); }
+/* Transform itself is intentionally NOT set here (no :hover/:active
+   transform) - once JS initializes, GSAP is the sole owner of .card's
+   transform (scale/y/rotationX/rotationY, see js/app.js's card-hover
+   block) so a CSS pseudo-class can never fight it for the same property,
+   the exact bug this session already hit once on the quick-tools rail.
+   box-shadow/border-color are safe to keep here since GSAP never touches
+   those. */
+.card:hover{ box-shadow:var(--glow-shadow); border-color:rgba(var(--brand-shadow-rgb),0.55); }
 .card:hover::before{ transform:scaleX(1); }
-.card:active{ transform:translateY(-1px) scale(0.98); transition:.08s; box-shadow:0 0 0 4px rgba(var(--brand-shadow-rgb),0.25), var(--glow-shadow); }
+.card.card-active{ border-color:rgba(var(--brand-shadow-rgb),0.7); box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.4), var(--glow-shadow); }
 .card.card-glow{ animation:cardGlowPulse .5s ease; }
 @keyframes cardGlowPulse{
   0%{ box-shadow:0 0 0 0 rgba(var(--brand-shadow-rgb),0.55), var(--glow-shadow); }
@@ -347,6 +359,100 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   display:none; align-items:stretch; justify-content:center; padding:0; overflow:hidden;
 }
 .overlay.open{display:flex;}
+
+/* ===== Quick Tools Rail (global, macOS-Dock-inspired, vertical) =====
+   Lives outside .overlay/.qa-overlay in the DOM so it's the same single
+   persistent element on every page (homepage, any of the 39 tool panels,
+   result screens) rather than being torn down and rebuilt per view -
+   z-index:130 sits above .overlay(100) so it survives a tool panel being
+   open, but below header(150)/toast+qa-overlay(200) so a real blocking
+   modal still wins. JS reduces (not hides) it during the fullscreen
+   editor (.panel-fullscreen) since the editor's own controls live on the
+   right/top, not the far left, so the rail there is normally clear.
+   Transform ownership (see js/app.js's initQuickDock comment for the
+   full reasoning - this was a real bug the first, horizontal build hit):
+   entrance owns opacity+scale only; hover-proximity owns the rail's own
+   `x`; nothing else ever touches those two properties on #quickDock.
+   top is a fixed offset below the header, not 50%/translateY-centered -
+   on a page-centered rail, a short viewport (a real 13" laptop, or any
+   window with less than ~700px of height) pushed the rail's own top
+   upward into the header's own vertical space, overlapping the logo.
+   Anchoring a fixed distance below the header instead makes that
+   overlap structurally impossible regardless of viewport height, and
+   matches the requested logo-then-dock vertical composition directly. */
+#quickDock{
+  position:fixed; left:16px; top:104px; z-index:130;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  padding:8px 6px; border-radius:18px; width:52px;
+  background:rgba(16,16,16,0.62); backdrop-filter:blur(20px) saturate(160%); -webkit-backdrop-filter:blur(20px) saturate(160%);
+  border:1px solid rgba(255,255,255,0.10);
+  box-shadow:0 20px 50px -18px rgba(0,0,0,0.55), inset 0 1px 0 0 rgba(255,255,255,0.06);
+  opacity:0; visibility:hidden; pointer-events:none;
+}
+[data-theme="light"] #quickDock{ background:rgba(255,255,255,0.82); border-color:rgba(0,0,0,0.08); box-shadow:0 8px 30px -10px rgba(0,0,0,0.14), inset 0 1px 0 0 rgba(255,255,255,0.6); }
+#quickDock.is-ready{ opacity:1; visibility:visible; pointer-events:auto; }
+#quickDock.is-reduced{ opacity:0.45; }
+.qd-icon{
+  position:relative; flex:none; width:38px; height:38px; border-radius:11px;
+  background:var(--paper-dim); border:none; cursor:pointer; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  transform-origin:center left; will-change:transform;
+  color:var(--red);
+}
+.qd-icon svg{ width:17px; height:17px; }
+.qd-icon.qd-active{ box-shadow:0 0 0 2px rgba(var(--brand-shadow-rgb),0.6), 0 0 18px 1px rgba(var(--brand-shadow-rgb),0.35); }
+.qd-icon:focus-visible{ outline:2px solid var(--accent-cyan); outline-offset:3px; }
+.qd-more{ color:var(--ink-soft); background:rgba(255,255,255,0.06); }
+[data-theme="light"] .qd-more{ background:rgba(0,0,0,0.045); color:var(--ink-soft); }
+.qd-divider{ height:1px; align-self:stretch; margin:2px 4px; background:rgba(255,255,255,0.12); flex:none; }
+[data-theme="light"] .qd-divider{ background:rgba(0,0,0,0.10); }
+.qd-tooltip{
+  position:absolute; left:calc(100% + 12px); top:50%; transform:translateY(-50%) translateX(-6px) scale(0.96);
+  background:#0A0A0A; color:#F2F2F0; font-size:0.74rem; font-weight:600; white-space:nowrap;
+  padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.12);
+  opacity:0; pointer-events:none; transition:opacity .15s ease, transform .15s ease;
+}
+.qd-icon.qd-tooltip-show .qd-tooltip{ opacity:1; transform:translateY(-50%) translateX(0) scale(1); }
+@media(prefers-reduced-motion: reduce){
+  .qd-icon{ transform:none !important; }
+}
+
+/* Mobile/tablet: the vertical rail is replaced entirely by a compact
+   floating launcher + tap-open menu, not a shrunk-down rail - a tall
+   column of 40px+ targets doesn't fit a phone viewport without covering
+   real content, per the brief's own "do not simply shrink it" call. */
+#quickDockFab{
+  display:none; position:fixed; left:18px; bottom:18px; z-index:130;
+  width:52px; height:52px; border-radius:50%; border:none; cursor:pointer;
+  background:var(--brand-grad); color:var(--btn-ink); box-shadow:0 14px 30px -10px rgba(var(--brand-shadow-rgb),0.55);
+  align-items:center; justify-content:center; font-weight:800; font-size:0.68rem; letter-spacing:-0.02em;
+  opacity:0; visibility:hidden;
+}
+#quickDockFab.is-ready{ opacity:1; visibility:visible; }
+#quickDockMenu{
+  display:none; position:fixed; left:18px; bottom:80px; z-index:130;
+  min-width:200px; border-radius:16px; padding:8px; flex-direction:column; gap:2px;
+  background:rgba(16,16,16,0.85); backdrop-filter:blur(20px) saturate(160%); -webkit-backdrop-filter:blur(20px) saturate(160%);
+  border:1px solid rgba(255,255,255,0.10); box-shadow:0 20px 50px -18px rgba(0,0,0,0.55);
+  opacity:0; visibility:hidden; transform:translateY(10px) scale(0.97); transition:opacity .18s ease, transform .18s ease, visibility .18s;
+}
+[data-theme="light"] #quickDockMenu{ background:rgba(255,255,255,0.92); border-color:rgba(0,0,0,0.08); box-shadow:0 20px 50px -18px rgba(0,0,0,0.22); }
+#quickDockMenu.open{ display:flex; opacity:1; visibility:visible; transform:translateY(0) scale(1); }
+.qdm-item{
+  display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+  background:none; border:none; font-family:inherit; color:#F2F2F0; font-size:0.86rem; font-weight:600;
+  padding:9px 10px; border-radius:10px; cursor:pointer;
+}
+.qdm-item:hover, .qdm-item:focus-visible{ background:rgba(255,255,255,0.08); outline:none; }
+[data-theme="light"] .qdm-item{ color:var(--ink); }
+[data-theme="light"] .qdm-item:hover, [data-theme="light"] .qdm-item:focus-visible{ background:rgba(0,0,0,0.05); }
+.qdm-item.qd-active{ color:var(--accent-lime); }
+.qdm-item .qdm-icon{ width:20px; height:20px; flex:none; display:flex; }
+.qdm-item .qdm-icon svg{ width:18px; height:18px; }
+@media(max-width:760px){
+  #quickDock{ display:none; }
+  #quickDockFab{ display:flex; }
+}
 /* Locks the homepage's own document scroll while a tool panel is open -
    without this, the page behind the (fixed, opaque) overlay was still
    scrollable, which produced a second native scrollbar competing with
@@ -1596,7 +1702,7 @@ footer{
    theme instead of one image forced to work in both - the dark-theme file
    gets its own always-dark chip since its background is baked-in black;
    the light-theme file was made for a light header, so it renders as-is. */
-.brand-logo{ height:68px; width:auto; object-fit:contain; flex:none; }
+.brand-logo{ height:48px; width:auto; object-fit:contain; flex:none; }
 .brand-logo-dark{ background:#000; border-radius:10px; padding:4px 8px; }
 [data-theme="light"] .brand-logo-dark{ display:none; }
 .brand-logo-light{ display:none; }
@@ -1806,7 +1912,7 @@ footer{
   .nav-actions .nav-tool{ display:none; }
   .hamburger{ display:flex; }
   .brand-text{ font-size:1.05rem; }
-  .brand-logo{ height:52px; width:auto; }
+  .brand-logo{ height:40px; width:auto; }
 }
 
 /* ============================================================
@@ -1925,20 +2031,8 @@ footer{
 }
 .mock-choose-btn:focus-visible{ outline:2px solid var(--ochre); outline-offset:2px; }
 .hero-art{ position:relative; display:flex; align-items:center; justify-content:center; min-height:300px; }
-.float-chip{
-  position:absolute; display:flex; align-items:center; justify-content:center;
-  width:48px; height:48px; border-radius:14px;
-  background:var(--card-bg); border:1px solid var(--line); font-weight:800; font-size:0.7rem; color:#fff;
-  box-shadow:0 14px 26px -16px rgba(17,43,92,0.3); animation:floaty 5.5s ease-in-out infinite;
-}
-.chip-pdf{ top:0%; right:2%; background:#E5484D; animation-delay:0s; }
-.chip-word{ top:26%; left:-6%; background:#2E5FD9; animation-delay:0.7s; }
-.chip-excel{ bottom:16%; right:-4%; background:#20C997; animation-delay:1.4s; }
-.chip-img{ bottom:-2%; left:14%; background:#F6B62A; animation-delay:2.1s; }
-@keyframes floaty{
-  0%, 100%{ transform:translateY(0); }
-  50%{ transform:translateY(-12px); }
-}
+.laptop-frame{ position:relative; z-index:2; }
+
 @media(max-width:980px){
   .hero-v2{ grid-template-columns:1fr; padding:32px 24px 12px; gap:28px; text-align:center; }
   .hero-copy{ text-align:center; max-width:none; }
@@ -1950,7 +2044,6 @@ footer{
 }
 @media(max-width:560px){
   .hero-v2 h1{ font-size:clamp(1.7rem, 8vw, 2.2rem); }
-  .float-chip{ width:44px; height:44px; font-size:0.68rem; }
 }
 
 /* ===== Category tab navigation ===== */
@@ -1985,8 +2078,26 @@ footer{
   color:var(--ink-soft); background:var(--paper-dim); padding:3px 9px; border-radius:20px; margin-left:6px;
 }
 
-/* ===== Trust Strip ===== */
+/* ===== Trust Strip =====
+   Distinct from #quickDock (left rail) and .trust-status-bar (the fixed
+   bottom bar, own component/CSS file) - this is the horizontal strip of
+   emoji-icon badges (Browser Based/Secure/Private/Fast/Free) between the
+   tool grid and "Powerful Tools to Work with PDFs". Its background was a
+   literal hardcoded cream (#FEF6E4) with no dark-theme override at all,
+   while .trust-item's text already correctly used var(--ink) (near-white
+   in dark mode) - white-on-cream, unreadable. Emoji icons (.trust-ico)
+   render in their own native colors regardless of theme, so only the
+   strip background needed a dark-mode fix, not the icons themselves. */
 .trust-strip{ background:#FEF6E4; margin:32px 0 0; padding:16px 28px; }
+[data-theme="light"] .trust-strip{
+  background:rgba(255,255,255,0.88); border-top:1px solid rgba(0,0,0,0.06); border-bottom:1px solid rgba(0,0,0,0.06);
+  box-shadow:0 8px 25px -18px rgba(0,0,0,0.06);
+}
+[data-theme="dark"] .trust-strip{
+  background:rgba(14,14,14,0.88); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  border-top:1px solid rgba(156,255,0,0.18); border-bottom:1px solid rgba(156,255,0,0.18);
+  box-shadow:0 0 25px rgba(156,255,0,0.06);
+}
 .trust-strip-inner{
   max-width:1180px; margin:0 auto; display:flex; align-items:center; justify-content:center;
   flex-wrap:wrap; gap:26px;
@@ -1994,18 +2105,31 @@ footer{
 .trust-item{
   display:flex; align-items:center; gap:7px; font-weight:600; font-size:0.9rem; color:var(--ink);
 }
+[data-theme="dark"] .trust-item{ color:rgba(255,255,255,0.88); }
 .trust-ico{ font-size:1rem; line-height:1; }
 
 /* ===== Features ===== */
 .features-section{ max-width:1180px; margin:36px auto 0; padding:14px 28px; }
-.features-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; }
+.features-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; perspective:1200px; perspective-origin:center center; }
 @media(max-width:900px){ .features-grid{ grid-template-columns:1fr 1fr; } }
 @media(max-width:520px){ .features-grid{ grid-template-columns:1fr; } }
 .feature-card{
-  background:var(--card-bg); border:1px solid var(--line); border-radius:14px; padding:20px 18px;
-  transition:.18s; display:flex; flex-direction:column; align-items:center; text-align:center; gap:9px;
+  background:var(--card-bg); border:1px solid var(--line); border-radius:14px; padding:20px 18px; position:relative; overflow:hidden;
+  transition:box-shadow .2s ease, border-color .2s ease; display:flex; flex-direction:column; align-items:center; text-align:center; gap:9px;
+  transform-origin:center center; will-change:transform; transform-style:preserve-3d; backface-visibility:hidden;
 }
-.feature-card:hover{ transform:translateY(-3px); box-shadow:0 14px 26px -18px rgba(17,43,92,0.16); border-color:var(--line); }
+/* Same cursor-following spotlight as .card, but tinted per-card via
+   --accent-rgb (set inline per feature-card in the HTML, matching that
+   card's own icon color) instead of always lime - "each card can retain
+   its existing icon color" per the brief. */
+.feature-card::after{
+  content:""; position:absolute; inset:0; z-index:0; opacity:0; pointer-events:none;
+  background:radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.16), rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.05) 30%, transparent 65%);
+  transition:opacity .25s ease;
+}
+.feature-card:hover::after{ opacity:1; }
+.feature-card > *{ position:relative; z-index:1; }
+.feature-card:hover{ box-shadow:0 0 0 1px rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.45), 0 10px 34px -6px rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.35); border-color:rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.55); }
 .feature-card .ficon{
   width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none;
 }
@@ -2054,6 +2178,9 @@ footer{
   position:relative; overflow:hidden; border-radius:20px; padding:28px 36px;
   background:#EEF3FB; display:grid; grid-template-columns:1.3fr 1fr; gap:24px; align-items:center;
 }
+/* Hardcoded light background never had a dark-mode override - --ink text
+   (near-white in dark mode) was rendering as white-on-white against this. */
+[data-theme="dark"] .cta-card{ background:var(--card-bg); border:1px solid var(--line); }
 .cta-copy h2{ color:var(--ink); font-size:clamp(1.3rem, 2.4vw, 1.7rem); margin:0 0 10px; font-weight:800; }
 .cta-copy p{ color:var(--ink-soft); font-size:0.94rem; margin:0; max-width:52ch; line-height:1.6; }
 .cta-art{ display:flex; align-items:center; justify-content:center; }
@@ -2306,17 +2433,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
       <div class="laptop-screen">
         <div class="laptop-screen-brand" aria-hidden="true"><span class="mini-mark"></span>YOYOPDF</div>
         <div class="mock-dropzone" id="heroDropzone" role="button" tabindex="0" aria-label="Drop a PDF here, or activate to choose a file">
-          <div class="mock-dz-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4"/><path d="M6 10l6-6 6 6"/><path d="M4 20h16"/></svg></div>
           <div class="mock-dz-title" id="heroDzTitle">Drop your PDF here</div>
           <div class="mock-dz-or" id="heroDzOr">or</div>
           <button type="button" class="mock-choose-btn" id="heroMockChooseBtn">Choose File</button>
         </div>
       </div>
     </div>
-    <div class="float-chip chip-pdf" aria-hidden="true">PDF</div>
-    <div class="float-chip chip-word" aria-hidden="true">W</div>
-    <div class="float-chip chip-excel" aria-hidden="true">X</div>
-    <div class="float-chip chip-img" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-5 5"/></svg></div>
   </div>
   <input type="file" id="heroFileInput" class="hidden" accept="application/pdf">
 </section>
@@ -2346,22 +2468,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
     <p>YOYOPDF provides a complete set of tools to handle all your PDF needs. Fast, easy and 100% free.</p>
   </div>
   <div class="features-grid">
-    <div class="feature-card">
+    <div class="feature-card" style="--accent-rgb:32,201,151">
       <div class="ficon ficon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
       <h3>Safe &amp; Secure</h3>
       <p>Your files stay on your device. Processing happens entirely in your browser — nothing is ever uploaded to a server.</p>
     </div>
-    <div class="feature-card">
+    <div class="feature-card" style="--accent-rgb:246,182,42">
       <div class="ficon ficon-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7v8l10-12h-7z"/></svg></div>
       <h3>Blazing Fast</h3>
       <p>Our tools are optimized for speed to save your time and increase productivity.</p>
     </div>
-    <div class="feature-card">
+    <div class="feature-card" style="--accent-rgb:59,130,246">
       <div class="ficon ficon-navy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/></svg></div>
       <h3>Works on Any Device</h3>
       <p>Use YOYOPDF on any device &mdash; desktop, tablet or mobile. No installation required.</p>
     </div>
-    <div class="feature-card">
+    <div class="feature-card" style="--accent-rgb:229,72,77">
       <div class="ficon ficon-rose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.35-9.5-9C.5 8 2 4 6 4c2 0 3.5 1.2 4 2 .5-.8 2-2 4-2 4 0 5.5 4 3.5 8-2.5 4.65-9.5 9-9.5 9z"/></svg></div>
       <h3>Always Free</h3>
       <p>All tools are completely free to use. No hidden charges, no sign up needed.</p>
@@ -2553,6 +2675,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   <div class="panel" id="panel" role="dialog" aria-modal="true" aria-label="Tool panel" tabindex="-1"></div>
 </div>
 <div class="toast" id="toast"></div>
+<nav id="quickDock" aria-label="Quick tools"></nav>
+<button type="button" id="quickDockFab" aria-haspopup="true" aria-expanded="false" aria-controls="quickDockMenu" aria-label="Quick tools">YOYO</button>
+<div id="quickDockMenu" role="menu" aria-label="Quick tools menu"></div>
 
 <div class="qa-overlay" id="qaOverlay" role="dialog" aria-modal="true" aria-labelledby="qaTitle">
   <div class="qa-modal" id="qaModal"></div>
@@ -2579,7 +2704,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
      TOOLS.sign/TOOLS.fillform had zero effect in a browser tab that had
      already loaded the old version, even after a hard reload). Bump the
      number whenever js/app.js changes. -->
-<script src="js/app.js?v=76"></script>
+<script src="js/app.js?v=94"></script>
 
 <!-- Sticky Live Activity Bar: config first, then the component itself. -->
 <script src="config/trustStatusBar.js?v=2"></script>

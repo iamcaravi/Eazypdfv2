@@ -48,9 +48,15 @@
   transition: transform .2s ease, opacity .2s ease;
 }
 [data-theme="dark"] .trust-status-bar {
-  --trust-bg: rgba(24, 18, 40, 0.70);
-  --trust-bg-hover: rgba(34, 27, 56, 0.90);
-  --trust-border: rgba(240, 235, 250, 0.12);
+  /* Was a leftover purple tint (rgba(24,18,40,...)) from before this
+     redesign - nearly invisible against the current near-black (#050505)
+     page background. Matches the dock's own dark-glass values instead,
+     plus a faint lime border/glow so it reads as part of the same
+     premium dark system rather than a disconnected, barely-there strip. */
+  --trust-bg: rgba(16, 16, 16, 0.85);
+  --trust-bg-hover: rgba(32, 32, 32, 0.92);
+  --trust-border: rgba(156, 255, 0, 0.18);
+  box-shadow: 0 -12px 32px -18px rgba(0,0,0,0.5), 0 0 20px rgba(156,255,0,0.06);
 }
 .trust-status-bar.trust-bar-hidden {
   transform: translateY(110%);
