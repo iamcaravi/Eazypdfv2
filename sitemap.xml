@@ -13,12 +13,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://yoyopdf.in/compare-pdf</loc>
-    <lastmod>2026-08-07</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://yoyopdf.in/compress-pdf</loc>
     <lastmod>2026-08-07</lastmod>
     <changefreq>monthly</changefreq>
@@ -61,12 +55,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://yoyopdf.in/extract-images</loc>
-    <lastmod>2026-08-07</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://yoyopdf.in/extract-pages</loc>
     <lastmod>2026-08-07</lastmod>
     <changefreq>monthly</changefreq>
@@ -86,12 +74,6 @@
   </url>
   <url>
     <loc>https://yoyopdf.in/header-footer</loc>
-    <lastmod>2026-08-07</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://yoyopdf.in/html-to-pdf</loc>
     <lastmod>2026-08-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -139,18 +121,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://yoyopdf.in/pdf-metadata-editor</loc>
-    <lastmod>2026-08-07</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://yoyopdf.in/pdf-page-size-converter</loc>
-    <lastmod>2026-08-07</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://yoyopdf.in/pdf-to-excel</loc>
     <lastmod>2026-08-07</lastmod>
     <changefreq>monthly</changefreq>
@@ -163,12 +133,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://yoyopdf.in/pdf-to-txt</loc>
-    <lastmod>2026-08-07</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://yoyopdf.in/pdf-to-word</loc>
     <lastmod>2026-08-07</lastmod>
     <changefreq>monthly</changefreq>
@@ -176,12 +140,6 @@
   </url>
   <url>
     <loc>https://yoyopdf.in/reorder-pages</loc>
-    <lastmod>2026-08-07</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://yoyopdf.in/repair-pdf</loc>
     <lastmod>2026-08-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -206,12 +164,6 @@
   </url>
   <url>
     <loc>https://yoyopdf.in/split-pdf</loc>
-    <lastmod>2026-08-07</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://yoyopdf.in/txt-to-pdf</loc>
     <lastmod>2026-08-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>

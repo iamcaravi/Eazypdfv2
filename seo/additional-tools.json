@@ -30,7 +30,7 @@
         {"q": "Is the PDF uploaded to convert it?", "a": "No. Pages are rendered to images locally in your browser using pdf.js — nothing leaves your device."},
         {"q": "What resolution are the JPGs?", "a": "Pages render at a resolution suited for on-screen viewing and sharing — not designed for large-format printing."}
       ],
-      "relatedSlugs": ["jpg-to-pdf", "extract-images", "compress-pdf"]
+      "relatedSlugs": ["jpg-to-pdf", "compress-pdf"]
     },
     {
       "slug": "jpg-to-pdf",
@@ -95,38 +95,6 @@
         {"q": "Is my document uploaded to sign it?", "a": "No. The signature is drawn and placed onto the PDF entirely in your browser."}
       ],
       "relatedSlugs": ["fill-pdf-form", "edit-pdf", "flatten-pdf"]
-    },
-    {
-      "slug": "extract-images",
-      "file": "extract-images.html",
-      "toolId": "extractimages",
-      "name": "Extract Images",
-      "title": "Extract Images from PDF Free Online | YOYOPDF",
-      "description": "Save every page of a PDF as a standalone image, free and browser-based. Download all images as a ZIP.",
-      "h1": "Extract Images",
-      "heroValueProp": "Pull every page of a PDF out as its own image file — handy for reusing a diagram, photo, or scanned page elsewhere.",
-      "faqs": [
-        {"q": "Does this extract embedded images or full pages?", "a": "Each full page is rendered as an image — this captures everything visible on the page, not just embedded photos within it."},
-        {"q": "What format are the extracted images?", "a": "Images are exported as PNG files, bundled into a ZIP for download."},
-        {"q": "Is my PDF uploaded anywhere?", "a": "No. Pages are rendered to images locally using pdf.js."}
-      ],
-      "relatedSlugs": ["pdf-to-jpg", "jpg-to-pdf", "compress-pdf"]
-    },
-    {
-      "slug": "compare-pdf",
-      "file": "compare-pdf.html",
-      "toolId": "compare",
-      "name": "Compare PDFs",
-      "title": "Compare Two PDF Files Free Online | YOYOPDF",
-      "description": "Spot text differences between two PDF files, free and browser-based. No upload, no sign-up.",
-      "h1": "Compare PDFs",
-      "heroValueProp": "Find out what actually changed between two versions of a document without reading both side by side line by line.",
-      "faqs": [
-        {"q": "Does this compare formatting or just text?", "a": "The comparison is based on extracted text content — it highlights text differences between the two files, not visual/formatting changes."},
-        {"q": "Are both files uploaded to a server to compare them?", "a": "No. Both PDFs are read and compared entirely in your browser."},
-        {"q": "Can I compare scanned PDFs?", "a": "Only if the scan has an extractable text layer (e.g. it was OCR'd). Pure image scans with no embedded text can't be text-compared."}
-      ],
-      "relatedSlugs": ["merge-pdf", "split-pdf", "edit-pdf"]
     },
     {
       "slug": "reorder-pages",
@@ -209,54 +177,6 @@
       "relatedSlugs": ["fill-pdf-form", "sign-pdf", "protect-pdf"]
     },
     {
-      "slug": "repair-pdf",
-      "file": "repair-pdf.html",
-      "toolId": "repair",
-      "name": "Repair PDF",
-      "title": "Repair Corrupted PDF Free Online | YOYOPDF",
-      "description": "Attempt to fix minor structural issues in a damaged PDF file, free and browser-based.",
-      "h1": "Repair PDF",
-      "heroValueProp": "Re-save a PDF that won't open properly elsewhere, rebuilding its internal structure from what can still be read.",
-      "faqs": [
-        {"q": "What kinds of damage can this fix?", "a": "It can often recover PDFs with minor structural corruption by re-parsing and re-saving the document. Severely corrupted or truncated files may not be recoverable."},
-        {"q": "Is there a guarantee my file will be fixed?", "a": "No tool can guarantee recovery of every damaged file — if the underlying data is lost, repair can't restore it."},
-        {"q": "Is my file uploaded anywhere?", "a": "No, the repair attempt happens entirely in your browser."}
-      ],
-      "relatedSlugs": ["compress-pdf", "merge-pdf", "edit-pdf"]
-    },
-    {
-      "slug": "pdf-metadata-editor",
-      "file": "pdf-metadata-editor.html",
-      "toolId": "metadata",
-      "name": "PDF Metadata Editor",
-      "title": "Edit PDF Metadata Free Online | YOYOPDF",
-      "description": "Edit the title, author, and subject of a PDF file, free and browser-based.",
-      "h1": "PDF Metadata Editor",
-      "heroValueProp": "Change what shows up as the document's title, author, and subject in file properties and search results.",
-      "faqs": [
-        {"q": "What metadata fields can I edit?", "a": "Title, author, and subject are the fields exposed for editing."},
-        {"q": "Why would I want to change this?", "a": "Correct metadata makes a document easier to find and identify later, and looks more professional when shared or archived."},
-        {"q": "Is my file uploaded anywhere?", "a": "No, metadata is edited locally using pdf-lib."}
-      ],
-      "relatedSlugs": ["pdf-page-size-converter", "compress-pdf", "repair-pdf"]
-    },
-    {
-      "slug": "pdf-page-size-converter",
-      "file": "pdf-page-size-converter.html",
-      "toolId": "pagesize",
-      "name": "PDF Page Size Converter",
-      "title": "Change PDF Page Size Free Online | YOYOPDF",
-      "description": "Change a PDF's page dimensions to a standard size like A4 or Letter, free and browser-based.",
-      "h1": "PDF Page Size Converter",
-      "heroValueProp": "Resize every page in a PDF to a standard size like A4 or Letter — useful when a document needs to print correctly in a different region.",
-      "faqs": [
-        {"q": "Which page sizes are supported?", "a": "Standard sizes such as A4 and Letter are supported as conversion targets."},
-        {"q": "Will content be stretched or cropped?", "a": "Page content is scaled to fit the new page dimensions as closely as possible while preserving the original layout."},
-        {"q": "Is my file uploaded anywhere?", "a": "No, this runs locally in your browser."}
-      ],
-      "relatedSlugs": ["pdf-metadata-editor", "compress-pdf", "crop-pdf"]
-    },
-    {
       "slug": "fill-pdf-form",
       "file": "fill-pdf-form.html",
       "toolId": "fillform",
@@ -271,54 +191,6 @@
         {"q": "Is my file uploaded anywhere?", "a": "No, the form is filled entirely in your browser."}
       ],
       "relatedSlugs": ["flatten-pdf", "sign-pdf", "edit-pdf"]
-    },
-    {
-      "slug": "html-to-pdf",
-      "file": "html-to-pdf.html",
-      "toolId": "html2pdf",
-      "name": "HTML to PDF",
-      "title": "HTML/Text to PDF Converter Free Online | YOYOPDF",
-      "description": "Turn plain text or simple HTML into a formatted PDF document, free and browser-based.",
-      "h1": "HTML to PDF",
-      "heroValueProp": "Turn plain text or basic HTML content into a clean, formatted PDF document.",
-      "faqs": [
-        {"q": "What kind of HTML is supported?", "a": "Basic text and simple formatting — this is not a full browser rendering engine, so complex layouts, CSS, and scripts won't be reproduced."},
-        {"q": "Can I convert plain text instead of HTML?", "a": "Yes, plain text is also accepted and laid out as a formatted PDF."},
-        {"q": "Is my content uploaded anywhere?", "a": "No, the PDF is built entirely in your browser."}
-      ],
-      "relatedSlugs": ["txt-to-pdf", "word-to-pdf", "merge-pdf"]
-    },
-    {
-      "slug": "pdf-to-txt",
-      "file": "pdf-to-txt.html",
-      "toolId": "pdf2txt",
-      "name": "PDF to TXT",
-      "title": "PDF to TXT Converter Free Online | YOYOPDF",
-      "description": "Extract all readable text from a PDF into a plain .txt file, free and browser-based.",
-      "h1": "PDF to TXT",
-      "heroValueProp": "Pull just the raw text out of a PDF — useful for pasting into another document, an AI tool, or a plain-text editor.",
-      "faqs": [
-        {"q": "Does this preserve formatting?", "a": "No, the output is plain text with no fonts, layout, or images — just the readable text content."},
-        {"q": "Will this work on scanned PDFs?", "a": "Only if the scan already has a text layer (e.g. from OCR). A pure image scan has no extractable text."},
-        {"q": "Is my file uploaded anywhere?", "a": "No, text is extracted locally using pdf.js."}
-      ],
-      "relatedSlugs": ["txt-to-pdf", "pdf-to-word", "pdf-to-excel"]
-    },
-    {
-      "slug": "txt-to-pdf",
-      "file": "txt-to-pdf.html",
-      "toolId": "txt2pdf",
-      "name": "TXT to PDF",
-      "title": "TXT to PDF Converter Free Online | YOYOPDF",
-      "description": "Turn plain text into a formatted PDF document, free and browser-based.",
-      "h1": "TXT to PDF",
-      "heroValueProp": "Type or paste plain text and turn it into a clean, paginated PDF document in one step.",
-      "faqs": [
-        {"q": "Do I need to upload a .txt file?", "a": "No, you can type or paste text directly into the tool — there's no file upload step required."},
-        {"q": "Does long text automatically split across pages?", "a": "Yes, text that doesn't fit on one page automatically flows onto additional pages."},
-        {"q": "Is my text sent anywhere?", "a": "No, the PDF is generated entirely in your browser."}
-      ],
-      "relatedSlugs": ["pdf-to-txt", "html-to-pdf", "word-to-pdf"]
     },
     {
       "slug": "image-compressor",

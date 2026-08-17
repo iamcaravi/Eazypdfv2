@@ -184,18 +184,16 @@ const CATEGORIES = [
   { id:"convert", title:"Convert", tools:[
     ["pdf2word","PDF to Word"],["pdf2excel","PDF to Excel"],["jpg2pdf","JPG to PDF"],
     ["pdf2jpg","PDF to JPG"],["word2pdf","Word to PDF"],["excel2pdf","Excel to PDF"],
-    ["html2pdf","HTML to PDF"],["pdf2txt","PDF to TXT"],["txt2pdf","TXT to PDF"],
   ]},
   { id:"edit", title:"Edit", tools:[
     ["merge","Merge PDF"],["split","Split PDF"],["edit","Edit PDF"],
     ["rotate","Rotate PDF"],["watermark","Add Watermark"],
     ["organize","Organize PDF"],["pagenumbers","Add Page Numbers"],["crop","Crop PDF"],
     ["deletepages","Delete Pages"],["extractpages","Extract Pages"],["addblank","Add Blank Page"],
-    ["reorder","Reorder Pages"],["headerfooter","Add Header & Footer"],["invertpdf","Invert PDF Colors"],["compare","Compare PDFs"],
+    ["reorder","Reorder Pages"],["headerfooter","Add Header & Footer"],["invertpdf","Invert PDF Colors"],
   ]},
   { id:"optimize", title:"Optimize", tools:[
-    ["compress","Compress PDF"],["imgcompress","Image Compressor"],["repair","Repair PDF"],
-    ["metadata","PDF Metadata Editor"],["pagesize","PDF Page Size Converter"],["extractimages","Extract Images"],
+    ["compress","Compress PDF"],["imgcompress","Image Compressor"],
   ]},
   { id:"security", title:"Security", tools:[
     ["sign","Sign PDF"],["flatten","Flatten PDF"],["fillform","Fill PDF Form"],
@@ -236,7 +234,6 @@ const DESCRIPTIONS = {
   compress:"Shrink file size down to an exact KB target you set.",
   pdf2jpg:"Turn every page of a PDF into a JPG image.",
   jpg2pdf:"Combine one or more images into a single PDF.",
-  html2pdf:"Turn plain text or simple HTML into a formatted PDF.",
   pdf2word:"Pull the text out of a PDF into an editable Word file.",
   word2pdf:"Convert a Word document's text into a clean PDF.",
   pdf2excel:"Extract PDF content into rows and columns in Excel.",
@@ -253,15 +250,8 @@ const DESCRIPTIONS = {
   headerfooter:"Add a running header and footer to every page.",
   invertpdf:"Flip every page to a negative / dark-mode style palette.",
   flatten:"Lock form fields permanently into the page content.",
-  repair:"Attempt to fix minor structural issues in a damaged PDF.",
   sign:"Draw a signature and place it anywhere on the page.",
   fillform:"Fill out fillable form fields and save the result.",
-  compare:"Spot text differences between two PDF files.",
-  metadata:"Edit the title, author and subject of a PDF.",
-  pagesize:"Change a PDF's page dimensions to a standard size.",
-  pdf2txt:"Extract all readable text into a plain .txt file.",
-  txt2pdf:"Turn plain text into a formatted PDF document.",
-  extractimages:"Save every page of a PDF as a standalone image.",
   imgcompress:"Shrink an image down to an exact KB target.",
   imgresize:"Resize an image to exact width and height.",
   imgcrop:"Crop an image to a precise pixel region.",
@@ -293,12 +283,7 @@ const TOOL_ICONS = {
   watermark:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z"/></svg>`,
   headerfooter:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M3 7h18M3 17h18"/></svg>`,
   invertpdf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 010 18z" fill="currentColor" stroke="none"/></svg>`,
-  compare:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="4" width="9" height="16" rx="1.3"/><rect x="12.5" y="4" width="9" height="16" rx="1.3"/><path d="M7 10l1.5 1.5L10 9"/></svg>`,
   compress:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3v4a1 1 0 01-1 1H4M20 8h-4a1 1 0 01-1-1V3M15 21v-4a1 1 0 011-1h4M4 16h4a1 1 0 011 1v4"/></svg>`,
-  repair:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.6 2.6-2-2z"/></svg>`,
-  metadata:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.6 12.6L12 21.2 2.8 12 11.4 3.4H20.6z"/><circle cx="16.5" cy="7.5" r="1.4" fill="currentColor" stroke="none"/></svg>`,
-  pagesize:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`,
-  extractimages:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="14" height="12" rx="1.5"/><circle cx="7.5" cy="8.5" r="1.2"/><path d="M17 20l3-3 3 3M20 17v6" transform="translate(-2,0)"/></svg>`,
   flatten:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>`,
   sign:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17c2-1 3-3 3.5-5C7.5 8 9 6 10.5 8c1 1.4-.5 4-2 5.5 2 1 4-1 5.5-2.7C15.5 9 17.5 8 18 10s-1 3-1 3"/><path d="M14 20l6-6-2-2-6 6z"/></svg>`,
   fillform:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 8h8M8 12h5"/><path d="M8 16.5l1.5 1.5L13 14"/></svg>`,
@@ -308,9 +293,6 @@ const TOOL_ICONS = {
   excel2pdf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M8.5 13l6 6M14.5 13l-6 6"/></svg>`,
   pdf2jpg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="14" height="11" rx="1.5"/><circle cx="7" cy="9" r="1.1"/><path d="M3 14l4-3.5 3 2.5 3.5-3L17 13"/></svg>`,
   jpg2pdf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="14" height="11" rx="1.5"/><circle cx="7" cy="9" r="1.1"/><path d="M3 14l4-3.5 3 2.5 3.5-3L17 13"/></svg>`,
-  pdf2txt:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M8 13h8M8 16.5h5"/></svg>`,
-  txt2pdf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M8 13h8M8 16.5h5"/></svg>`,
-  html2pdf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8.5 9l-3 3 3 3M15.5 9l3 3-3 3M13 7l-2 10"/></svg>`,
   imgresize:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="12" height="12" rx="1.5"/><path d="M14 21l7-7M17 21h4v-4"/></svg>`,
   imgcrop:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2v14a2 2 0 002 2h14"/><path d="M18 22V8a2 2 0 00-2-2H2"/></svg>`,
   imgconvert:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-5 5"/></svg>`,
@@ -333,11 +315,8 @@ const TOOL_BADGES = {
   pdf2jpg:   {label:"JPG", color:"#F59E0B"},
   jpg2pdf:   {label:"JPG", color:"#F59E0B"},
   imgconvert:{label:"IMG", color:"#F764B0"},
-  pdf2txt:   {label:"TXT", color:"#6B7280"},
-  txt2pdf:   {label:"TXT", color:"#6B7280"},
   sign:      {label:"✒",   color:"#0E8C74"},
   fillform:  {label:"✒",   color:"#0E8C74"},
-  html2pdf:  {label:"</>", color:"#0E8C74"},
 };
 /* Bright category swatches (neon lime/yellow) need a dark glyph instead of the
    CSS default white stroke, or the icon disappears into its own background -
@@ -798,7 +777,7 @@ const AppSession = {
    the same path once JS has loaded, and '_redirects' at the repo root
    already tells the production host to serve index.html for any path
    it doesn't recognize, which is what makes this work on a real refresh). */
-const TOOL_ROUTES = {"merge":{"path":"/merge-pdf","title":"Merge PDF Files Free Online — Combine PDFs | YOYOPDF","description":"Combine multiple PDF files into one document in your browser. Drag to reorder, no upload to any server, no file limits, completely free."},"split":{"path":"/split-pdf","title":"Split PDF Files Free Online — Extract Pages | YOYOPDF","description":"Split a PDF into separate files by page range or extract every page individually. Free, browser-based, no file uploads."},"compress":{"path":"/compress-pdf","title":"Compress PDF to Target Size Free Online | YOYOPDF","description":"Shrink a PDF's file size down to an exact KB target you set. Free, fast, entirely in-browser compression."},"edit":{"path":"/edit-pdf","title":"Edit PDF Online Free — Add Text & Annotate | YOYOPDF","description":"Edit PDF documents directly in your browser — add text, images, shapes, and annotations. Free, no upload, no sign-up."},"pdf2word":{"path":"/pdf-to-word","title":"PDF to Word Converter Free Online | YOYOPDF","description":"Convert PDF into an editable Word document, free and browser-based. No upload, no sign-up."},"rotate":{"path":"/rotate-pdf","title":"Rotate PDF Pages Free Online — Fix Orientation | YOYOPDF","description":"Rotate individual pages or the entire PDF 90, 180 or 270 degrees. Free, fast, and processed entirely in your browser."},"deletepages":{"path":"/delete-pages","title":"Delete Pages from PDF Free Online | YOYOPDF","description":"Remove unwanted pages from a PDF in a few clicks. Preview every page first. Free, browser-based, no uploads."},"extractpages":{"path":"/extract-pages","title":"Extract Pages from PDF Free Online | YOYOPDF","description":"Pull specific pages out of a PDF into a new document. Visual page picker, free, and processed locally in your browser."},"organize":{"path":"/organize-pdf","title":"Organize & Reorder PDF Pages Free Online | YOYOPDF","description":"Drag and drop to reorder, rotate, or remove PDF pages in one visual workspace. Free, browser-based, no file uploads."},"crop":{"path":"/crop-pdf","title":"Crop PDF Pages Free Online — Trim Margins | YOYOPDF","description":"Crop margins or unwanted areas from PDF pages with a visual crop box. Apply to one page or the whole document, free."},"watermark":{"path":"/watermark-pdf","title":"Add Watermark to PDF Free Online | YOYOPDF","description":"Add a text watermark to your PDF with live preview — control position, opacity, size and rotation. Free, no uploads."},"pagenumbers":{"path":"/page-numbers","title":"Add Page Numbers to PDF Free Online | YOYOPDF","description":"Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads."},"word2pdf":{"path":"/word-to-pdf","title":"Word to PDF Converter Free Online | YOYOPDF","description":"Convert a .docx file into a PDF, free and browser-based. No upload, no sign-up, no watermark."},"pdf2jpg":{"path":"/pdf-to-jpg","title":"PDF to JPG Converter Free Online | YOYOPDF","description":"Convert every page of a PDF into a JPG image, free and browser-based. Download all pages as a ZIP."},"jpg2pdf":{"path":"/jpg-to-pdf","title":"JPG to PDF Converter Free Online | YOYOPDF","description":"Combine one or more images into a single PDF file, free and browser-based. No upload, no sign-up."},"pdf2excel":{"path":"/pdf-to-excel","title":"PDF to Excel Converter Free Online | YOYOPDF","description":"Extract text from a PDF into rows and columns in a spreadsheet, free and browser-based. No upload, no sign-up."},"excel2pdf":{"path":"/excel-to-pdf","title":"Excel to PDF Converter Free Online | YOYOPDF","description":"Convert a spreadsheet's first sheet into a table PDF, free and browser-based. No upload, no sign-up."},"sign":{"path":"/sign-pdf","title":"Sign PDF Online Free — Add Your Signature | YOYOPDF","description":"Draw a signature and place it anywhere on a PDF page, free and browser-based. No upload, no account."},"extractimages":{"path":"/extract-images","title":"Extract Images from PDF Free Online | YOYOPDF","description":"Save every page of a PDF as a standalone image, free and browser-based. Download all images as a ZIP."},"compare":{"path":"/compare-pdf","title":"Compare Two PDF Files Free Online | YOYOPDF","description":"Spot text differences between two PDF files, free and browser-based. No upload, no sign-up."},"reorder":{"path":"/reorder-pages","title":"Reorder PDF Pages Free Online | YOYOPDF","description":"Rearrange the pages of a PDF into any order you like, free and browser-based. Drag to reorder."},"addblank":{"path":"/add-blank-page","title":"Add Blank Page to PDF Free Online | YOYOPDF","description":"Insert a blank page anywhere in a PDF document, free and browser-based."},"headerfooter":{"path":"/header-footer","title":"Add Header and Footer to PDF Free Online | YOYOPDF","description":"Add a running header and footer to every page of a PDF, free and browser-based."},"invertpdf":{"path":"/invert-pdf-colors","title":"Invert PDF Colors Free Online — Dark Mode PDF | YOYOPDF","description":"Flip every page of a PDF to a negative / dark-mode style palette, free and browser-based."},"flatten":{"path":"/flatten-pdf","title":"Flatten PDF Form Fields Free Online | YOYOPDF","description":"Lock PDF form fields permanently into the page content, free and browser-based."},"repair":{"path":"/repair-pdf","title":"Repair Corrupted PDF Free Online | YOYOPDF","description":"Attempt to fix minor structural issues in a damaged PDF file, free and browser-based."},"metadata":{"path":"/pdf-metadata-editor","title":"Edit PDF Metadata Free Online | YOYOPDF","description":"Edit the title, author, and subject of a PDF file, free and browser-based."},"pagesize":{"path":"/pdf-page-size-converter","title":"Change PDF Page Size Free Online | YOYOPDF","description":"Change a PDF's page dimensions to a standard size like A4 or Letter, free and browser-based."},"fillform":{"path":"/fill-pdf-form","title":"Fill PDF Form Online Free | YOYOPDF","description":"Fill out fillable form fields in a PDF and save the result, free and browser-based."},"html2pdf":{"path":"/html-to-pdf","title":"HTML/Text to PDF Converter Free Online | YOYOPDF","description":"Turn plain text or simple HTML into a formatted PDF document, free and browser-based."},"pdf2txt":{"path":"/pdf-to-txt","title":"PDF to TXT Converter Free Online | YOYOPDF","description":"Extract all readable text from a PDF into a plain .txt file, free and browser-based."},"txt2pdf":{"path":"/txt-to-pdf","title":"TXT to PDF Converter Free Online | YOYOPDF","description":"Turn plain text into a formatted PDF document, free and browser-based."},"imgcompress":{"path":"/image-compressor","title":"Image Compressor Free Online — Shrink to Exact KB | YOYOPDF","description":"Shrink an image down to an exact KB target, free and browser-based."},"imgresize":{"path":"/resize-image","title":"Resize Image Free Online — Exact Width & Height | YOYOPDF","description":"Resize an image to exact width and height, free and browser-based."},"imgcrop":{"path":"/crop-image","title":"Crop Image Free Online | YOYOPDF","description":"Crop an image to a precise pixel region, free and browser-based."},"imgconvert":{"path":"/convert-image-format","title":"Convert Image Format Free Online — PNG, JPG, WebP | YOYOPDF","description":"Convert an image between PNG, JPG, and WebP formats, free and browser-based."},"imgwatermark":{"path":"/watermark-image","title":"Add Watermark to Image Free Online | YOYOPDF","description":"Overlay custom watermark text on an image, free and browser-based."},"imginvert":{"path":"/invert-image-colors","title":"Invert Image Colors Free Online | YOYOPDF","description":"Flip an image's colors to a negative palette, free and browser-based."}};
+const TOOL_ROUTES = {"merge":{"path":"/merge-pdf","title":"Merge PDF Files Free Online — Combine PDFs | YOYOPDF","description":"Combine multiple PDF files into one document in your browser. Drag to reorder, no upload to any server, no file limits, completely free."},"split":{"path":"/split-pdf","title":"Split PDF Files Free Online — Extract Pages | YOYOPDF","description":"Split a PDF into separate files by page range or extract every page individually. Free, browser-based, no file uploads."},"compress":{"path":"/compress-pdf","title":"Compress PDF to Target Size Free Online | YOYOPDF","description":"Shrink a PDF's file size down to an exact KB target you set. Free, fast, entirely in-browser compression."},"edit":{"path":"/edit-pdf","title":"Edit PDF Online Free — Add Text & Annotate | YOYOPDF","description":"Edit PDF documents directly in your browser — add text, images, shapes, and annotations. Free, no upload, no sign-up."},"pdf2word":{"path":"/pdf-to-word","title":"PDF to Word Converter Free Online | YOYOPDF","description":"Convert PDF into an editable Word document, free and browser-based. No upload, no sign-up."},"rotate":{"path":"/rotate-pdf","title":"Rotate PDF Pages Free Online — Fix Orientation | YOYOPDF","description":"Rotate individual pages or the entire PDF 90, 180 or 270 degrees. Free, fast, and processed entirely in your browser."},"deletepages":{"path":"/delete-pages","title":"Delete Pages from PDF Free Online | YOYOPDF","description":"Remove unwanted pages from a PDF in a few clicks. Preview every page first. Free, browser-based, no uploads."},"extractpages":{"path":"/extract-pages","title":"Extract Pages from PDF Free Online | YOYOPDF","description":"Pull specific pages out of a PDF into a new document. Visual page picker, free, and processed locally in your browser."},"organize":{"path":"/organize-pdf","title":"Organize & Reorder PDF Pages Free Online | YOYOPDF","description":"Drag and drop to reorder, rotate, or remove PDF pages in one visual workspace. Free, browser-based, no file uploads."},"crop":{"path":"/crop-pdf","title":"Crop PDF Pages Free Online — Trim Margins | YOYOPDF","description":"Crop margins or unwanted areas from PDF pages with a visual crop box. Apply to one page or the whole document, free."},"watermark":{"path":"/watermark-pdf","title":"Add Watermark to PDF Free Online | YOYOPDF","description":"Add a text watermark to your PDF with live preview — control position, opacity, size and rotation. Free, no uploads."},"pagenumbers":{"path":"/page-numbers","title":"Add Page Numbers to PDF Free Online | YOYOPDF","description":"Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads."},"word2pdf":{"path":"/word-to-pdf","title":"Word to PDF Converter Free Online | YOYOPDF","description":"Convert a .docx file into a PDF, free and browser-based. No upload, no sign-up, no watermark."},"pdf2jpg":{"path":"/pdf-to-jpg","title":"PDF to JPG Converter Free Online | YOYOPDF","description":"Convert every page of a PDF into a JPG image, free and browser-based. Download all pages as a ZIP."},"jpg2pdf":{"path":"/jpg-to-pdf","title":"JPG to PDF Converter Free Online | YOYOPDF","description":"Combine one or more images into a single PDF file, free and browser-based. No upload, no sign-up."},"pdf2excel":{"path":"/pdf-to-excel","title":"PDF to Excel Converter Free Online | YOYOPDF","description":"Extract text from a PDF into rows and columns in a spreadsheet, free and browser-based. No upload, no sign-up."},"excel2pdf":{"path":"/excel-to-pdf","title":"Excel to PDF Converter Free Online | YOYOPDF","description":"Convert a spreadsheet's first sheet into a table PDF, free and browser-based. No upload, no sign-up."},"sign":{"path":"/sign-pdf","title":"Sign PDF Online Free — Add Your Signature | YOYOPDF","description":"Draw a signature and place it anywhere on a PDF page, free and browser-based. No upload, no account."},"reorder":{"path":"/reorder-pages","title":"Reorder PDF Pages Free Online | YOYOPDF","description":"Rearrange the pages of a PDF into any order you like, free and browser-based. Drag to reorder."},"addblank":{"path":"/add-blank-page","title":"Add Blank Page to PDF Free Online | YOYOPDF","description":"Insert a blank page anywhere in a PDF document, free and browser-based."},"headerfooter":{"path":"/header-footer","title":"Add Header and Footer to PDF Free Online | YOYOPDF","description":"Add a running header and footer to every page of a PDF, free and browser-based."},"invertpdf":{"path":"/invert-pdf-colors","title":"Invert PDF Colors Free Online — Dark Mode PDF | YOYOPDF","description":"Flip every page of a PDF to a negative / dark-mode style palette, free and browser-based."},"flatten":{"path":"/flatten-pdf","title":"Flatten PDF Form Fields Free Online | YOYOPDF","description":"Lock PDF form fields permanently into the page content, free and browser-based."},"fillform":{"path":"/fill-pdf-form","title":"Fill PDF Form Online Free | YOYOPDF","description":"Fill out fillable form fields in a PDF and save the result, free and browser-based."},"imgcompress":{"path":"/image-compressor","title":"Image Compressor Free Online — Shrink to Exact KB | YOYOPDF","description":"Shrink an image down to an exact KB target, free and browser-based."},"imgresize":{"path":"/resize-image","title":"Resize Image Free Online — Exact Width & Height | YOYOPDF","description":"Resize an image to exact width and height, free and browser-based."},"imgcrop":{"path":"/crop-image","title":"Crop Image Free Online | YOYOPDF","description":"Crop an image to a precise pixel region, free and browser-based."},"imgconvert":{"path":"/convert-image-format","title":"Convert Image Format Free Online — PNG, JPG, WebP | YOYOPDF","description":"Convert an image between PNG, JPG, and WebP formats, free and browser-based."},"imgwatermark":{"path":"/watermark-image","title":"Add Watermark to Image Free Online | YOYOPDF","description":"Overlay custom watermark text on an image, free and browser-based."},"imginvert":{"path":"/invert-image-colors","title":"Invert Image Colors Free Online | YOYOPDF","description":"Flip an image's colors to a negative palette, free and browser-based."}};
 const PATH_TO_TOOLID = {};
 for(const id in TOOL_ROUTES) PATH_TO_TOOLID[TOOL_ROUTES[id].path] = id;
 const HOME_TITLE = document.title;
@@ -1132,10 +1111,9 @@ function layoutTwoColumn(){
   const sidebarEls = candidates.filter(isSidebarEl);
   const mainEls = candidates.filter(el => !isSidebarEl(el));
   if(sidebarEls.length === 0) return;
-  // Tools with no dropzone (txt2pdf's textarea, compare's two native file
-  // inputs) are entirely .field/#go - splitting them would leave main
-  // empty and dump everything into a cramped 440px sidebar, which looks
-  // worse than just keeping the single centered column.
+  // Tools with no dropzone are entirely .field/#go - splitting them would
+  // leave main empty and dump everything into a cramped 440px sidebar,
+  // which looks worse than just keeping the single centered column.
   if(mainEls.length === 0) return;
 
   const wrap = document.createElement("div");
@@ -5304,51 +5282,6 @@ TOOLS.flatten = function(){
   });
 };
 
-/* ---- REPAIR ---- */
-TOOLS.repair = function(){
-  let file=null;
-  openPanel(`
-    <div class="panel-head"><h3>Repair PDF</h3></div>
-    <div class="panel-body compact tool-workspace" id="repairBody">
-      <div class="tool-hero">
-        <h2 class="tool-hero-title">Repair PDF</h2>
-        <p class="tool-hero-desc">Attempts to recover common structural issues in a PDF.</p>
-      </div>
-      <div class="tool-upload-wrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
-      </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="repairToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Repair PDF</button>
-      </div>
-      <div id="out"></div>
-    </div>`);
-  wireDropzone(fs=>{
-    file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("repairToolbar").style.display="none"; document.getElementById("repairBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
-    document.getElementById("repairToolbar").style.display="flex";
-    document.getElementById("repairBody").classList.add("is-loaded");
-  });
-  document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Analyzing PDF...");
-    try{
-      const bytes=await file.arrayBuffer();
-      const doc=await loadPdfSafe(bytes, {ignoreEncryption:true, throwOnInvalidObject:false});
-      setStatus("Attempting repair...");
-      const outBytes=await doc.save({useObjectStreams:false});
-      const blob=new Blob([outBytes],{type:"application/pdf"});
-      const outName = suffixedName(file, "repaired", "pdf");
-      setStatus("Preparing download...");
-      const {url}=downloadBlob(blob,outName);
-      const {canvas}=await pdfThumb(outBytes);
-      setStatus("Done", true);
-      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
-    }catch(e){
-      out.innerHTML = `<div class="status" style="color:var(--rose)">This file could not be repaired (${escapeAttr(e.message)}). It may be too severely damaged to recover in-browser.</div>`;
-    }
-  });
-};
-
 /* ---- PDF to JPG ---- */
 TOOLS.pdf2jpg = function(){
   let file=null;
@@ -5495,51 +5428,6 @@ TOOLS.jpg2pdf = function(){
     const {canvas}=await pdfThumb(outBytes);
     setStatus(failed.length ? `Done — couldn't read: ${failed.join(", ")}` : "Done", true);
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"images.pdf"}));
-  });
-};
-
-/* ---- HTML to PDF (basic text-based) ---- */
-TOOLS.html2pdf = function(){
-  openPanel(`
-    <div class="panel-head"><h3>HTML to PDF</h3></div>
-    <div class="panel-body compact tool-workspace" id="html2pdfBody">
-      <div class="tool-hero">
-        <h2 class="tool-hero-title">HTML to PDF</h2>
-        <p class="tool-hero-desc">Basic version: paste plain text or simple HTML and it's laid out as a formatted PDF.</p>
-      </div>
-      <div class="tool-content-area">
-        <label class="tool-content-area-label" for="htmlIn">HTML content</label>
-        <div class="field" style="margin:0"><textarea id="htmlIn" placeholder="Paste your text or simple HTML here"></textarea></div>
-      </div>
-      <div class="tool-toolbar">
-        <button class="btn tool-toolbar-primary" id="go">Convert to PDF</button>
-      </div>
-      <div id="out"></div>
-    </div>`);
-  document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Generating...");
-    const raw = document.getElementById("htmlIn").value;
-    const text = winAnsiSafe(raw.replace(/<[^>]+>/g," ").replace(/\s+\n/g,"\n").replace(/[ \t]+/g," ").trim());
-    const doc = await PDFDocument.create();
-    const font = await doc.embedFont(StandardFonts.Helvetica);
-    const size=11, margin=50, maxWidth=495, lineHeight=15;
-    let page = doc.addPage([595,842]); let y = 842-margin;
-    const words = text.split(/\s+/);
-    let line="";
-    function newPageIfNeeded(){ if(y<margin){ page=doc.addPage([595,842]); y=842-margin; } }
-    for(const w of words){
-      const test = line? line+" "+w : w;
-      if(font.widthOfTextAtSize(test,size) > maxWidth){
-        page.drawText(line, {x:margin,y,size,font}); y-=lineHeight; newPageIfNeeded(); line=w;
-      } else line=test;
-    }
-    if(line){ page.drawText(line,{x:margin,y,size,font}); }
-    const outBytes = await doc.save();
-    const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"document.pdf");
-    const {canvas}=await pdfThumb(outBytes);
-    setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"document.pdf"}));
   });
 };
 
@@ -7520,304 +7408,6 @@ TOOLS.excel2pdf = function(){
   });
 };
 
-/* ---- PDF to TXT ---- */
-TOOLS.pdf2txt = function(){
-  let file=null;
-  openPanel(`
-    <div class="panel-head"><h3>PDF to TXT</h3></div>
-    <div class="panel-body compact tool-workspace" id="pdf2txtBody">
-      <div class="tool-hero">
-        <h2 class="tool-hero-title">PDF to TXT</h2>
-        <p class="tool-hero-desc">Extract the plain text content of a PDF into a .txt file.</p>
-      </div>
-      <div class="tool-upload-wrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
-      </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="pdf2txtToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Convert to TXT</button>
-      </div>
-      <div id="out"></div>
-    </div>`);
-  wireDropzone(fs=>{
-    file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("pdf2txtToolbar").style.display="none"; document.getElementById("pdf2txtBody").classList.remove("is-loaded"); });
-    document.getElementById("pdf2txtToolbar").style.display="flex";
-    document.getElementById("pdf2txtBody").classList.add("is-loaded");
-  });
-  document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
-    const bytes=await file.arrayBuffer();
-    const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
-    let text="";
-    for(let i=1;i<=pdoc.numPages;i++){
-      setStatus("Extracting text...", false, Math.round((i/pdoc.numPages)*100));
-      const page = await pdoc.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map(it=>it.str).join(" ") + "\n\n";
-    }
-    const blob = new Blob([text], {type:"text/plain"});
-    const outName = suffixedName(file, "extracted", "txt");
-    setStatus("Preparing download...");
-    const {url}=downloadBlob(blob,outName);
-    setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
-  });
-};
-
-/* ---- TXT to PDF ---- */
-TOOLS.txt2pdf = function(){
-  openPanel(`
-    <div class="panel-head"><h3>TXT to PDF</h3></div>
-    <div class="panel-body compact tool-workspace" id="txt2pdfBody">
-      <div class="tool-hero">
-        <h2 class="tool-hero-title">TXT to PDF</h2>
-        <p class="tool-hero-desc">Convert plain text into a PDF document.</p>
-      </div>
-      <div class="tool-content-area">
-        <label class="tool-content-area-label" for="txtIn">Plain text</label>
-        <div class="field" style="margin:0"><textarea id="txtIn" placeholder="Type or paste your text here"></textarea></div>
-      </div>
-      <div class="tool-toolbar">
-        <button class="btn tool-toolbar-primary" id="go">Convert to PDF</button>
-      </div>
-      <div id="out"></div>
-    </div>`);
-  document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Generating...");
-    const text = winAnsiSafe(document.getElementById("txtIn").value);
-    const doc = await PDFDocument.create();
-    const font = await doc.embedFont(StandardFonts.Helvetica);
-    const size=11, margin=50, maxWidth=495, lineHeight=15;
-    let page = doc.addPage([595,842]); let y = 842-margin;
-    const paragraphs = text.split("\n");
-    function newPageIfNeeded(){ if(y<margin){ page=doc.addPage([595,842]); y=842-margin; } }
-    for(const para of paragraphs){
-      const words = para.split(/\s+/);
-      let line="";
-      for(const w of words){
-        const test = line? line+" "+w : w;
-        if(font.widthOfTextAtSize(test,size) > maxWidth){
-          page.drawText(line, {x:margin,y,size,font}); y-=lineHeight; newPageIfNeeded(); line=w;
-        } else line=test;
-      }
-      page.drawText(line,{x:margin,y,size,font}); y-=lineHeight; newPageIfNeeded();
-    }
-    const outBytes = await doc.save();
-    const blob=new Blob([outBytes],{type:"application/pdf"});
-    const {url}=downloadBlob(blob,"document.pdf");
-    const {canvas}=await pdfThumb(outBytes);
-    setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"document.pdf"}));
-  });
-};
-
-/* ---- METADATA EDITOR ---- */
-TOOLS.metadata = function(){
-  let file=null, doc=null, loadToken=0;
-  openPanel(`
-    <div class="panel-head"><h3>PDF Metadata Editor</h3></div>
-    <div class="panel-body compact tool-workspace" id="metadataBody">
-      <div class="tool-hero">
-        <h2 class="tool-hero-title">PDF Metadata Editor</h2>
-        <p class="tool-hero-desc">View and edit a PDF's title, author, and subject.</p>
-      </div>
-      <div class="tool-upload-wrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
-      </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="metadataToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <div class="field" style="margin:0"><label>Title</label><input type="text" id="mtitle"></div>
-          <div class="field" style="margin:0"><label>Author</label><input type="text" id="mauthor"></div>
-          <div class="field" style="margin:0"><label>Subject</label><input type="text" id="msubject"></div>
-        </div>
-        <button class="btn tool-toolbar-primary" id="go">Save</button>
-      </div>
-      <div id="out"></div>
-    </div>`);
-  wireDropzone(async fs=>{
-    // See Split PDF's identical guard - without it, uploading A then B
-    // quickly could let A's metadata land in the form fields after doc
-    // already points at B, so Save would write A's title/author/subject
-    // onto B's bytes.
-    const myToken = ++loadToken;
-    file=fs[0];
-    renderFileList([file], ()=>{
-      loadToken++;
-      file=null; doc=null;
-      document.getElementById("metadataToolbar").style.display="none";
-      document.getElementById("metadataBody").classList.remove("is-loaded");
-    });
-    const bytes = await file.arrayBuffer();
-    const parsedDoc = await loadPdfSafe(bytes);
-    if(myToken !== loadToken) return;
-    doc = parsedDoc;
-    document.getElementById("mtitle").value = doc.getTitle()||"";
-    document.getElementById("mauthor").value = doc.getAuthor()||"";
-    document.getElementById("msubject").value = doc.getSubject()||"";
-    document.getElementById("metadataToolbar").style.display="flex";
-    document.getElementById("metadataBody").classList.add("is-loaded");
-  });
-  document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Saving...");
-    doc.setTitle(document.getElementById("mtitle").value);
-    doc.setAuthor(document.getElementById("mauthor").value);
-    doc.setSubject(document.getElementById("msubject").value);
-    const outBytes = await doc.save();
-    const blob=new Blob([outBytes],{type:"application/pdf"});
-    const outName = suffixedName(file, "metadata_updated", "pdf");
-    setStatus("Preparing download...");
-    const {url}=downloadBlob(blob,outName);
-    setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
-  });
-};
-
-/* ---- PAGE SIZE CONVERTER ---- */
-TOOLS.pagesize = function(){
-  let file=null;
-  openPanel(`
-    <div class="panel-head"><h3>PDF Page Size Converter</h3></div>
-    <div class="panel-body compact tool-workspace" id="pagesizeBody">
-      <div class="tool-hero">
-        <h2 class="tool-hero-title">PDF Page Size Converter</h2>
-        <p class="tool-hero-desc">Changes the page canvas size (content position stays fixed and does not automatically rescale).</p>
-      </div>
-      <div class="tool-upload-wrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
-      </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="pagesizeToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <div class="field" style="margin:0"><label>Target size</label>
-            <select id="size">
-              <option value="595,842">A4</option><option value="612,792">Letter</option>
-              <option value="420,595">A5</option><option value="842,1191">A3</option>
-            </select>
-          </div>
-        </div>
-        <button class="btn tool-toolbar-primary" id="go">Convert Page Size</button>
-      </div>
-      <div id="out"></div>
-    </div>`);
-  wireDropzone(fs=>{
-    file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("pagesizeToolbar").style.display="none"; document.getElementById("pagesizeBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
-    document.getElementById("pagesizeToolbar").style.display="flex";
-    document.getElementById("pagesizeBody").classList.add("is-loaded");
-  });
-  document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
-    const [w,h] = document.getElementById("size").value.split(",").map(Number);
-    const bytes=await file.arrayBuffer();
-    const doc=await loadPdfSafe(bytes);
-    setStatus("Resizing pages...");
-    doc.getPages().forEach(p=>p.setSize(w,h));
-    const outBytes=await doc.save();
-    const blob=new Blob([outBytes],{type:"application/pdf"});
-    const outName = suffixedName(file, "resized", "pdf");
-    setStatus("Preparing download...");
-    const {url}=downloadBlob(blob,outName);
-    const {canvas}=await pdfThumb(outBytes);
-    setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
-  });
-};
-
-/* ---- COMPARE PDFS (basic text diff) ---- */
-TOOLS.compare = function(){
-  openPanel(`
-    <div class="panel-head"><h3>Compare PDFs</h3></div>
-    <div class="panel-body compact tool-workspace" id="compareBody">
-      <div class="tool-hero">
-        <h2 class="tool-hero-title">Compare two PDF files</h2>
-        <p class="tool-hero-desc">See the differences between two versions of a document side by side.</p>
-      </div>
-      <div class="compare-upload-grid" id="compareGrid">
-        <div class="tool-content-area compare-upload-card">
-          <label class="tool-content-area-label" for="fa">PDF A</label>
-          <input type="file" id="fa" accept="application/pdf" class="compare-file-input">
-          <div class="compare-filename" id="faName">No file selected</div>
-        </div>
-        <div class="compare-vs" aria-hidden="true">VS</div>
-        <div class="tool-content-area compare-upload-card">
-          <label class="tool-content-area-label" for="fb">PDF B</label>
-          <input type="file" id="fb" accept="application/pdf" class="compare-file-input">
-          <div class="compare-filename" id="fbName">No file selected</div>
-        </div>
-      </div>
-      <div class="tool-toolbar" id="compareToolbar">
-        <button class="btn tool-toolbar-primary" id="go" disabled>Compare PDF</button>
-      </div>
-      <div id="out"></div>
-    </div>`);
-
-  const compareGrid = document.getElementById("compareGrid");
-  const compareToolbar = document.getElementById("compareToolbar");
-  const out = document.getElementById("out");
-  const faInput = document.getElementById("fa"), fbInput = document.getElementById("fb");
-  const faName = document.getElementById("faName"), fbName = document.getElementById("fbName");
-  const goBtn = document.getElementById("go");
-
-  function syncFileLabel(input, label){
-    const f = input.files[0];
-    label.textContent = f ? f.name : "No file selected";
-    label.classList.toggle("has-file", !!f);
-  }
-  function syncGoEnabled(){
-    goBtn.disabled = !(faInput.files[0] && fbInput.files[0]);
-  }
-  faInput.addEventListener("change", ()=>{ syncFileLabel(faInput, faName); syncGoEnabled(); });
-  fbInput.addEventListener("change", ()=>{ syncFileLabel(fbInput, fbName); syncGoEnabled(); });
-
-  function resetAll(){
-    faInput.value = ""; fbInput.value = "";
-    syncFileLabel(faInput, faName); syncFileLabel(fbInput, fbName);
-    syncGoEnabled();
-    out.innerHTML = "";
-    compareGrid.classList.remove("hidden");
-    compareToolbar.classList.remove("hidden");
-  }
-
-  goBtn.addEventListener("click", async ()=>{
-    const fA = faInput.files[0], fB = fbInput.files[0];
-    if(!fA||!fB){ toast("Select both PDFs first"); return; }
-    out.innerHTML = statusEl("Extracting text...");
-    async function extractLines(f){
-      const bytes = await f.arrayBuffer();
-      const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
-      let lines=[];
-      for(let i=1;i<=pdoc.numPages;i++){
-        const page = await pdoc.getPage(i);
-        const content = await page.getTextContent();
-        lines.push(...content.items.map(it=>it.str).join(" ").split(/(?<=[.?!])\s+/));
-      }
-      return lines.filter(l=>l.trim());
-    }
-    let linesA, linesB;
-    try{
-      [linesA, linesB] = await Promise.all([extractLines(fA), extractLines(fB)]);
-    }catch(e){
-      out.innerHTML = `<div class="status" style="color:var(--rose)">Could not read one of these PDFs (${escapeAttr(e.message)}). Try different files.</div>`;
-      return;
-    }
-    const setB = new Set(linesB);
-    const setA = new Set(linesA);
-    const onlyA = linesA.filter(l=>!setB.has(l)).slice(0,25);
-    const onlyB = linesB.filter(l=>!setA.has(l)).slice(0,25);
-    setStatus("Done", true);
-    compareGrid.classList.add("hidden");
-    compareToolbar.classList.add("hidden");
-    const box = document.createElement("div"); box.className="result-box result-success";
-    box.innerHTML = `<div class="result-head"><button type="button" class="result-back" aria-label="Start over">←</button><h3>✅ Comparison complete</h3></div>
-      <div><strong>Only in ${escapeAttr(fA.name)} (${onlyA.length}${onlyA.length===25?'+':''}):</strong><div class="mono" style="font-size:.78rem;max-height:120px;overflow-y:auto;margin-top:6px;color:var(--rose)">${onlyA.map(l=>escapeAttr(l.slice(0,90))).join("<br>")||'—'}</div></div>
-      <div style="margin-top:12px"><strong>Only in ${escapeAttr(fB.name)} (${onlyB.length}${onlyB.length===25?'+':''}):</strong><div class="mono" style="font-size:.78rem;max-height:120px;overflow-y:auto;margin-top:6px;color:var(--teal)">${onlyB.map(l=>escapeAttr(l.slice(0,90))).join("<br>")||'—'}</div></div>`;
-    box.querySelector(".result-back").addEventListener("click", resetAll);
-    out.appendChild(box);
-  });
-};
-
 /* ---- SIGN PDF ----
    Main pane shows the actual page (renderPdfPageCanvas() - same
    hang-proof renderer Crop PDF already uses, not a raw page.render()
@@ -8780,60 +8370,6 @@ TOOLS.fillform = function(){
     const {url}=downloadBlob(blob,outName);
     setStatus("Done", true);
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
-  });
-};
-
-/* ---- Extract images from PDF (page renders) ---- */
-TOOLS.extractimages = function(){
-  let file=null;
-  openPanel(`
-    <div class="panel-head"><h3>Extract Images</h3></div>
-    <div class="panel-body compact tool-workspace" id="extractimagesBody">
-      <div class="tool-hero">
-        <h2 class="tool-hero-title">Extract Images from PDF</h2>
-        <p class="tool-hero-desc">Renders each page of your PDF as a full image you can download.</p>
-      </div>
-      <div class="tool-upload-wrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
-      </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="extractimagesToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Extract Images</button>
-      </div>
-      <div id="out"></div>
-    </div>`);
-  wireDropzone(fs=>{
-    file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("extractimagesToolbar").style.display="none"; document.getElementById("extractimagesBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
-    document.getElementById("extractimagesToolbar").style.display="flex";
-    document.getElementById("extractimagesBody").classList.add("is-loaded");
-  });
-  document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
-    await ensureJSZip();
-    const bytes=await file.arrayBuffer();
-    const pdoc = await pdfjsLib.getDocument({data:bytes}).promise;
-    const zip = new JSZip();
-    try{
-      for(let i=1;i<=pdoc.numPages;i++){
-        setStatus("Extracting images...", false, Math.round((i/pdoc.numPages)*100));
-        // renderPdfPageCanvas(), not a raw page.render() - see Invert PDF
-        // Colors' identical comment for why a hang here must reject
-        // instead of freezing this loop forever.
-        const canvas = await renderPdfPageCanvas(pdoc, i, 2);
-        const blob = await new Promise(res=>canvas.toBlob(res,"image/png"));
-        zip.file(`page_${i}.png`, blob);
-      }
-    }catch(e){
-      out.innerHTML = `<div class="status" style="color:var(--rose)">Could not render this PDF (${escapeAttr(e.message)}). Try a different file.</div>`;
-      return;
-    }
-    setStatus("Preparing download...");
-    const zipBlob = await zip.generateAsync({type:"blob"});
-    const outName = suffixedName(file, "images", "zip");
-    const {url}=downloadBlob(zipBlob,outName);
-    setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:outName}));
   });
 };
 

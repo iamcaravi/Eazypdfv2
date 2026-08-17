@@ -97,7 +97,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <!-- jszip/mammoth/xlsx are each only needed by a handful of specific
-     tools (Split/Extract Pages/Extract Images, PDF to Word, PDF<->Excel)
+     tools (Split/Extract Pages, PDF to Word, PDF<->Excel)
      - loaded on demand via ensureJSZip()/ensureMammoth()/ensureXLSX()
      instead of on every single page load regardless of which tool (if
      any) the visitor actually uses. -->
@@ -231,6 +231,15 @@ body{
   font-family:'Plus Jakarta Sans', sans-serif;
   -webkit-font-smoothing:antialiased;
 }
+/* Browser UA stylesheets give <button> its own default text color (not
+   inherited from the page like normal text) - confirmed live this was
+   the actual root cause of the "Continue to..." labels rendering pure
+   black on the dark result screen: .continue-card is a <button> with no
+   explicit color of its own, so it fell back to the browser default
+   instead of the page's --ink. No global button reset existed anywhere
+   in this file, so this was a systemic risk for any other button in the
+   app that also doesn't set its own color, not just this one component. */
+button{ color:inherit; }
 /* Both this and the body rule above previously named fonts
    ('IBM Plex Sans'/'Space Grotesk') that were never actually loaded (only
    Plus Jakarta Sans + IBM Plex Mono are, in the <link> above) - every
@@ -1123,39 +1132,6 @@ html.panel-open{ overflow:hidden; }
   .page-workspace .page-grid-cards{ gap:10px; }
 }
 
-/* Compare PDF's two-document layout - genuinely new shape (two equal
-   side-by-side upload cards + a divider) that no existing primitive
-   covers, so it gets its own small scoped grid. Each card still reuses
-   .tool-content-area for its chrome (background/border/radius/padding)
-   rather than duplicating that styling here. Stacks to one column on
-   narrow viewports via normal flex-wrap, no separate mobile rule needed. */
-.compare-upload-grid{ display:flex; align-items:stretch; gap:16px; flex-wrap:wrap; justify-content:center; }
-/* min-width:0 overrides the flex item's implicit min-width:auto, which
-   otherwise equals its content's min-content size - a nowrap filename
-   would grow the whole card to fit itself instead of letting the card
-   shrink and the filename ellipsis-truncate within it. */
-.compare-upload-card{ flex:1 1 260px; min-width:0; display:flex; flex-direction:column; gap:10px; text-align:center; }
-.compare-vs{
-  display:flex; align-items:center; justify-content:center; flex:none;
-  font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:.85rem;
-  color:var(--ink-soft); min-width:32px;
-}
-.compare-file-input{
-  width:100%; font-family:inherit; font-size:.85rem; padding:9px; box-sizing:border-box;
-  border:1px dashed var(--line); border-radius:8px; background:var(--paper); cursor:pointer;
-}
-/* min-width:0 is required for text-overflow:ellipsis on a flex child -
-   without it a nowrap text node grows the box past its column-flex
-   container's width instead of clipping (same fix already applied to
-   .tool-workspace .file-card-name). */
-.compare-filename{ font-size:.8rem; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; width:100%; }
-.compare-filename.has-file{ color:var(--ink); font-weight:600; }
-
-/* HTML/TXT to PDF's editor textarea - the shared .field textarea rule's
-   90px min-height is fine for short option fields elsewhere but reads as
-   cramped for a tool whose entire job is typing/pasting real content. */
-#html2pdfBody textarea, #txt2pdfBody textarea{ min-height:260px; }
-
 /* Two-column tool workspace (see layoutTwoColumn()) — file area on the
    left, options + action button in a sticky sidebar on the right, like
    iLovePDF. Falls back to a single stacked column under 860px. */
@@ -1599,7 +1575,7 @@ html.panel-open{ overflow:hidden; }
 .continue-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:4px 24px; }
 .continue-card{
   display:flex; flex-direction:row; align-items:center; gap:12px; text-align:left;
-  background:none; border:none; border-radius:8px;
+  background:none; border:none; border-radius:8px; color:inherit;
   padding:10px 8px; cursor:pointer; font-family:inherit; transition:.15s;
 }
 .continue-card:hover{ background:var(--panel-bg); }
@@ -2012,8 +1988,13 @@ footer{
 .mock-dropzone{
   flex:1; border:2px dashed var(--line); border-radius:10px; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:10px; padding:20px 14px; text-align:center;
-  cursor:pointer; transition:border-color .15s ease, background .15s ease;
+  cursor:pointer; transition:border-color .18s ease, background .18s ease, box-shadow .18s ease;
 }
+/* Plain mouse-hover: a restrained preview of the drag-over glow below, not
+   the same intensity - level 3 in the interaction hierarchy (medium),
+   deliberately lighter than the tool cards (level 1) or CTA buttons
+   (level 2). */
+.mock-dropzone:hover{ border-color:rgba(var(--brand-shadow-rgb),0.4); box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.15), 0 0 18px rgba(var(--brand-shadow-rgb),0.08); }
 .mock-dropzone:focus-visible{ outline:2px solid var(--ochre); outline-offset:3px; }
 .mock-dropzone.drag-hover{ border-color:var(--ochre); background:rgba(var(--brand-shadow-rgb),0.08); border-style:solid; box-shadow:var(--glow-shadow); }
 .mock-dropzone.state-uploading{ border-color:var(--ink); }
@@ -2664,7 +2645,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
      TOOLS.sign/TOOLS.fillform had zero effect in a browser tab that had
      already loaded the old version, even after a hard reload). Bump the
      number whenever js/app.js changes. -->
-<script src="js/app.js?v=94"></script>
+<script src="js/app.js?v=97"></script>
 
 <!-- Sticky Live Activity Bar: config first, then the component itself. -->
 <script src="config/trustStatusBar.js?v=2"></script>
