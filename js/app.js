@@ -664,14 +664,20 @@ const heroMockChooseBtn = document.getElementById("heroMockChooseBtn");
 
 function isPdfFile(f){ return !!f && (f.type==="application/pdf" || f.name.toLowerCase().endsWith(".pdf")); }
 
+/* Populated further down (see HeroDeviceFX near the other hero decorative
+   GSAP effects) - declared as a no-op stub here so setHeroDzState below
+   can safely call it regardless of definition order; by the time a user
+   actually drags/drops anything the real controller is already assigned. */
+let HeroDeviceFX = { onDragEnter(){}, onDragLeave(){}, onSuccess(){} };
+
 function setHeroDzState(state){
   if(!heroDropzone) return;
   heroDropzone.classList.remove("drag-hover","state-uploading","state-success");
   if(heroDzOr) heroDzOr.style.display = "";
-  if(state==="idle"){ heroDzTitle.textContent = "Drop your PDF here"; }
-  else if(state==="hover"){ heroDropzone.classList.add("drag-hover"); heroDzTitle.textContent = "Release to upload PDF"; if(heroDzOr) heroDzOr.style.display="none"; }
+  if(state==="idle"){ heroDzTitle.textContent = "Drop your PDF here"; HeroDeviceFX.onDragLeave(); }
+  else if(state==="hover"){ heroDropzone.classList.add("drag-hover"); heroDzTitle.textContent = "Release to upload PDF"; if(heroDzOr) heroDzOr.style.display="none"; HeroDeviceFX.onDragEnter(); }
   else if(state==="uploading"){ heroDropzone.classList.add("state-uploading"); heroDzTitle.textContent = "Preparing your PDF…"; if(heroDzOr) heroDzOr.style.display="none"; }
-  else if(state==="success"){ heroDropzone.classList.add("state-success"); heroDzTitle.textContent = "PDF Ready"; if(heroDzOr) heroDzOr.style.display="none"; }
+  else if(state==="success"){ heroDropzone.classList.add("state-success"); heroDzTitle.textContent = "PDF Ready"; if(heroDzOr) heroDzOr.style.display="none"; HeroDeviceFX.onSuccess(); }
 }
 
 if(heroDropzone && heroFileInput){
@@ -780,6 +786,24 @@ const AppSession = {
 const TOOL_ROUTES = {"merge":{"path":"/merge-pdf","title":"Merge PDF Files Free Online — Combine PDFs | YOYOPDF","description":"Combine multiple PDF files into one document in your browser. Drag to reorder, no upload to any server, no file limits, completely free."},"split":{"path":"/split-pdf","title":"Split PDF Files Free Online — Extract Pages | YOYOPDF","description":"Split a PDF into separate files by page range or extract every page individually. Free, browser-based, no file uploads."},"compress":{"path":"/compress-pdf","title":"Compress PDF to Target Size Free Online | YOYOPDF","description":"Shrink a PDF's file size down to an exact KB target you set. Free, fast, entirely in-browser compression."},"edit":{"path":"/edit-pdf","title":"Edit PDF Online Free — Add Text & Annotate | YOYOPDF","description":"Edit PDF documents directly in your browser — add text, images, shapes, and annotations. Free, no upload, no sign-up."},"pdf2word":{"path":"/pdf-to-word","title":"PDF to Word Converter Free Online | YOYOPDF","description":"Convert PDF into an editable Word document, free and browser-based. No upload, no sign-up."},"rotate":{"path":"/rotate-pdf","title":"Rotate PDF Pages Free Online — Fix Orientation | YOYOPDF","description":"Rotate individual pages or the entire PDF 90, 180 or 270 degrees. Free, fast, and processed entirely in your browser."},"deletepages":{"path":"/delete-pages","title":"Delete Pages from PDF Free Online | YOYOPDF","description":"Remove unwanted pages from a PDF in a few clicks. Preview every page first. Free, browser-based, no uploads."},"extractpages":{"path":"/extract-pages","title":"Extract Pages from PDF Free Online | YOYOPDF","description":"Pull specific pages out of a PDF into a new document. Visual page picker, free, and processed locally in your browser."},"organize":{"path":"/organize-pdf","title":"Organize & Reorder PDF Pages Free Online | YOYOPDF","description":"Drag and drop to reorder, rotate, or remove PDF pages in one visual workspace. Free, browser-based, no file uploads."},"crop":{"path":"/crop-pdf","title":"Crop PDF Pages Free Online — Trim Margins | YOYOPDF","description":"Crop margins or unwanted areas from PDF pages with a visual crop box. Apply to one page or the whole document, free."},"watermark":{"path":"/watermark-pdf","title":"Add Watermark to PDF Free Online | YOYOPDF","description":"Add a text watermark to your PDF with live preview — control position, opacity, size and rotation. Free, no uploads."},"pagenumbers":{"path":"/page-numbers","title":"Add Page Numbers to PDF Free Online | YOYOPDF","description":"Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads."},"word2pdf":{"path":"/word-to-pdf","title":"Word to PDF Converter Free Online | YOYOPDF","description":"Convert a .docx file into a PDF, free and browser-based. No upload, no sign-up, no watermark."},"pdf2jpg":{"path":"/pdf-to-jpg","title":"PDF to JPG Converter Free Online | YOYOPDF","description":"Convert every page of a PDF into a JPG image, free and browser-based. Download all pages as a ZIP."},"jpg2pdf":{"path":"/jpg-to-pdf","title":"JPG to PDF Converter Free Online | YOYOPDF","description":"Combine one or more images into a single PDF file, free and browser-based. No upload, no sign-up."},"pdf2excel":{"path":"/pdf-to-excel","title":"PDF to Excel Converter Free Online | YOYOPDF","description":"Extract text from a PDF into rows and columns in a spreadsheet, free and browser-based. No upload, no sign-up."},"excel2pdf":{"path":"/excel-to-pdf","title":"Excel to PDF Converter Free Online | YOYOPDF","description":"Convert a spreadsheet's first sheet into a table PDF, free and browser-based. No upload, no sign-up."},"sign":{"path":"/sign-pdf","title":"Sign PDF Online Free — Add Your Signature | YOYOPDF","description":"Draw a signature and place it anywhere on a PDF page, free and browser-based. No upload, no account."},"reorder":{"path":"/reorder-pages","title":"Reorder PDF Pages Free Online | YOYOPDF","description":"Rearrange the pages of a PDF into any order you like, free and browser-based. Drag to reorder."},"addblank":{"path":"/add-blank-page","title":"Add Blank Page to PDF Free Online | YOYOPDF","description":"Insert a blank page anywhere in a PDF document, free and browser-based."},"headerfooter":{"path":"/header-footer","title":"Add Header and Footer to PDF Free Online | YOYOPDF","description":"Add a running header and footer to every page of a PDF, free and browser-based."},"invertpdf":{"path":"/invert-pdf-colors","title":"Invert PDF Colors Free Online — Dark Mode PDF | YOYOPDF","description":"Flip every page of a PDF to a negative / dark-mode style palette, free and browser-based."},"flatten":{"path":"/flatten-pdf","title":"Flatten PDF Form Fields Free Online | YOYOPDF","description":"Lock PDF form fields permanently into the page content, free and browser-based."},"fillform":{"path":"/fill-pdf-form","title":"Fill PDF Form Online Free | YOYOPDF","description":"Fill out fillable form fields in a PDF and save the result, free and browser-based."},"imgcompress":{"path":"/image-compressor","title":"Image Compressor Free Online — Shrink to Exact KB | YOYOPDF","description":"Shrink an image down to an exact KB target, free and browser-based."},"imgresize":{"path":"/resize-image","title":"Resize Image Free Online — Exact Width & Height | YOYOPDF","description":"Resize an image to exact width and height, free and browser-based."},"imgcrop":{"path":"/crop-image","title":"Crop Image Free Online | YOYOPDF","description":"Crop an image to a precise pixel region, free and browser-based."},"imgconvert":{"path":"/convert-image-format","title":"Convert Image Format Free Online — PNG, JPG, WebP | YOYOPDF","description":"Convert an image between PNG, JPG, and WebP formats, free and browser-based."},"imgwatermark":{"path":"/watermark-image","title":"Add Watermark to Image Free Online | YOYOPDF","description":"Overlay custom watermark text on an image, free and browser-based."},"imginvert":{"path":"/invert-image-colors","title":"Invert Image Colors Free Online | YOYOPDF","description":"Flip an image's colors to a negative palette, free and browser-based."}};
 const PATH_TO_TOOLID = {};
 for(const id in TOOL_ROUTES) PATH_TO_TOOLID[TOOL_ROUTES[id].path] = id;
+/* Resolves a location.pathname to a tool id, two ways:
+   1. Exact match against TOOL_ROUTES' clean paths (e.g. "/crop-pdf") -
+      what production serves via _redirects, and what my own
+      dev-server.py's clean-URL rewrite produces.
+   2. Basename match (e.g. "crop-pdf" from ".../eazypdf/crop-pdf.html")
+      - required because this app can be served from ANY root: VS Code
+      Live Server's default root is the open workspace folder, which for
+      this project is one level ABOVE eazypdf/, so the real served path
+      is "/eazypdf/crop-pdf.html", not "/crop-pdf.html" - an exact-match
+      lookup against the bare "/crop-pdf" key would silently never fire,
+      which is exactly why the tool previously failed to auto-open under
+      Live Server. Matching on the basename alone makes this correct
+      regardless of how deep the project sits under the server root, or
+      if the whole eazypdf/ folder is moved somewhere else entirely. */
+function toolIdForPath(pathname){
+  const clean = pathname.replace(/\.html$/i, "") || "/";
+  return PATH_TO_TOOLID[clean] || PATH_TO_TOOLID["/" + clean.split("/").pop()];
+}
 const HOME_TITLE = document.title;
 const HOME_DESCRIPTION = document.querySelector('meta[name="description"]').content;
 const HOME_CANONICAL = 'https://yoyopdf.in/';
@@ -790,29 +814,62 @@ function setPageMeta(title, description, canonicalPath){
   let canonicalTag = document.querySelector('link[rel="canonical"]');
   if(canonicalTag) canonicalTag.href = 'https://yoyopdf.in' + (canonicalPath==='/' ? '/' : canonicalPath);
 }
-/**
- * Pushes/replaces the browser URL + document title/meta for the given
- * tool, without re-invoking TOOLS[id]() (that stays openTool()'s job) -
- * kept separate so popstate (browser Back/Forward) can restore the URL
- * state alone when the panel-open side is handled elsewhere.
- * @param {string} toolId
- * @param {boolean} [replace] - true for the initial-load/popstate case
- *   (don't add a new history entry for a navigation that already happened).
- */
-function syncToolRoute(toolId, replace){
-  const route = TOOL_ROUTES[toolId];
-  if(!route) return;
-  setPageMeta(route.title, route.description, route.path);
-  const method = replace ? 'replaceState' : 'pushState';
-  history[method]({toolId}, '', route.path);
-}
+/* Carries File objects across a REAL page navigation (see openTool()
+   below) - sessionStorage/localStorage can only hold strings, and every
+   tool-to-tool navigation now loads that tool's own physical .html page
+   (a full document reload) rather than staying on the same document, so
+   passing a file forward needs something that survives that reload.
+   IndexedDB is the only browser-native store that can hold a File/Blob.
+   Single-slot, single-use: stash() overwrites whatever was there, and
+   consume() deletes the entry the instant it's read - a stale or
+   duplicate bridge can never fire twice or leak into a later, unrelated
+   navigation. Best-effort throughout: if IndexedDB is unavailable
+   (private browsing in some browsers, etc.) the target tool just opens
+   empty, same as any other fresh visit - never a hard failure. */
+const FileBridge = {
+  DB_NAME: "yoyopdf-bridge", STORE: "files", KEY: "pending",
+  _open(){
+    return new Promise((resolve, reject)=>{
+      if(!window.indexedDB){ reject(new Error("no indexedDB")); return; }
+      const req = indexedDB.open(this.DB_NAME, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(this.STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async stash(files){
+    try{
+      const db = await this._open();
+      await new Promise((resolve, reject)=>{
+        const tx = db.transaction(this.STORE, "readwrite");
+        tx.objectStore(this.STORE).put(files, this.KEY);
+        tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }catch(e){ /* best-effort - see comment above */ }
+  },
+  async consume(){
+    try{
+      const db = await this._open();
+      const files = await new Promise((resolve, reject)=>{
+        const tx = db.transaction(this.STORE, "readwrite");
+        const store = tx.objectStore(this.STORE);
+        const getReq = store.get(this.KEY);
+        getReq.onsuccess = () => { store.delete(this.KEY); resolve(getReq.result || null); };
+        getReq.onerror = () => reject(getReq.error);
+      });
+      db.close();
+      return files;
+    }catch(e){ return null; }
+  }
+};
 function syncHomeRoute(replace){
   setPageMeta(HOME_TITLE, HOME_DESCRIPTION, '/');
   const method = replace ? 'replaceState' : 'pushState';
   history[method]({}, '', '/');
 }
 window.addEventListener('popstate', ()=>{
-  const id = PATH_TO_TOOLID[location.pathname];
+  const id = toolIdForPath(location.pathname);
   if(id && TOOLS[id]){
     window.__currentToolId = id;
     TOOLS[id]();
@@ -822,20 +879,73 @@ window.addEventListener('popstate', ()=>{
     setPageMeta(HOME_TITLE, HOME_DESCRIPTION, '/');
   }
 });
+/* Guards against the bfcache case: returning to this tab via Back/Forward
+   can restore the exact in-memory DOM/JS state the tab had when it was
+   left (a loaded workspace, mid-crop selection, etc.) WITHOUT re-running
+   any script - none of the reset-on-load logic above runs for that case,
+   since nothing actually reloaded. event.persisted is true only for a
+   bfcache restore (false for a normal load, where this is a no-op since
+   every TOOLS[id]() call already starts from a clean closure). Re-running
+   whatever tool is currently marked open forces the same clean
+   landing-first state a real fresh load would have produced. */
+window.addEventListener('pageshow', (e)=>{
+  if(!e.persisted) return;
+  const id = window.__currentToolId;
+  if(id && TOOLS[id] && overlay.classList.contains('open')) TOOLS[id]();
+});
 
-/* The one place that opens a tool AND (if AppSession currently holds a file)
-   bridges it in — identical to a user selecting that file inside the tool
-   themselves. Every click on a tool anywhere on the homepage (nav, search,
-   mega menu, mobile menu, footer, tool grid cards, Quick Action modal) is
-   already routed through the single delegated listener below, which now
-   calls this instead of invoking TOOLS[id] directly. */
-function openTool(toolId){
+/* Opens a tool. For any tool with a real physical page (everything in
+   TOOL_ROUTES), this is a REAL navigation to that tool's own .html file
+   - not a same-document panel swap with the address bar cosmetically
+   rewritten via history.pushState. That distinction is the whole point:
+   a pushState-only "navigation" leaves the ORIGINAL document (e.g.
+   index.html) running underneath a URL that looks like a different page,
+   so opening that exact URL fresh (new tab, bookmark, reload) under any
+   server that doesn't specifically rewrite it back to index.html (Live
+   Server has no such rewrite; my own dev-server.py and production's
+   _redirects do) shows nothing coherent - or, worse, whatever the
+   in-memory document happened to be showing at pushState time. A real
+   navigation to the tool's own file has no such dependency: it's a
+   plain relative link to a file sitting right next to this one, so it
+   resolves identically under Live Server, dev-server.py, production, or
+   file://, and lands on that file's own fresh script execution (clean
+   landing state) every single time, exactly like typing the URL cold.
+   Tools with no physical page (About/Donate/Contact - not in
+   TOOL_ROUTES) keep the original same-document panel-open behavior,
+   since there's no separate file to navigate to.
+   @param {boolean} [bridgeFile] - true ONLY for the two actual "continue
+     with this file" actions in the app: a Quick Action modal card (the
+     modal only exists because the user just handed over a file via the
+     homepage hero dropzone) and a result screen's "Continue to..." card
+     (the user just finished processing this exact file and picked the
+     next tool for it). Every other caller must leave this false/omitted -
+     a fresh nav click is not the same thing as an explicit "carry my
+     file to the next tool" action. */
+function openTool(toolId, bridgeFile){
   if(!TOOLS[toolId]) return;
+  const route = TOOL_ROUTES[toolId];
+  const alreadyOnThisToolsPage = route && toolIdForPath(location.pathname) === toolId;
+  if(route && !alreadyOnThisToolsPage){
+    const targetFile = route.path.slice(1) + ".html"; // e.g. "/crop-pdf" -> "crop-pdf.html"
+    if(bridgeFile && AppSession.currentFiles.length){
+      const files = AppSession.currentFiles;
+      AppSession.clear();
+      FileBridge.stash(files).then(()=>{ location.href = targetFile + "?bridge=1"; });
+    } else {
+      location.href = targetFile;
+    }
+    return;
+  }
+  // Either a page-less tool (About/Donate/Contact) or already sitting on
+  // this exact tool's own page (e.g. re-clicking the same nav item, or
+  // "Start over") - no navigation needed, just re-run its init in place.
+  // TOOLS[id]() always starts from a brand-new closure, so this is the
+  // same clean reset a real reload would produce, just instant.
   window.__currentToolId = toolId;
   TOOLS[toolId]();
-  if(TOOL_ROUTES[toolId]) syncToolRoute(toolId);
-  if(!AppSession.currentFiles.length) return;
+  if(!bridgeFile || !AppSession.currentFiles.length) return;
   const files = AppSession.currentFiles;
+  AppSession.clear();
   requestAnimationFrame(()=>{
     const fi = document.getElementById("fi");
     if(!fi) return;
@@ -902,7 +1012,7 @@ function openQuickActionModal(file, pageCount){
     btn.addEventListener("click", ()=>{
       const toolId = btn.dataset.qaTool;
       closeQuickActionModal();
-      openTool(toolId);
+      openTool(toolId, true);
     });
   });
   document.getElementById("qaCloseBtn")?.addEventListener("click", closeQuickActionModal);
@@ -1201,10 +1311,13 @@ function openPanel(html){
 /**
  * @param {boolean} [skipRoute] - true when a tool-to-tool transition
  *   ("Continue to...", result screen "Start over") calls this right
- *   before openTool() opens the next one - without this, the URL would
- *   flash back to "/" for an instant before the next tool's own
- *   syncToolRoute() call overwrote it, and briefly leave a spurious "/"
- *   entry in browser history between the two tools.
+ *   before openTool() opens the next one. For a cross-tool "Continue
+ *   to..." this barely matters (openTool() is about to navigate away to
+ *   that tool's own page, discarding this document entirely) - but
+ *   "Start over" re-runs the SAME tool in place with no navigation at
+ *   all, and without this flag the URL would flash to "/" via
+ *   syncHomeRoute() for an instant before staying right where it was,
+ *   leaving a spurious "/" entry in browser history for no reason.
  */
 function closePanel(skipRoute){
   overlay.classList.remove("open");
@@ -2633,7 +2746,7 @@ function resultBox({sizeText, sizeGood, previewNode, url, filename}){
   }
   box.querySelector(".result-back").addEventListener("click", ()=>{ const id=window.__currentToolId; closePanel(true); openTool(id); });
   box.querySelectorAll("[data-continue-tool]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{ closePanel(true); openTool(btn.dataset.continueTool); });
+    btn.addEventListener("click", ()=>{ closePanel(true); openTool(btn.dataset.continueTool, true); });
   });
   return box;
 }
@@ -4817,35 +4930,83 @@ TOOLS.headerfooter = function(){
   });
 };
 
-/* ---- CROP PDF ---- */
+/* ---- CROP PDF ----
+   iLovePDF-style workflow: every page renders in one compact, vertically
+   scrolling document viewport (not just page 1), the user draws the
+   crop box directly with a single click-drag-release (no pre-existing
+   handles to fight with first), and the right-hand controls panel never
+   moves. See docs/none - design brief lived in chat only.
+
+   Coordinate system: the crop rectangle is stored as page-relative
+   FRACTIONS (x0/y0/x1/y1, each 0..1, origin top-left) rather than CSS or
+   canvas pixels. Every .crop-page wrapper's on-screen box IS the page at
+   whatever zoom/DPR happens to be active (width set in JS, height
+   follows via CSS aspect-ratio from the page's real point dimensions),
+   so a fraction of that box's own getBoundingClientRect() is already
+   resolution- and zoom-independent - no separate canvas-pixel/zoom/DPR
+   conversion step is needed the way raw canvas coordinates would require.
+   At crop time those fractions are multiplied by each target page's own
+   width/height in points (from pdf-lib) and flipped for the PDF's
+   bottom-left origin, matching pdf-lib's setCropBox(). Applying the same
+   fractions to every page (not the same absolute point margins, as the
+   old single-canvas version did) is also what makes "All pages" behave
+   correctly on documents that mix page sizes, with no special-case
+   warning needed. */
 TOOLS.crop = function(){
-  let file=null, dispScale=1, rect=null, bgImageData=null, fileBytesCache=null, loadToken=0;
+  let file=null, fileBytesCache=null, loadToken=0;
+  let numPages=0;
+  let pagesMeta=[]; // {index, widthPt, heightPt, wrapEl, canvasEl, layerEl, rectEl, rendered, rendering}
+  let normRect=null; // {x0,y0,x1,y1} 0..1, or null = no crop drawn yet (full page)
+  let activePageIndex=0;   // which page currently hosts the interactive rect
+  let currentPageIndex=0;  // which page is most in view (drives indicator + "Current page" scope)
+  let zoom=1;
+  let docObserver=null;
+  let fallbackScanHandler=null;
+  const MIN_SIZE=0.02;
+
   openPanel(`
     <div class="panel-head"><h3>Crop PDF</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="cropBody">
       <div class="tool-hero" id="cropHero">
         <h2 class="tool-hero-title">Crop PDF</h2>
-        <p class="tool-hero-desc">Drag to draw a selection, then fine-tune it with the corner and edge handles.</p>
+        <p class="tool-hero-desc">Scroll through every page, then click and drag to draw the area you want to keep.</p>
       </div>
       <div class="tool-upload-wrap" id="cropUploadWrap">
         ${fileInputHTML("application/pdf", false, "Select PDF file")}
       </div>
       <p class="tool-privacy-hint" id="cropPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-app-workspace" id="cropWorkspace" style="display:none">
-        <div class="tool-main-pane">
-          <div class="crop-stage tool-content-area" id="cropStage">
-            <canvas id="cropCanvas"></canvas>
+      <div class="tool-app-workspace crop-app-workspace" id="cropWorkspace" style="display:none">
+        <div class="tool-main-pane crop-main-pane">
+          <div class="crop-zoom">
+            <button type="button" class="crop-zoom-btn" id="cropZoomOut" aria-label="Zoom out">−</button>
+            <span class="crop-zoom-level" id="cropZoomLevel">100%</span>
+            <button type="button" class="crop-zoom-btn" id="cropZoomIn" aria-label="Zoom in">+</button>
           </div>
-          <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
+          <div class="crop-document-viewport" id="cropDocViewport">
+            <div class="crop-document" id="cropDocument"></div>
+          </div>
+          <div class="crop-page-indicator" id="cropPageIndicator">Page 1 / 1</div>
         </div>
-        <aside class="tool-side-panel">
+        <aside class="tool-side-panel crop-side-panel">
           <h3 class="tool-side-panel-title">Crop PDF</h3>
           <div id="cropFileSlot"></div>
-          <div class="mode-info" id="cropMixedSizeWarning" hidden></div>
-          <div class="field"><label>Pages (optional)</label><input type="text" id="cropPages" placeholder="e.g. 1,3-5 - leave blank for all pages"></div>
+          <div class="crop-instruction-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></svg>
+            <div>
+              <strong>Click and drag to select the area you want to keep.</strong>
+              <p>Resize the selection with its corner/edge handles, or drag inside it to move it.</p>
+            </div>
+          </div>
+          <div class="crop-scope">
+            <span class="tool-side-panel-section-label">Pages</span>
+            <label class="crop-scope-option"><input type="radio" name="cropScope" value="all" checked> All pages</label>
+            <label class="crop-scope-option"><input type="radio" name="cropScope" value="current"> Current page</label>
+          </div>
           <div class="split-error" id="cropError" hidden></div>
-          <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
-          <button class="btn tool-toolbar-primary" id="go">Crop PDF</button>
+          <div class="crop-side-actions">
+            <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
+            <button class="btn tool-toolbar-primary" id="go" disabled>Crop PDF →</button>
+          </div>
         </aside>
       </div>
       <div id="out"></div>
@@ -4857,27 +5018,21 @@ TOOLS.crop = function(){
   const workspace = document.getElementById("cropWorkspace");
   const fileSlot = document.getElementById("cropFileSlot");
   const body = document.getElementById("cropBody");
-  const mixedSizeWarning = document.getElementById("cropMixedSizeWarning");
   const errorBox = document.getElementById("cropError");
   const goBtn = document.getElementById("go");
-  let numPages = 1;
+  const resetBtn = document.getElementById("resetCrop");
+  const docViewport = document.getElementById("cropDocViewport");
+  const docEl = document.getElementById("cropDocument");
+  const pageIndicator = document.getElementById("cropPageIndicator");
+  const zoomInBtn = document.getElementById("cropZoomIn");
+  const zoomOutBtn = document.getElementById("cropZoomOut");
+  const zoomLevelEl = document.getElementById("cropZoomLevel");
 
   function showError(msg){
     if(msg){ errorBox.innerHTML = `<span aria-hidden="true">⚠️</span><span>${msg}</span>`; errorBox.hidden=false; }
     else { errorBox.hidden=true; errorBox.innerHTML=""; }
   }
-  function validatePages(){
-    if(!file){ goBtn.disabled = true; return; }
-    const pagesRaw = document.getElementById("cropPages").value.trim();
-    if(pagesRaw && !parsePageList(pagesRaw, numPages)){
-      showError(`Enter page numbers between 1 and ${numPages}, e.g. 1,3-5.`);
-      goBtn.disabled = true;
-      return;
-    }
-    showError(null);
-    goBtn.disabled = false;
-  }
-  document.getElementById("cropPages").addEventListener("input", validatePages);
+  function updateGoState(){ goBtn.disabled = !file; }
 
   function showEmptyState(){
     hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
@@ -4888,153 +5043,408 @@ TOOLS.crop = function(){
     hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
     workspace.style.display="flex";
     body.classList.add("is-loaded");
+    motionEnter([document.querySelector(".crop-side-panel")], {fromY:10, duration:MOTION.fast});
   }
 
-  const cropState = {
-    rect: null,
-    redraw(){
-      const canvas = document.getElementById("cropCanvas");
-      const ctx = canvas.getContext("2d");
-      ctx.putImageData(bgImageData, 0, 0);
-      rect = cropState.rect;
-      if(rect && rect.w>0 && rect.h>0){
-        ctx.save();
-        ctx.fillStyle="rgba(0,0,0,0.4)";
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.putImageData(bgImageData, 0, 0, rect.x, rect.y, rect.w, rect.h);
-        ctx.strokeStyle="#E8291B"; ctx.lineWidth=2;
-        ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
-        drawCropHandles(ctx, rect);
-        ctx.restore();
-      }
-      const r = document.getElementById("cropReadout");
-      if(r){
-        r.textContent = (rect && rect.w>0 && rect.h>0)
-          ? `Selection: ${Math.round(rect.w/dispScale)} × ${Math.round(rect.h/dispScale)}pt`
-          : "Drag on the page above to select an area (defaults to the full page).";
-      }
-    }
-  };
+  // Clears the rendered page list/observer/selection - used both when
+  // starting a fresh build (old pages torn down first) and when the file
+  // itself is removed. Deliberately does NOT touch fileBytesCache: the
+  // in-progress build path sets that just before calling buildDocument(),
+  // and buildDocument() calls this same function on the way in.
+  function resetDocState(){
+    if(docObserver){ docObserver.disconnect(); docObserver=null; }
+    if(fallbackScanHandler){ docViewport.removeEventListener("scroll", fallbackScanHandler); fallbackScanHandler=null; }
+    pagesMeta=[]; normRect=null; activePageIndex=0; currentPageIndex=0; numPages=0;
+    docEl.innerHTML="";
+  }
 
   wireDropzone(async fs=>{
     // See Split PDF's identical guard - this one has an even longer async
-    // chain (getDocument -> getPage -> render), so the window for a
-    // second upload to land mid-flight is larger, not smaller.
+    // chain (getDocument -> per-page metadata -> lazy renders), so the
+    // window for a second upload to land mid-flight is larger, not smaller.
     const myToken = ++loadToken;
     file=fs[0];
     renderFileList([file], ()=>{
       loadToken++;
       file=null;
-      document.getElementById("cropReadout").textContent="";
-      mixedSizeWarning.hidden = true;
+      fileBytesCache=null;
+      resetDocState();
       showEmptyState();
     });
     fileSlot.appendChild(document.getElementById("flist"));
-    validatePages();
+    showError(null);
+    updateGoState();
     const bytes = await file.arrayBuffer();
     if(myToken !== loadToken) return;
     fileBytesCache = bytes;
     const qp = document.getElementById("quickPreview"); if(qp) qp.innerHTML = "";
-    const pdoc = await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
-    const page = await pdoc.getPage(1);
-    if(myToken !== loadToken) return;
-    const vp1 = page.getViewport({scale:1});
-    numPages = pdoc.numPages;
-    const maxW = 700; // wider cap than before - the main pane has real room now, not a small centered column
-    dispScale = Math.min(1, maxW/vp1.width);
-    // The crop rectangle the user draws is only ever seen against page 1 -
-    // it then gets applied as the SAME absolute-point margins to every
-    // page. That's the right, expected behavior for same-size pages (the
-    // overwhelming common case), but on a document mixing page sizes
-    // (e.g. one landscape table page in an otherwise-portrait report) the
-    // same point margins are a very different PROPORTION of a
-    // differently-sized page - confirmed by testing: cropping 25% off
-    // page 1's width left 87.5% of a double-width page 2 intact instead
-    // of the equivalent 75%, with zero indication to the user, who never
-    // even sees page 2 while drawing the selection. Rather than silently
-    // picking a margin-vs-proportion convention (a real judgment call,
-    // not a bug with one right answer), surface it and let "Pages
-    // (optional)" scope the crop away from the differently-sized ones if
-    // that's not what's wanted.
-    let hasMixedSizes = false;
-    for(let i=2;i<=numPages && !hasMixedSizes;i++){
-      const pg = await pdoc.getPage(i);
-      if(myToken !== loadToken) return;
-      const w = pg.view[2]-pg.view[0], h = pg.view[3]-pg.view[1];
-      if(Math.abs(w-vp1.width)>1 || Math.abs(h-vp1.height)>1) hasMixedSizes = true;
-    }
-    if(hasMixedSizes){
-      mixedSizeWarning.innerHTML = `<span aria-hidden="true">ℹ️</span> This PDF has pages of different sizes. The crop you draw below uses page 1's own margins on every page, which can look different on a differently-sized page - use "Pages" to limit which ones get cropped if needed.`;
-      mixedSizeWarning.hidden = false;
-    } else {
-      mixedSizeWarning.hidden = true;
-    }
-    const canvas = document.getElementById("cropCanvas");
-    // renderPdfPageCanvas() (not a raw page.render() call) - pdf.js's
-    // render can hang indefinitely on some inputs/environments (see that
-    // function's own doc comment), and this preview is the actual
-    // deliverable the user crops against, not a best-effort thumbnail -
-    // so a hang here must surface as a recoverable error, not a
-    // permanently stuck "Reading PDF..." state.
-    let rendered;
+    let pdoc;
     try{
-      rendered = await renderPdfPageCanvas(pdoc, 1, dispScale);
+      pdoc = await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
     }catch(e){
       if(myToken !== loadToken) return;
-      // loadToken alone doesn't catch every stale case: if the whole
-      // panel was closed (not just superseded by a newer upload) while
-      // this ~10s render was still pending, loadToken is untouched but
-      // #cropReadout no longer exists - guard the element lookup itself
-      // rather than assuming the panel is still open.
-      const readout = document.getElementById("cropReadout");
-      if(!readout) return;
-      readout.textContent = "Could not render this PDF's preview. Try a different file.";
       showWorkspace();
+      showError("Could not read this PDF. Try a different file.");
       return;
     }
     if(myToken !== loadToken) return;
-    canvas.width = rendered.width; canvas.height = rendered.height;
-    canvas.getContext("2d").drawImage(rendered, 0, 0);
-    bgImageData = canvas.getContext("2d").getImageData(0,0,canvas.width,canvas.height);
-    cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
-    cropState.redraw();
+    numPages = pdoc.numPages;
+    // Workspace must already be laid out (display:flex, real box sizes)
+    // before buildDocument() creates the IntersectionObserver below -
+    // observing targets that are still inside a display:none subtree
+    // means the observer's root never has a size, and pages then never
+    // get marked as intersecting even after the subtree becomes visible.
     showWorkspace();
-    wireCropCanvas(canvas, cropState);
-    document.getElementById("resetCrop").onclick = ()=>{
-      cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
-      cropState.redraw();
-    };
-    validatePages();
+    try{
+      await buildDocument(pdoc, myToken);
+    }catch(e){
+      if(myToken !== loadToken) return;
+      showError("Could not render this PDF's pages. Try a different file.");
+    }
+    if(myToken !== loadToken) return;
+    updateGoState();
   });
 
-  document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Applying crop...");
-    const pagesRaw = document.getElementById("cropPages").value.trim();
-    const targetIndices = pagesRaw ? parsePageList(pagesRaw, numPages) : null;
-    const canvas = document.getElementById("cropCanvas");
-    const cw=canvas.width, ch=canvas.height;
-    const leftPt = rect.x/dispScale;
-    const rightPt = (cw-(rect.x+rect.w))/dispScale;
-    const topPt = rect.y/dispScale;
-    const bottomPt = (ch-(rect.y+rect.h))/dispScale;
-    const doc = await loadPdfSafe(fileBytesCache);
-    doc.getPages().forEach((p,i)=>{
-      if(targetIndices && !targetIndices.includes(i)) return;
-      const {width,height} = p.getSize();
-      const l = Math.max(0, Math.min(leftPt, width-1));
-      const r = Math.max(0, Math.min(rightPt, width-1-l));
-      const t = Math.max(0, Math.min(topPt, height-1));
-      const b = Math.max(0, Math.min(bottomPt, height-1-t));
-      p.setCropBox(l, b, width-l-r, height-t-b);
+  /** Lays out every page up front (cheap metadata-only pass - no pixels
+   * rendered yet) so the full document exists in the scroll flow
+   * immediately, then wires lazy bitmap rendering + the "current page"
+   * tracker off one shared IntersectionObserver. */
+  async function buildDocument(pdoc, myToken){
+    resetDocState();
+    numPages = pdoc.numPages;
+    for(let i=1; i<=numPages; i++){
+      const page = await pdoc.getPage(i);
+      if(myToken !== loadToken) return;
+      const vp = page.getViewport({scale:1});
+      const wrap = document.createElement("div");
+      wrap.className = "crop-page";
+      wrap.dataset.pageIndex = String(i-1);
+      wrap.style.aspectRatio = `${vp.width} / ${vp.height}`;
+      wrap.innerHTML = `
+        <canvas class="crop-page-canvas"></canvas>
+        <div class="crop-page-loading">Loading page ${i}…</div>
+        <div class="crop-select-layer"></div>
+        <div class="crop-page-num">${i} / ${numPages}</div>`;
+      const meta = {
+        index:i-1, widthPt:vp.width, heightPt:vp.height,
+        wrapEl:wrap, canvasEl:wrap.querySelector(".crop-page-canvas"),
+        layerEl:wrap.querySelector(".crop-select-layer"),
+        rectEl:null, rendered:false, rendering:false
+      };
+      docEl.appendChild(wrap);
+      pagesMeta.push(meta);
+      wireCropPageLayer(meta);
+    }
+    applyZoomWidth();
+    updatePageIndicator();
+
+    docObserver = new IntersectionObserver((entries)=>{
+      let bestIdx = currentPageIndex, bestRatio = 0;
+      entries.forEach(entry=>{
+        const idx = Number(entry.target.dataset.pageIndex);
+        if(entry.isIntersecting){
+          renderPageIfNeeded(pdoc, pagesMeta[idx], myToken);
+          if(entry.intersectionRatio > bestRatio){ bestRatio = entry.intersectionRatio; bestIdx = idx; }
+        }
+      });
+      if(bestRatio > 0 && bestIdx !== currentPageIndex){
+        currentPageIndex = bestIdx;
+        updatePageIndicator();
+      }
+    }, {root:docViewport, rootMargin:"600px 0px", threshold:[0,0.15,0.3,0.5,0.75,1]});
+    pagesMeta.forEach(m=>docObserver.observe(m.wrapEl));
+
+    // Geometry-based fallback alongside the observer above (not instead
+    // of it): IntersectionObserver callbacks are tied to the browser
+    // actually producing compositor frames, which some embedded/headless
+    // hosts suspend for an offscreen/inactive view (confirmed here -
+    // requestAnimationFrame itself never fires in that state either) -
+    // without this, pages could sit permanently unrendered there even
+    // though every rect is correct. setTimeout-throttled rather than
+    // rAF-throttled for that same reason - it still keeps a fast scroll
+    // to ~1 scan per 100ms instead of one per scroll event, but doesn't
+    // depend on a compositor frame ever being produced to fire at all.
+    let fallbackQueued = false;
+    function fallbackScan(){
+      fallbackQueued = false;
+      if(myToken !== loadToken) return;
+      const vRect = docViewport.getBoundingClientRect();
+      let bestIdx = currentPageIndex, bestOverlap = 0;
+      pagesMeta.forEach(m=>{
+        const r = m.wrapEl.getBoundingClientRect();
+        const overlap = Math.max(0, Math.min(r.bottom, vRect.bottom) - Math.max(r.top, vRect.top));
+        if(overlap > 0 && r.top < vRect.bottom + 900 && r.bottom > vRect.top - 900){
+          renderPageIfNeeded(pdoc, m, myToken);
+        }
+        if(overlap > bestOverlap){ bestOverlap = overlap; bestIdx = m.index; }
+      });
+      if(bestOverlap > 0 && bestIdx !== currentPageIndex){
+        currentPageIndex = bestIdx;
+        updatePageIndicator();
+      }
+    }
+    function queueFallbackScan(){
+      if(fallbackQueued) return;
+      fallbackQueued = true;
+      setTimeout(fallbackScan, 100);
+    }
+    fallbackScanHandler = queueFallbackScan;
+    docViewport.addEventListener("scroll", fallbackScanHandler, {passive:true});
+    queueFallbackScan();
+  }
+
+  async function renderPageIfNeeded(pdoc, meta, myToken){
+    if(!meta || meta.rendered || meta.rendering) return;
+    meta.rendering = true;
+    try{
+      // Fixed bitmap width baseline (not tied to the current CSS zoom
+      // level) - stays sharp from 60% to 160% zoom without a re-render
+      // per zoom step, since zoom only ever changes the page's CSS width.
+      const targetW = 900;
+      const scale = targetW / meta.widthPt;
+      const rendered = await renderPdfPageCanvas(pdoc, meta.index+1, scale);
+      if(myToken !== loadToken || !meta.canvasEl.isConnected) return;
+      meta.canvasEl.width = rendered.width; meta.canvasEl.height = rendered.height;
+      meta.canvasEl.getContext("2d").drawImage(rendered, 0, 0);
+      meta.rendered = true;
+      meta.wrapEl.classList.add("crop-page-rendered","crop-page-visible");
+    }catch(e){
+      if(myToken !== loadToken) return;
+      const loading = meta.wrapEl.querySelector(".crop-page-loading");
+      if(loading) loading.textContent = "Couldn't render this page.";
+    }finally{
+      meta.rendering = false;
+    }
+  }
+
+  // Fits the page to the actual workspace on BOTH axes, not just width -
+  // a portrait page capped only by width (e.g. a flat 640px) can still be
+  // taller than the whole viewport, forcing a scroll just to see page 1.
+  // Sizing off page 1's own aspect ratio (like the old single-canvas
+  // version did for its dispScale) so a comfortable amount of it - not
+  // literally 100% of it - fits in view, hinting there's more to scroll
+  // to rather than either cramming or overflowing.
+  function applyZoomWidth(){
+    if(!pagesMeta.length) return;
+    const containerW = docViewport.clientWidth - 32;
+    const containerH = docViewport.clientHeight - 44;
+    const aspect = pagesMeta[0].widthPt / pagesMeta[0].heightPt; // width/height
+    const widthFromWidth = containerW || 640;
+    const widthFromHeight = (containerH>0 ? containerH : 620) * 0.82 * aspect;
+    const base = Math.max(320, Math.min(680, widthFromWidth, widthFromHeight));
+    const w = Math.round(base*zoom);
+    pagesMeta.forEach(m=>{ m.wrapEl.style.maxWidth = w+"px"; });
+  }
+  function updateZoomLabel(){ zoomLevelEl.textContent = Math.round(zoom*100)+"%"; }
+  zoomInBtn.addEventListener("click", ()=>{ zoom=Math.min(1.6, +(zoom+0.1).toFixed(2)); applyZoomWidth(); updateZoomLabel(); });
+  zoomOutBtn.addEventListener("click", ()=>{ zoom=Math.max(0.6, +(zoom-0.1).toFixed(2)); applyZoomWidth(); updateZoomLabel(); });
+  window.addEventListener("resize", ()=>{ if(workspace.style.display!=="none") applyZoomWidth(); });
+
+  function updatePageIndicator(){ pageIndicator.textContent = `Page ${currentPageIndex+1} / ${Math.max(numPages,1)}`; }
+
+  function localPos(meta, clientX, clientY){
+    const r = meta.wrapEl.getBoundingClientRect();
+    const x = (clientX-r.left)/r.width, y = (clientY-r.top)/r.height;
+    return {x:Math.max(0,Math.min(1,x)), y:Math.max(0,Math.min(1,y))};
+  }
+  function ensureRectEl(meta){
+    if(meta.rectEl) return meta.rectEl;
+    const el = document.createElement("div");
+    el.className = "crop-rect"; el.hidden = true;
+    ["nw","n","ne","e","se","s","sw","w"].forEach(h=>{
+      const hd = document.createElement("div");
+      hd.className = "crop-handle "+h; hd.dataset.handle = h;
+      el.appendChild(hd);
     });
-    const outBytes=await doc.save();
-    const blob=new Blob([outBytes],{type:"application/pdf"});
-    const outName = suffixedName(file, "cropped", "pdf");
-    setStatus("Preparing download...");
-    const {url}=downloadBlob(blob,outName);
-    const {canvas:thumb}=await pdfThumb(outBytes);
-    setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:thumb, url, filename:outName}));
+    meta.wrapEl.appendChild(el);
+    meta.rectEl = el;
+    return el;
+  }
+  function setActivePage(idx){
+    pagesMeta.forEach((m,i)=>{
+      if(m.rectEl && i!==idx) m.rectEl.hidden = true;
+      m.wrapEl.classList.toggle("crop-page-active", i===idx);
+    });
+    activePageIndex = idx;
+  }
+  function redrawRect(animate){
+    if(!normRect){
+      pagesMeta.forEach(m=>{ if(m.rectEl) m.rectEl.hidden = true; });
+      updateGoState();
+      return;
+    }
+    const meta = pagesMeta[activePageIndex];
+    if(!meta) return;
+    const el = ensureRectEl(meta);
+    el.hidden = false;
+    el.style.left = (normRect.x0*100)+"%";
+    el.style.top = (normRect.y0*100)+"%";
+    el.style.width = ((normRect.x1-normRect.x0)*100)+"%";
+    el.style.height = ((normRect.y1-normRect.y0)*100)+"%";
+    if(animate && window.gsap && !MOTION.reduced){
+      gsap.fromTo(el, {opacity:0, scale:0.98}, {opacity:1, scale:1, duration:MOTION.fast, ease:MOTION.ease.enter, overwrite:"auto"});
+      // Same stuck-invisible-forever safety net motionEnter() uses above:
+      // GSAP's tween only advances on its own rAF-driven ticker, so a
+      // tab/embedded view that never gets a compositor frame (backgrounded,
+      // some embedded hosts) would otherwise leave this rect permanently
+      // at the tween's opacity:0 starting point. Clearing the inline
+      // styles GSAP set falls back to the CSS default (opacity:1) -
+      // harmless if the tween already finished normally by then.
+      setTimeout(()=>{ if(el.isConnected){ el.style.opacity=""; el.style.transform=""; } }, 500);
+    }
+    updateGoState();
+  }
+  function pulseRect(el){
+    if(!el || !window.gsap || MOTION.reduced) return;
+    gsap.fromTo(el, {filter:"brightness(1.7)"}, {filter:"brightness(1)", duration:.35, ease:"power2.out", overwrite:"auto"});
+    setTimeout(()=>{ if(el.isConnected) el.style.filter=""; }, 600);
+  }
+
+  function wireCropPageLayer(meta){
+    let mode=null, handle=null, startPt=null, startRect=null;
+    function hitHandle(p){
+      if(activePageIndex!==meta.index || !normRect) return null;
+      const pts = {
+        nw:{x:normRect.x0,y:normRect.y0}, n:{x:(normRect.x0+normRect.x1)/2,y:normRect.y0}, ne:{x:normRect.x1,y:normRect.y0},
+        e:{x:normRect.x1,y:(normRect.y0+normRect.y1)/2}, se:{x:normRect.x1,y:normRect.y1}, s:{x:(normRect.x0+normRect.x1)/2,y:normRect.y1},
+        sw:{x:normRect.x0,y:normRect.y1}, w:{x:normRect.x0,y:(normRect.y0+normRect.y1)/2}
+      };
+      const r = meta.wrapEl.getBoundingClientRect();
+      const tolX = 14/r.width, tolY = 14/r.height;
+      for(const k in pts){ if(Math.abs(p.x-pts[k].x)<=tolX && Math.abs(p.y-pts[k].y)<=tolY) return k; }
+      return null;
+    }
+    function inside(p){
+      if(activePageIndex!==meta.index || !normRect) return false;
+      return p.x>normRect.x0 && p.x<normRect.x1 && p.y>normRect.y0 && p.y<normRect.y1;
+    }
+    meta.layerEl.addEventListener("pointerdown", e=>{
+      if(e.button!=null && e.button!==0) return;
+      // Capture is best-effort (keeps the drag tracking correctly if the
+      // pointer leaves the layer's own bounds mid-gesture) - it can throw
+      // "no active pointer" in some browsers/edge cases, which must not
+      // abort the rest of this handler (mode/normRect below) the way an
+      // uncaught exception here otherwise would.
+      try{ meta.layerEl.setPointerCapture(e.pointerId); }catch(err){}
+      const p = localPos(meta, e.clientX, e.clientY);
+      startPt = p; startRect = normRect ? {...normRect} : null;
+      const h = hitHandle(p);
+      if(h){ mode="resize"; handle=h; }
+      else if(inside(p)){ mode="move"; meta.rectEl && meta.rectEl.classList.add("crop-rect-dragging"); }
+      else {
+        mode = "new";
+        setActivePage(meta.index);
+        normRect = {x0:p.x, y0:p.y, x1:p.x, y1:p.y};
+        redrawRect(true);
+      }
+    });
+    meta.layerEl.addEventListener("pointermove", e=>{
+      if(!mode){
+        // Cursor feedback only, while idle.
+        const p = localPos(meta, e.clientX, e.clientY);
+        if(activePageIndex===meta.index && normRect){
+          meta.layerEl.style.cursor = hitHandle(p) ? "" : (inside(p) ? "grab" : "crosshair");
+        } else {
+          meta.layerEl.style.cursor = "crosshair";
+        }
+        return;
+      }
+      const p = localPos(meta, e.clientX, e.clientY);
+      if(mode==="new"){
+        normRect = {x0:Math.min(startPt.x,p.x), y0:Math.min(startPt.y,p.y), x1:Math.max(startPt.x,p.x), y1:Math.max(startPt.y,p.y)};
+      } else if(mode==="move"){
+        const dx=p.x-startPt.x, dy=p.y-startPt.y;
+        const w=startRect.x1-startRect.x0, h=startRect.y1-startRect.y0;
+        const x0 = Math.max(0, Math.min(1-w, startRect.x0+dx));
+        const y0 = Math.max(0, Math.min(1-h, startRect.y0+dy));
+        normRect = {x0, y0, x1:x0+w, y1:y0+h};
+      } else if(mode==="resize"){
+        let {x0,y0,x1,y1} = startRect;
+        const dx=p.x-startPt.x, dy=p.y-startPt.y;
+        if(handle.includes("n")) y0 = Math.min(y0+dy, y1-MIN_SIZE);
+        if(handle.includes("s")) y1 = Math.max(y1+dy, y0+MIN_SIZE);
+        if(handle.includes("w")) x0 = Math.min(x0+dx, x1-MIN_SIZE);
+        if(handle.includes("e")) x1 = Math.max(x1+dx, x0+MIN_SIZE);
+        normRect = {x0:Math.max(0,x0), y0:Math.max(0,y0), x1:Math.min(1,x1), y1:Math.min(1,y1)};
+      }
+      redrawRect(false);
+    });
+    function endDrag(){
+      if(mode && meta.rectEl){
+        meta.rectEl.classList.remove("crop-rect-dragging");
+        pulseRect(meta.rectEl);
+      }
+      mode=null; handle=null;
+    }
+    meta.layerEl.addEventListener("pointerup", endDrag);
+    meta.layerEl.addEventListener("pointercancel", endDrag);
+  }
+
+  function resetSelection(){
+    normRect = null;
+    pagesMeta.forEach(m=>{ if(m.rectEl) m.rectEl.hidden = true; });
+    updateGoState();
+  }
+  resetBtn.addEventListener("click", resetSelection);
+
+  function cropKeyHandler(e){
+    if(!workspace.isConnected || workspace.style.display==="none") return;
+    const active = document.activeElement;
+    if(active && /INPUT|TEXTAREA/.test(active.tagName)) return;
+    if((e.key==="Escape" || e.key==="Delete" || e.key==="Backspace") && normRect){
+      resetSelection();
+      e.preventDefault();
+      // Capture-phase (see the addEventListener call below) + stopPropagation:
+      // the sitewide Escape-closes-the-panel handler (document, bubble phase,
+      // registered at module load - see its own comment near
+      // overlay.addEventListener("click"...)) would otherwise close the
+      // whole Crop PDF panel on the very same Escape press that was meant
+      // to just clear an in-progress selection. Only swallowed when an
+      // active selection actually consumed this Escape - with no selection,
+      // propagation continues untouched and Escape closes the panel as
+      // it does for every other tool.
+      e.stopPropagation();
+    }
+  }
+  // Capture (not bubble): the sitewide keydown listener above is attached
+  // to `document` at module load, long before any tool panel - including
+  // this one - ever opens, so on the bubble phase it would always run
+  // first regardless of this listener's own registration order. Capture
+  // runs top-down before any bubble-phase listener anywhere in the tree
+  // gets a turn, which is what lets stopPropagation() above actually work.
+  document.addEventListener("keydown", cropKeyHandler, true);
+
+  document.getElementById("go").addEventListener("click", async ()=>{
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Cropping PDF...");
+    goBtn.disabled = true; const goLabel = goBtn.textContent; goBtn.textContent = "Cropping PDF...";
+    const scope = (panel.querySelector('input[name="cropScope"]:checked') || {}).value || "all";
+    const rect = normRect;
+    try{
+      const doc = await loadPdfSafe(fileBytesCache);
+      doc.getPages().forEach((p,i)=>{
+        if(scope==="current" && i!==currentPageIndex) return;
+        if(!rect) return;
+        const {width,height} = p.getSize();
+        const l = Math.max(0, Math.min(rect.x0*width, width-1));
+        const r = Math.max(0, Math.min((1-rect.x1)*width, width-1-l));
+        const t = Math.max(0, Math.min(rect.y0*height, height-1));
+        const b = Math.max(0, Math.min((1-rect.y1)*height, height-1-t));
+        p.setCropBox(l, b, width-l-r, height-t-b);
+      });
+      const outBytes=await doc.save();
+      const blob=new Blob([outBytes],{type:"application/pdf"});
+      const outName = suffixedName(file, "cropped", "pdf");
+      setStatus("Preparing download...");
+      const {url}=downloadBlob(blob,outName);
+      const {canvas:thumb}=await pdfThumb(outBytes);
+      setStatus("Done", true);
+      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:thumb, url, filename:outName}));
+    }catch(e){
+      out.innerHTML = "";
+      showError("Something went wrong while cropping this PDF. Please try again.");
+    }finally{
+      goBtn.textContent = goLabel; updateGoState();
+    }
   });
 };
 
@@ -9302,24 +9712,156 @@ TOOLS.imginvert = function(){
   });
 })();
 
+/* ---------------- Hero upload device: premium glass/glow system ----------------
+   Purely decorative layer around the EXISTING heroDropzone/heroFileInput
+   upload logic above (setHeroDzState/handleHeroFile) - owns none of the
+   drag/drop/click/file handling itself, just reacts to the same state
+   machine via the HeroDeviceFX.onDragEnter/onDragLeave/onSuccess hooks
+   that function already calls.
+   Transform ownership: idle float owns `y` on #heroUploadDevice when no
+   drag is in progress; the drag-enter/leave timeline takes over `y` for
+   its duration (idle tween is paused first, then killed+recreated fresh
+   from the settled y:0 on leave, rather than resumed, so there's no
+   position jump from a paused tween's stale internal state). Mouse
+   parallax only ever touches rotationX/rotationY on the same element, so
+   it never fights either of the above. Scroll-parallax above owns `y` on
+   the OUTER .hero-art wrapper, a different element, so no conflict there
+   either. */
+HeroDeviceFX = (function(){
+  const device = document.getElementById("heroUploadDevice");
+  const glow = document.querySelector(".hero-upload-glow");
+  const reflection = document.querySelector(".hero-upload-reflection");
+  const particlesWrap = document.querySelector(".hero-upload-particles");
+  const noop = { onDragEnter(){}, onDragLeave(){}, onSuccess(){} };
+  if(!device || !window.gsap) return noop;
+
+  const reduced = MOTION.reduced;
+  let floatTween = null, glowTween = null, dragTl = null;
+
+  function startIdle(){
+    if(reduced) return;
+    floatTween && floatTween.kill();
+    glowTween && glowTween.kill();
+    floatTween = gsap.to(device, {y:-6, duration:5, ease:"sine.inOut", yoyo:true, repeat:-1});
+    if(glow) glowTween = gsap.to(glow, {opacity:0.85, scale:1.05, duration:7, ease:"sine.inOut", yoyo:true, repeat:-1});
+  }
+  startIdle();
+
+  if(!reduced && reflection){
+    gsap.fromTo(reflection,
+      {xPercent:-130, opacity:0},
+      {xPercent:130, opacity:0.45, duration:6.5, ease:"sine.inOut", repeat:-1, repeatDelay:2.5});
+  }
+
+  // Sparse floating particles - a handful of real elements, not a canvas/
+  // particle-system library, scaled down further on narrower viewports
+  // (matches the file's existing 560/980px breakpoints) and skipped
+  // entirely on touch devices, where they'd just be dead weight.
+  if(!reduced && particlesWrap && !IS_TOUCH_DEVICE){
+    const w = window.innerWidth;
+    const count = w < 560 ? 0 : (w < 980 ? 5 : 9);
+    for(let i=0; i<count; i++){
+      const dot = document.createElement("span");
+      dot.className = "hero-particle" + (i % 3 === 0 ? " hero-particle--white" : "");
+      const size = (2 + Math.random()*2.4).toFixed(1);
+      dot.style.width = dot.style.height = size + "px";
+      dot.style.left = (6 + Math.random()*86) + "%";
+      dot.style.top = (8 + Math.random()*82) + "%";
+      particlesWrap.appendChild(dot);
+      gsap.to(dot, {
+        y: -16 - Math.random()*22, x:(Math.random()-0.5)*18,
+        opacity: 0.18 + Math.random()*0.32,
+        duration: 4.5 + Math.random()*4, delay: Math.random()*5,
+        ease:"sine.inOut", yoyo:true, repeat:-1
+      });
+    }
+  }
+
+  // Mouse parallax on the device only - subtle rotationX/Y tilt, only
+  // while the hero section is actually on screen (IntersectionObserver),
+  // never a global always-on mousemove tracker.
+  if(!reduced && !IS_TOUCH_DEVICE){
+    const heroSection = document.querySelector(".hero-v2");
+    const rxTo = gsap.quickTo(device, "rotationY", {duration:0.7, ease:"power3.out"});
+    const ryTo = gsap.quickTo(device, "rotationX", {duration:0.7, ease:"power3.out"});
+    let heroVisible = true;
+    if(window.IntersectionObserver && heroSection){
+      heroVisible = false;
+      new IntersectionObserver(es=>{ heroVisible = es[0].isIntersecting; }, {threshold:0.15}).observe(heroSection);
+    }
+    document.addEventListener("pointermove", e=>{
+      if(!heroVisible) return;
+      const r = device.getBoundingClientRect();
+      const dx = (e.clientX - (r.left + r.width/2)) / r.width;
+      const dy = (e.clientY - (r.top + r.height/2)) / r.height;
+      rxTo(dx*5); ryTo(-dy*5);
+    }, {passive:true});
+  }
+
+  function onDragEnter(){
+    device.classList.add("drag-active");
+    if(reduced) return;
+    floatTween && floatTween.pause();
+    glowTween && glowTween.pause();
+    dragTl && dragTl.kill();
+    dragTl = gsap.timeline({defaults:{ease:"power2.out", overwrite:"auto"}})
+      .to(device, {scale:1.025, y:-8, duration:0.35}, 0)
+      .to(glow, {opacity:1, scale:1.1, duration:0.4}, 0.05);
+  }
+  function onDragLeave(){
+    device.classList.remove("drag-active");
+    if(reduced) return;
+    dragTl && dragTl.kill();
+    dragTl = gsap.timeline({defaults:{ease:"power2.out", overwrite:"auto"}})
+      .to(device, {scale:1, y:0, duration:0.4, onComplete:startIdle}, 0)
+      .to(glow, {opacity:0.85, scale:1.05, duration:0.45}, 0);
+  }
+  function onSuccess(){
+    if(reduced) return;
+    device.classList.remove("pulse-success");
+    void device.offsetWidth; // restart the CSS keyframe even if it just played
+    device.classList.add("pulse-success");
+  }
+
+  return { onDragEnter, onDragLeave, onSuccess };
+})();
+
 /* Deep-link support, two generations:
-   1. Clean dedicated paths (/merge-pdf, /split-pdf, ...) - what every
-      "Merge PDF" link/button in the app now navigates to via openTool()'s
-      pushState. Loading one of these paths directly (typed URL, bookmark,
-      refresh) opens straight into that tool, replacing history instead of
-      pushing so a subsequent Back goes to wherever the user actually came
-      from, not back to this same tool page.
+   1. Clean dedicated paths (/merge-pdf, /split-pdf, ...) on production,
+      or this same tool's own physical .html file under any server
+      (Live Server, dev-server.py, file://) - toolIdForPath() matches
+      either. Only sets title/meta here, never touches the URL itself
+      (see toolIdForPath's own comment) - the page is already sitting at
+      whatever URL actually loaded it, real or clean, and that's exactly
+      what should stay in the address bar.
    2. Legacy /?tool=merge (the old query-string deep link the 44 static
       SEO pages' CTA buttons used before they linked straight to their own
       clean path) - kept working for any old bookmark/external link still
-      pointing at it, but immediately replaced with the clean URL so it
-      doesn't linger in the address bar. */
+      pointing at it, via a real openTool() navigation to that tool's page.
+   3. ?bridge=1 - set by openTool() when it stashed a file via FileBridge
+      before navigating here (an explicit Quick Action/"Continue to..."
+      pick, never an ordinary nav click) - consumed once, then the query
+      string is stripped so a later reload of this same URL can't
+      re-attempt it (harmless either way, since consume() is one-shot). */
 (function(){
-  const pathToolId = PATH_TO_TOOLID[location.pathname];
+  const pathToolId = toolIdForPath(location.pathname);
   if(pathToolId && TOOLS[pathToolId]){
     window.__currentToolId = pathToolId;
     TOOLS[pathToolId]();
-    syncToolRoute(pathToolId, true);
+    const route = TOOL_ROUTES[pathToolId];
+    if(route) setPageMeta(route.title, route.description, route.path);
+    if(new URLSearchParams(location.search).get("bridge") === "1"){
+      FileBridge.consume().then(files=>{
+        if(!files || !files.length) return;
+        const fi = document.getElementById("fi");
+        if(!fi) return;
+        const dt = new DataTransfer();
+        files.forEach(f=>dt.items.add(f));
+        fi.files = dt.files;
+        fi.dispatchEvent(new Event("change"));
+      });
+      history.replaceState(history.state, '', location.pathname);
+    }
     return;
   }
   const queryToolId = new URLSearchParams(location.search).get("tool");

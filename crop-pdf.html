@@ -8,6 +8,16 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Defensive only - the actual bug the Crop PDF layout hit was a stale
+     browser tab/cache serving pre-fix HTML+JS, not a code issue (no
+     duplicate crop-pdf.html or TOOLS.crop exists in this project - see
+     the js/app.js?v=NNN cache-busting comment near the bottom of this
+     file, which is the real fix: bump v= on every js/app.js change).
+     This meta just asks intermediary caches/browsers not to reuse a
+     stored copy of THIS page across deploys, belt-and-suspenders. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Crop PDF Pages Free Online — Trim Margins | YOYOPDF</title>
 <meta name="description" content="Crop margins or unwanted areas from PDF pages with a visual crop box. Apply to one page or the whole document, free.">
 <link rel="canonical" href="https://yoyopdf.in/crop-pdf">
@@ -1328,6 +1338,174 @@ html.panel-open{ overflow:hidden; }
    its other (block-content) uses. */
 .crop-stage{ display:flex; justify-content:center; }
 #cropCanvas{ max-width:100%; height:auto; border-radius:6px; cursor:crosshair; touch-action:none; }
+
+/* ============================================================
+   Crop PDF v2 - iLovePDF-style workflow, YOYOPDF black + neon-green
+   design language. Scoped entirely under .crop-* so nothing here can
+   leak into any other tool (Image Crop keeps its old #cropCanvas/
+   wireCropCanvas single-page system untouched, see js/app.js).
+   The document viewport gets its OWN overflow-y:auto and an explicit
+   height (viewport minus header/toolbar chrome) so only the page list
+   scrolls - the side panel never needs position:sticky tricks because
+   it simply lives outside that scrolling box entirely.
+   ============================================================ */
+/* flex:1 (not a guessed calc(100vh - Npx)) - .panel-body is already a
+   definite-height flex column filling the space under the header (see
+   .panel/.panel-body above), so this just claims whatever's actually
+   left there. Self-adjusts to the real header height instead of a magic
+   number that drifts out of sync with it and pushes the workspace (and
+   the button row inside the side panel) past the visible viewport. */
+.crop-app-workspace{ flex:1 1 auto; min-height:380px; max-height:calc(100vh - 140px); align-items:stretch; }
+.crop-app-workspace .tool-side-panel{ position:static; height:100%; max-height:100%; overflow-y:auto; }
+.crop-main-pane{
+  position:relative; display:flex; flex-direction:column; height:100%; min-height:0;
+}
+/* Floats inside the document viewport itself (top-right corner) instead
+   of occupying its own toolbar row above it - matches the reference
+   layout, never overlaps the side panel (it's positioned relative to
+   .crop-main-pane, well left of it), and reclaims the row's vertical
+   space for the pages themselves. */
+.crop-zoom{
+  position:absolute; top:10px; right:10px; z-index:5;
+  display:flex; align-items:center; gap:2px; background:var(--paper-dim);
+  border:1px solid var(--line); border-radius:999px; padding:4px;
+  box-shadow:0 6px 16px -6px rgba(0,0,0,0.45);
+}
+.crop-zoom-btn{
+  width:28px; height:28px; border-radius:50%; border:none; background:none; color:var(--ink);
+  font-size:1rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:background var(--t-fast,180ms) ease, color var(--t-fast,180ms) ease;
+}
+.crop-zoom-btn:hover{ background:var(--card-bg); color:var(--red); }
+.crop-zoom-btn:disabled{ opacity:.35; cursor:not-allowed; }
+.crop-zoom-level{ font-family:'IBM Plex Mono',monospace; font-size:.78rem; font-weight:600; color:var(--ink-soft); width:44px; text-align:center; }
+
+/* The dark "document workspace" surrounding compact paper pages -
+   near-black surface (matches the site's dark theme), own scrollbar,
+   flex:1 so it fills whatever room .crop-main-pane has. */
+.crop-document-viewport{
+  position:relative; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+  padding:22px 16px 60px; overscroll-behavior:contain;
+}
+.crop-document{
+  display:flex; flex-direction:column; align-items:center; gap:20px;
+}
+/* Real paper: white background regardless of theme, subtle shadow, small
+   radius - "look like real paper" per spec, never stretched/distorted
+   (width is set in JS from the page's own aspect ratio, height follows
+   via CSS aspect-ratio, so nothing here can skew it). */
+.crop-page{
+  position:relative; width:100%; max-width:640px; background:#fff; border-radius:6px;
+  box-shadow:0 10px 30px -12px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.06);
+  overflow:hidden; flex:none; opacity:0;
+}
+.crop-page.crop-page-visible{ opacity:1; transition:opacity .3s ease; }
+.crop-page-canvas{ display:block; width:100%; height:100%; }
+.crop-page-loading{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:#f2f2f2; color:#9a9a96; font-size:.72rem; font-family:'IBM Plex Mono',monospace;
+}
+.crop-page.crop-page-rendered .crop-page-loading{ display:none; }
+.crop-page-num{
+  position:absolute; left:8px; bottom:8px; background:rgba(10,10,10,0.72); color:#fff;
+  font-family:'IBM Plex Mono',monospace; font-size:.68rem; font-weight:600; letter-spacing:.02em;
+  padding:2px 7px; border-radius:999px; pointer-events:none; z-index:2;
+}
+/* Pointer-capture surface for drawing/moving/resizing - crosshair by
+   default (empty page = "draw here"), swapped to grab/grabbing in JS
+   only while a selection exists and the pointer is over it. */
+.crop-select-layer{
+  position:absolute; inset:0; cursor:crosshair; touch-action:none; z-index:1;
+}
+.crop-page.crop-page-active .crop-select-layer{ z-index:3; }
+
+/* The selection rectangle itself: transparent interior, thin neon-green
+   border + glow, and the "darken everything outside" effect from a
+   single oversized box-shadow (clipped by .crop-page's overflow:hidden)
+   instead of four separate mask divs. */
+.crop-rect{
+  position:absolute; border:1.5px solid var(--accent-lime);
+  box-shadow:
+    0 0 0 9999px rgba(0,0,0,0.45),
+    0 0 0 1px rgba(var(--accent-lime-rgb),0.9) inset,
+    0 0 14px rgba(var(--accent-lime-rgb),0.55);
+  cursor:grab;
+}
+.crop-rect.crop-rect-dragging{ cursor:grabbing; }
+.crop-rect[hidden]{ display:none; }
+.crop-handle{
+  position:absolute; width:11px; height:11px; margin:-6px; border-radius:3px;
+  background:var(--accent-lime); border:1.5px solid #06210a;
+  box-shadow:0 0 6px rgba(var(--accent-lime-rgb),0.7);
+}
+.crop-handle.nw{ left:0; top:0; cursor:nwse-resize; }
+.crop-handle.ne{ left:100%; top:0; cursor:nesw-resize; }
+.crop-handle.sw{ left:0; top:100%; cursor:nesw-resize; }
+.crop-handle.se{ left:100%; top:100%; cursor:nwse-resize; }
+.crop-handle.n{ left:50%; top:0; cursor:ns-resize; }
+.crop-handle.s{ left:50%; top:100%; cursor:ns-resize; }
+.crop-handle.e{ left:100%; top:50%; cursor:ew-resize; }
+.crop-handle.w{ left:0; top:50%; cursor:ew-resize; }
+@media (max-width:640px){
+  .crop-handle{ width:15px; height:15px; margin:-8px; }
+}
+
+/* "Page X / N" readout - a plain compact row directly under the document
+   viewport (not stacked inside its scrolling box): it's a sibling of
+   #cropDocViewport in the same flex column, so it always sits right
+   below it with no risk of overlapping the scrolling page content -
+   simpler and more robust than position:sticky here, which needs to be
+   a descendant of the element it sticks within to behave the way a
+   "floats over the viewport as you scroll" badge would require. Updates
+   from the IntersectionObserver-driven "current page" tracker in JS. */
+.crop-page-indicator{
+  align-self:center; flex:none; margin-top:8px;
+  background:rgba(10,10,10,0.82); color:#fff; font-family:'IBM Plex Mono',monospace;
+  font-size:.76rem; font-weight:600; letter-spacing:.02em; padding:5px 14px; border-radius:999px;
+  box-shadow:0 6px 16px -6px rgba(0,0,0,0.45);
+}
+
+/* Right panel: instruction card + scope radios + sticky action footer */
+.crop-instruction-card{
+  display:flex; gap:10px; align-items:flex-start; background:var(--panel-bg);
+  border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+}
+.crop-instruction-card svg{ width:18px; height:18px; flex:none; color:var(--red); margin-top:1px; }
+.crop-instruction-card strong{ display:block; font-size:.86rem; font-weight:700; line-height:1.4; color:var(--ink); }
+.crop-instruction-card p{ margin:4px 0 0; font-size:.78rem; color:var(--ink-soft); line-height:1.5; }
+.crop-scope{ display:flex; flex-direction:column; gap:8px; }
+.crop-scope-option{
+  display:flex; align-items:center; gap:9px; font-size:.88rem; font-weight:600; color:var(--ink);
+  background:var(--panel-bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+  cursor:pointer; transition:border-color var(--t-fast,180ms) ease, box-shadow var(--t-fast,180ms) ease;
+}
+.crop-scope-option:hover{ border-color:rgba(var(--brand-shadow-rgb),0.5); }
+.crop-scope-option:has(input:checked){ border-color:var(--red); box-shadow:var(--glow-shadow); }
+.crop-scope-option input{ accent-color:var(--red); width:15px; height:15px; flex:none; }
+.crop-side-panel{ display:flex; flex-direction:column; }
+.crop-side-actions{
+  display:flex; flex-direction:column; gap:10px; margin-top:auto; padding-top:14px;
+  position:sticky; bottom:0; background:var(--paper-dim);
+}
+.crop-side-actions .btn{ transition:transform var(--t-fast,180ms) ease, box-shadow var(--t-fast,180ms) ease, filter var(--t-fast,180ms) ease; }
+.crop-side-actions .btn:active:not(:disabled){ transform:scale(0.97); }
+
+@media (max-width:900px){
+  .crop-app-workspace{ flex-direction:column; height:auto; }
+  /* Both .crop-main-pane and .crop-document-viewport inherit flex:1
+     (flex-basis:0%) from their desktop row-layout base rules
+     (.tool-main-pane / the base .crop-document-viewport rule) - stacked
+     in a column inside an auto-height container, flex-basis:0% collapses
+     them toward zero instead of respecting the height set below, since
+     an explicit height is only used as the flex-basis when flex-basis
+     itself is "auto". Reset to flex:none here so the explicit heights
+     actually apply. */
+  .crop-main-pane{ flex:none; height:auto; }
+  .crop-document-viewport{ flex:none; height:58vh; min-height:340px; }
+  .crop-app-workspace .tool-side-panel{ height:auto; max-height:none; overflow:visible; flex:none; }
+  .crop-side-actions{ position:static; }
+}
 .thumbs canvas, .thumbs img{
   border:1px solid var(--line); border-radius:6px; height:110px; width:auto; background:#fff;
 }
@@ -1970,49 +2148,132 @@ footer{
 .btn-cta-secondary:active{ transform:scale(0.98); }
 .hero-trust{ display:none; }
 
-/* ===== Hero illustration: laptop mockup with dropzone screen + floating file-format chips ===== */
-.laptop-frame{
-  width:100%; max-width:390px; background:#132039; border-radius:16px 16px 4px 4px;
-  padding:12px 12px 28px; box-shadow:0 24px 48px -20px rgba(17,43,92,0.32);
+/* ===== Hero illustration: premium glass "PDF upload device" ==========
+   Deliberately theme-independent (unlike the rest of the site, which
+   flips --brand-shadow-rgb/--ochre/etc between red-on-light and
+   lime-on-dark): this one surface is meant to always read as black +
+   dark glass + neon green + white, like a hardware product shot, so it
+   uses --accent-lime-rgb (156,255,0 - defined on bare :root, NOT inside
+   [data-theme="dark"]) directly rather than the theme-flipped tokens
+   every other component on the page uses. ===================== */
+.hero-art{ position:relative; display:flex; align-items:center; justify-content:center; min-height:320px; }
+
+/* Large blurred ambient glow behind the device - breathes via GSAP
+   (opacity/scale only, see HeroDeviceFX in app.js) instead of an
+   animated filter/box-shadow, which is the expensive way to do this. */
+.hero-upload-glow{
+  position:absolute; z-index:0; inset:-20% -10%; pointer-events:none;
+  background:
+    radial-gradient(46% 46% at 50% 42%, rgba(var(--accent-lime-rgb),0.30), transparent 70%),
+    radial-gradient(30% 30% at 62% 68%, rgba(var(--accent-lime-rgb),0.16), transparent 72%);
+  filter:blur(38px);
+  opacity:0.85;
+  will-change:opacity, transform;
 }
-.laptop-frame::after{
-  content:""; display:block; height:8px; margin:7px auto 0; width:60px; border-radius:0 0 5px 5px;
-  background:#0B1730;
+
+/* Sparse floating light particles - populated by HeroDeviceFX in app.js
+   (a handful of <span>s, not a canvas/WebGL system), each animated via
+   one GSAP tween on transform+opacity. Empty/inert if JS never fills it
+   in (reduced-motion, touch devices) so nothing here requires JS to be
+   safe to leave in the DOM. */
+.hero-upload-particles{ position:absolute; z-index:1; inset:-6% -4%; pointer-events:none; overflow:visible; }
+.hero-particle{
+  position:absolute; border-radius:50%; background:rgba(var(--accent-lime-rgb),0.9);
+  box-shadow:0 0 6px 1px rgba(var(--accent-lime-rgb),0.6);
+  opacity:0; will-change:transform, opacity;
 }
+.hero-particle--white{ background:rgba(255,255,255,0.85); box-shadow:0 0 5px 1px rgba(255,255,255,0.4); }
+
+.hero-upload-device{
+  position:relative; z-index:2; width:100%; max-width:390px;
+  background:linear-gradient(150deg, rgba(24,26,24,0.94), rgba(6,8,6,0.97));
+  border:1px solid rgba(var(--accent-lime-rgb),0.20);
+  border-radius:20px;
+  padding:14px 14px 22px;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255,255,255,0.05),
+    0 0 0 1px rgba(0,0,0,0.5),
+    0 0 22px rgba(var(--accent-lime-rgb),0.10),
+    0 30px 60px -24px rgba(0,0,0,0.65);
+  overflow:hidden; isolation:isolate; will-change:transform;
+  transition:border-color .3s ease, box-shadow .3s ease;
+}
+/* Active drop-zone state, toggled alongside heroDropzone's own
+   "drag-hover" class (see HeroDeviceFX.onDragEnter in app.js) - the
+   whole device visibly "receives" the file, not just the inner zone. */
+.hero-upload-device.drag-active{
+  border-color:rgba(var(--accent-lime-rgb),0.55);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255,255,255,0.08),
+    0 0 0 1px rgba(var(--accent-lime-rgb),0.35),
+    0 0 42px rgba(var(--accent-lime-rgb),0.30),
+    0 30px 65px -20px rgba(0,0,0,0.7);
+}
+/* One-shot flash (not a loop) on a successfully picked file - cheap even
+   though box-shadow is normally the expensive property to animate,
+   because this only ever plays once per pick, never continuously. */
+@keyframes heroDeviceSuccessPulse{
+  0%,100%{ box-shadow:inset 0 1px 0 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(0,0,0,0.5), 0 0 22px rgba(var(--accent-lime-rgb),0.10), 0 30px 60px -24px rgba(0,0,0,0.65); }
+  40%{ box-shadow:inset 0 1px 0 0 rgba(255,255,255,0.1), 0 0 0 1px rgba(var(--accent-lime-rgb),0.7), 0 0 55px rgba(var(--accent-lime-rgb),0.5), 0 30px 60px -24px rgba(0,0,0,0.65); }
+}
+.hero-upload-device.pulse-success{ animation:heroDeviceSuccessPulse .65s ease; }
+
+/* Soft diagonal light sweep suggesting a real glass surface - animated
+   via GSAP (transform + opacity only, see HeroDeviceFX), idle at
+   opacity:0 so it's fully inert until JS starts the loop. */
+.hero-upload-reflection{
+  position:absolute; z-index:1; top:-20%; left:-30%; width:55%; height:140%;
+  background:linear-gradient(115deg, transparent, rgba(255,255,255,0.10), transparent);
+  transform:translateX(-120%) rotate(8deg);
+  pointer-events:none; opacity:0; will-change:transform, opacity;
+}
+
 .laptop-screen{
-  background:var(--card-bg); border-radius:9px; padding:18px 16px; min-height:220px;
+  position:relative; z-index:2;
+  background:rgba(10,12,10,0.7); border:1px solid rgba(255,255,255,0.06);
+  border-radius:14px; padding:18px 16px; min-height:220px;
   display:flex; flex-direction:column;
 }
-.laptop-screen-brand{ display:flex; align-items:center; gap:7px; font-weight:800; color:var(--ink); font-size:0.86rem; margin-bottom:14px; }
-.laptop-screen-brand .mini-mark{ width:17px; height:17px; border-radius:5px; background:var(--brand-grad); flex:none; }
+.laptop-screen-brand{ display:flex; align-items:center; gap:7px; font-weight:800; color:#F2F2F0; font-size:0.86rem; margin-bottom:14px; }
+.laptop-screen-brand .mini-mark{ width:17px; height:17px; border-radius:5px; background:linear-gradient(135deg,#9CFF00,#5FBF00); flex:none; }
 .mock-dropzone{
-  flex:1; border:2px dashed var(--line); border-radius:10px; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:10px; padding:20px 14px; text-align:center;
-  cursor:pointer; transition:border-color .18s ease, background .18s ease, box-shadow .18s ease;
+  flex:1; border:1.5px dashed rgba(var(--accent-lime-rgb),0.28); border-radius:12px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:10px; padding:24px 14px; text-align:center;
+  cursor:pointer; background:radial-gradient(60% 60% at 50% 40%, rgba(var(--accent-lime-rgb),0.05), transparent 70%);
+  transition:border-color .18s ease, background .18s ease, box-shadow .18s ease;
 }
 /* Plain mouse-hover: a restrained preview of the drag-over glow below, not
    the same intensity - level 3 in the interaction hierarchy (medium),
    deliberately lighter than the tool cards (level 1) or CTA buttons
    (level 2). */
-.mock-dropzone:hover{ border-color:rgba(var(--brand-shadow-rgb),0.4); box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.15), 0 0 18px rgba(var(--brand-shadow-rgb),0.08); }
-.mock-dropzone:focus-visible{ outline:2px solid var(--ochre); outline-offset:3px; }
-.mock-dropzone.drag-hover{ border-color:var(--ochre); background:rgba(var(--brand-shadow-rgb),0.08); border-style:solid; box-shadow:var(--glow-shadow); }
-.mock-dropzone.state-uploading{ border-color:var(--ink); }
-.mock-dropzone.state-success{ border-color:var(--success); background:rgba(var(--success-rgb),0.08); }
+.mock-dropzone:hover{
+  border-color:rgba(var(--accent-lime-rgb),0.55);
+  box-shadow:0 0 0 1px rgba(var(--accent-lime-rgb),0.14), 0 0 22px rgba(var(--accent-lime-rgb),0.14) inset;
+}
+.mock-dropzone:focus-visible{ outline:2px solid #9CFF00; outline-offset:3px; }
+.mock-dropzone.drag-hover{
+  border-color:#9CFF00; border-style:solid;
+  background:radial-gradient(65% 65% at 50% 40%, rgba(var(--accent-lime-rgb),0.16), transparent 70%);
+  box-shadow:0 0 0 1px rgba(var(--accent-lime-rgb),0.5), 0 0 32px rgba(var(--accent-lime-rgb),0.28) inset;
+}
+.mock-dropzone.state-uploading{ border-color:rgba(255,255,255,0.4); }
+.mock-dropzone.state-success{ border-color:#9CFF00; background:radial-gradient(65% 65% at 50% 40%, rgba(var(--accent-lime-rgb),0.18), transparent 70%); }
 .mock-dz-icon{
-  width:38px; height:38px; border-radius:9px; background:var(--paper-dim); color:var(--ink-soft);
+  width:36px; height:36px; border-radius:9px; background:rgba(var(--accent-lime-rgb),0.10); color:#9CFF00;
   display:flex; align-items:center; justify-content:center;
 }
 .mock-dz-icon svg{ width:17px; height:17px; }
-.mock-dz-title{ font-weight:700; color:var(--ink); font-size:0.88rem; }
-.mock-dz-or{ font-size:0.7rem; color:var(--ink-soft); margin:-5px 0; }
+.mock-dz-title{ font-weight:700; color:#F2F2F0; font-size:0.9rem; }
+.mock-dz-or{ font-size:0.7rem; color:rgba(255,255,255,0.45); margin:-5px 0; }
 .mock-choose-btn{
-  background:var(--brand-grad); color:var(--btn-ink); font-weight:700; font-size:0.76rem;
-  padding:8px 19px; border-radius:8px; border:none; font-family:inherit; cursor:pointer;
+  background:linear-gradient(135deg,#9CFF00,#5FBF00); color:#0A0A0A; font-weight:700; font-size:0.78rem;
+  padding:9px 20px; border-radius:9px; border:none; font-family:inherit; cursor:pointer;
+  box-shadow:0 8px 20px -8px rgba(var(--accent-lime-rgb),0.5);
+  transition:transform .18s ease, box-shadow .18s ease, filter .18s ease;
 }
-.mock-choose-btn:focus-visible{ outline:2px solid var(--ochre); outline-offset:2px; }
-.hero-art{ position:relative; display:flex; align-items:center; justify-content:center; min-height:300px; }
-.laptop-frame{ position:relative; z-index:2; }
+.mock-choose-btn:hover{ transform:translateY(-2px) scale(1.03); box-shadow:0 12px 26px -8px rgba(var(--accent-lime-rgb),0.65); filter:brightness(1.06); }
+.mock-choose-btn:active{ transform:translateY(0) scale(0.97); }
+.mock-choose-btn:focus-visible{ outline:2px solid #9CFF00; outline-offset:2px; }
 
 @media(max-width:980px){
   .hero-v2{ grid-template-columns:1fr; padding:32px 24px 12px; gap:28px; text-align:center; }
@@ -2021,10 +2282,15 @@ footer{
   .hero-v2 .tagline{ margin-left:auto; margin-right:auto; }
   .hero-cta{ justify-content:center; }
   .hero-art{ order:-1; min-height:260px; }
-  .laptop-frame{ max-width:320px; }
+  .hero-upload-device{ max-width:320px; }
+  .hero-upload-glow{ filter:blur(28px); opacity:0.65; }
 }
 @media(max-width:560px){
   .hero-v2 h1{ font-size:clamp(1.7rem, 8vw, 2.2rem); }
+  .hero-upload-particles, .hero-upload-reflection{ display:none; }
+}
+@media(prefers-reduced-motion: reduce){
+  .hero-upload-device.pulse-success{ animation:none; }
 }
 
 /* ===== Category tab navigation ===== */
@@ -2410,10 +2676,14 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
     </div>
   </div>
   <div class="hero-art">
-    <div class="laptop-frame">
+    <div class="hero-upload-glow" aria-hidden="true"></div>
+    <div class="hero-upload-particles" aria-hidden="true"></div>
+    <div class="hero-upload-device" id="heroUploadDevice">
+      <div class="hero-upload-reflection" aria-hidden="true"></div>
       <div class="laptop-screen">
         <div class="laptop-screen-brand" aria-hidden="true"><span class="mini-mark"></span>YOYOPDF</div>
         <div class="mock-dropzone" id="heroDropzone" role="button" tabindex="0" aria-label="Drop a PDF here, or activate to choose a file">
+          <div class="mock-dz-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></div>
           <div class="mock-dz-title" id="heroDzTitle">Drop your PDF here</div>
           <div class="mock-dz-or" id="heroDzOr">or</div>
           <button type="button" class="mock-choose-btn" id="heroMockChooseBtn">Choose File</button>
@@ -2645,7 +2915,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
      TOOLS.sign/TOOLS.fillform had zero effect in a browser tab that had
      already loaded the old version, even after a hard reload). Bump the
      number whenever js/app.js changes. -->
-<script src="js/app.js?v=97"></script>
+<script src="js/app.js?v=110"></script>
 
 <!-- Sticky Live Activity Bar: config first, then the component itself. -->
 <script src="config/trustStatusBar.js?v=2"></script>
