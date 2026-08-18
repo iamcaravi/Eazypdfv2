@@ -179,6 +179,117 @@ function initDockMagnify(container, itemSelector, opts={}){
   container.addEventListener("pointerleave", onLeave, {passive:true});
 }
 
+/* ---------------- Global download-click animation ----------------
+   ONE reusable, GSAP-based "premium click receipt" system layered on top
+   of every existing download action in the app - it never touches
+   href/download attributes, blob URLs, downloadBlob(), or resultBox()
+   itself, it just reacts visually to the click. A single delegated
+   listener on `document` (capture phase, added once here) detects any
+   click landing on/inside an element matching .dl-link -
+   resultBox()'s own download <a>, the ONE shared function every tool's
+   result screen already funnels through (confirmed: every downloadBlob()
+   call site across all 39 tools ends up rendering through resultBox(),
+   which always creates `a.dl-link.dl-link-primary` - there is no second,
+   parallel download-button implementation anywhere in this file). That
+   means this needed zero per-tool changes and automatically covers
+   buttons that don't exist yet at page load (dynamically-built result
+   screens) via event delegation, not per-element listeners.
+   [data-yoyo-download] / [data-action="download"] are also matched, as a
+   forward-compatible identifier for any future download control that
+   doesn't happen to be a .dl-link, per the brief's own request - unused
+   today, costs nothing to support.
+   Deliberately uses YOYOPDF's neon green directly (--accent-lime-rgb,
+   defined on bare :root, not the theme-flipped --brand-shadow-rgb) so
+   this interaction always reads as the site's signature color regardless
+   of light/dark theme - same call already made for the hero upload
+   panel's glow system. */
+const DownloadClickFX = (function(){
+  const SELECTOR = ".dl-link, [data-yoyo-download], [data-action='download']";
+
+  // Spawns one throwaway FX element at (x,y), driven entirely by the CSS
+  // @keyframes animation already declared on `className` (see index.html)
+  // rather than a GSAP tween - so it starts rendering the instant it's
+  // inserted, with no dependency on GSAP's rAF ticker ticking. Cleanup is
+  // double-redundant: the normal path is the 'animationend' event, with
+  // a setTimeout as a safety net in case that event is ever missed (e.g.
+  // the element gets display:none'd by something else mid-animation) -
+  // either way it's removed, never left behind.
+  function spawnFx(className, x, y, size, fallbackMs){
+    const el = document.createElement("span");
+    el.className = className;
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    // Sized from the BUTTON's own measured rect, not a fixed px value in
+    // the stylesheet - the earlier version hardcoded an 18px dot scaled
+    // to 3x (54px total) on a ~250px-wide download button, which is why
+    // the ripple was technically animating but read as "nothing visibly
+    // happened". Scaling to the real control makes it unmistakable on a
+    // big primary Download button and still proportionate on a small one.
+    el.style.width = size + "px";
+    el.style.height = size + "px";
+    el.style.marginLeft = (-size/2) + "px";
+    el.style.marginTop = (-size/2) + "px";
+    document.body.appendChild(el);
+    let done = false;
+    const cleanup = ()=>{ if(done) return; done = true; el.remove(); };
+    el.addEventListener("animationend", cleanup);
+    setTimeout(cleanup, fallbackMs);
+  }
+
+  function playClickFX(target, clientX, clientY){
+    // Tactile press/settle. GSAP (already used throughout the app's own
+    // interaction system) drives it when available; a plain CSS
+    // transition is the fallback for the otherwise-unreachable case
+    // where it isn't, so the press itself never silently no-ops.
+    if(window.gsap){
+      gsap.killTweensOf(target);
+      gsap.timeline()
+        .to(target, {scale:0.96, duration:0.07, ease:"power2.out"})
+        .to(target, {scale:1, duration:0.18, ease:"back.out(2)"});
+    } else {
+      target.style.transition = "transform .18s cubic-bezier(.34,1.56,.64,1)";
+      target.style.transform = "scale(0.96)";
+      requestAnimationFrame(()=>{ target.style.transform = "scale(1)"; });
+    }
+
+    if(MOTION.reduced) return;
+
+    const rect = target.getBoundingClientRect();
+    // Fixed-position viewport coordinates, NOT relative to the button -
+    // these three elements live on document.body rather than inside
+    // target, specifically so the ring can expand past the button's own
+    // edges instead of being clipped to it (a ripple confined inside a
+    // button this small read as barely-there). Falls back to the
+    // button's center for a keyboard-triggered Enter/Space activation,
+    // which has no real click coordinates.
+    const originX = (clientX!=null) ? clientX : rect.left + rect.width/2;
+    const originY = (clientY!=null) ? clientY : rect.top + rect.height/2;
+
+    const maxDim = Math.max(rect.width, rect.height, 40);
+    spawnFx("dl-click-ripple", originX, originY, maxDim * 1.15, 900);
+    spawnFx("dl-click-ring",   originX, originY, maxDim * 1.9,  950);
+    spawnFx("dl-click-flash",  originX, originY, maxDim * 1.5,  500);
+  }
+
+  // Capture phase so this fires reliably even if some tool-specific
+  // handler further down the tree calls stopPropagation() on the bubble
+  // phase - never calls preventDefault/stopPropagation itself, so the
+  // native download (the <a>'s own default action) always still happens.
+  document.addEventListener("click", function(e){
+    const target = e.target.closest && e.target.closest(SELECTOR);
+    if(!target) return;
+    // MouseEvent.detail is 0 for a keyboard-triggered click (Enter/Space)
+    // and >=1 for a real mouse/touch click - the standard way to tell
+    // them apart on the SAME click event, rather than guessing from
+    // clientX/clientY (which keyboard activation sets to 0,0, a value a
+    // real click near the viewport corner could also produce).
+    const isKeyboard = e.detail === 0;
+    playClickFX(target, isKeyboard ? null : e.clientX, isKeyboard ? null : e.clientY);
+  }, true);
+
+  return { playClickFX };
+})();
+
 /* ---------------- Tool registry ---------------- */
 const CATEGORIES = [
   { id:"convert", title:"Convert", tools:[
@@ -861,6 +972,29 @@ const FileBridge = {
       db.close();
       return files;
     }catch(e){ return null; }
+  },
+  /* Drops any pending entry WITHOUT reading it. stash() is only ever
+     paired with a consume() on the very next page load, so an entry that
+     is still sitting here on any OTHER load means that bridge navigation
+     never completed (tab closed mid-hop, navigation abandoned, the
+     ?bridge=1 query lost) - i.e. a File the user never asked to carry
+     forward, left in persistent storage indefinitely. That matters most
+     under file://, where every local document shares one origin and this
+     store outlives the tab, so a single abandoned bridge could keep a
+     stale File reachable on later visits. Called on every tool load that
+     is NOT an explicit bridge consume (see the init block at the bottom
+     of this file), which is what guarantees "direct open == brand-new
+     first visit, no carry-over, ever". */
+  async clear(){
+    try{
+      const db = await this._open();
+      await new Promise((resolve, reject)=>{
+        const tx = db.transaction(this.STORE, "readwrite");
+        tx.objectStore(this.STORE).delete(this.KEY);
+        tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }catch(e){ /* best-effort - see comment above */ }
   }
 };
 function syncHomeRoute(replace){
@@ -890,6 +1024,10 @@ window.addEventListener('popstate', ()=>{
    landing-first state a real fresh load would have produced. */
 window.addEventListener('pageshow', (e)=>{
   if(!e.persisted) return;
+  // Same hard reset the initial-load path does - a bfcache restore hands
+  // back the exact heap this tab had when it was left (including a
+  // populated AppSession), and no init code re-runs to clear it.
+  AppSession.clear();
   const id = window.__currentToolId;
   if(id && TOOLS[id] && overlay.classList.contains('open')) TOOLS[id]();
 });
@@ -1690,12 +1828,23 @@ function suffixedName(file, suffix, ext){
  * else becomes JPEG. Shared by every image tool that re-encodes via
  * canvas.toBlob() (Resize/Crop/Watermark/Invert), which previously each
  * duplicated this same two-branch ternary independently.
+ *
+ * PNG and WebP round-trip to themselves (both keep alpha, both are
+ * canvas.toBlob()-encodable in every current browser). GIF has no
+ * canvas-encodable equivalent at all - toBlob() simply doesn't support
+ * "image/gif" - so it falls back to PNG rather than JPEG specifically so
+ * a transparent/animated-frame GIF doesn't get silently flattened onto a
+ * black background the way the old two-branch version did. Everything
+ * else (JPEG and any other opaque format) becomes JPEG, as before.
  * @param {File} file - the original uploaded image file.
- * @returns {{mime: "image/png"|"image/jpeg", ext: "png"|"jpg"}}
+ * @returns {{mime: "image/png"|"image/webp"|"image/jpeg", ext: "png"|"webp"|"jpg"}}
  */
 function imgOutputFormat(file){
-  const isPng = file.type.includes("png");
-  return {mime: isPng ? "image/png" : "image/jpeg", ext: isPng ? "png" : "jpg"};
+  const type = file.type;
+  if(type === "image/png") return {mime:"image/png", ext:"png"};
+  if(type === "image/webp") return {mime:"image/webp", ext:"webp"};
+  if(type === "image/gif") return {mime:"image/png", ext:"png"};
+  return {mime:"image/jpeg", ext:"jpg"};
 }
 function fileInputHTML(accept, multiple, label){
   // Same widget renders two different roles: the big empty-state CTA
@@ -8982,31 +9131,84 @@ TOOLS.imgresize = function(){
   });
 };
 
+/* ---- CROP IMAGE ----
+   Matches the Crop PDF workspace redesign: normalized (0..1) coordinates
+   relative to the DISPLAYED image element's own box, so the selection
+   stays correct across zoom/resize/DPI for free - no canvas-pixel/zoom
+   math needed. The image itself is a real <img> (not a canvas redraw),
+   so on-screen display is always crisp regardless of zoom; the actual
+   crop output is drawn fresh from imgRef at its ORIGINAL natural pixel
+   size (never from whatever downscaled/zoomed size happened to be on
+   screen), so cropping a 4000px photo never silently degrades it to
+   whatever the editor's display width was capped at. */
 TOOLS.imgcrop = function(){
-  let file=null, imgRef=null, dispScale=1, rect=null, bgImageData=null, loadToken=0;
+  let file=null, imgRef=null, objectUrl=null, loadToken=0;
+  let normRect=null; // {x0,y0,x1,y1} 0..1, fractions of the displayed image box
+  let zoom=1; // multiplier over the computed "fit" width
+  let activeRatio=null; // target pixel width/height, or null = free
+  let rectEl=null;
+  const MIN_SIZE=0.02;
+
   openPanel(`
     <div class="panel-head"><h3>Crop Image</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgcropBody">
       <div class="tool-hero" id="imgcropHero">
         <h2 class="tool-hero-title">Crop Image</h2>
-        <p class="tool-hero-desc">Drag to draw a selection, then use the corner/edge handles to fine-tune it.</p>
+        <p class="tool-hero-desc">Click and drag to select the area you want to keep, then fine-tune it with the handles.</p>
       </div>
       <div class="tool-upload-wrap" id="imgcropUploadWrap">
         ${fileInputHTML("image/*", false, "Select image")}
       </div>
       <p class="tool-privacy-hint" id="imgcropPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-app-workspace" id="imgcropWorkspace" style="display:none">
-        <div class="tool-main-pane">
-          <div class="crop-stage tool-content-area" id="cropStage">
-            <canvas id="cropCanvas"></canvas>
+      <div class="tool-app-workspace imgcrop-app-workspace" id="imgcropWorkspace" style="display:none">
+        <div class="tool-main-pane imgcrop-main-pane">
+          <div class="imgcrop-zoom">
+            <button type="button" class="imgcrop-zoom-btn" id="imgZoomOut" aria-label="Zoom out">−</button>
+            <span class="imgcrop-zoom-level" id="imgZoomLevel">100%</span>
+            <button type="button" class="imgcrop-zoom-btn" id="imgZoomIn" aria-label="Zoom in">+</button>
+            <button type="button" class="imgcrop-zoom-fit" id="imgZoomFit">Fit</button>
           </div>
-          <div class="mono" id="cropReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
+          <div class="imgcrop-viewport" id="imgcropViewport">
+            <div class="imgcrop-canvas-wrap" id="imgcropCanvasWrap">
+              <img id="imgcropImg" alt="" draggable="false">
+              <div class="imgcrop-select-layer" id="imgcropSelectLayer"></div>
+            </div>
+          </div>
         </div>
-        <aside class="tool-side-panel">
+        <aside class="tool-side-panel imgcrop-side-panel">
           <h3 class="tool-side-panel-title">Crop Image</h3>
-          <div id="imgcropFileSlot"></div>
-          <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
-          <button class="btn tool-toolbar-primary" id="go">Crop Image</button>
+          <div class="imgcrop-file-card">
+            <div class="imgcrop-file-thumb" id="imgcropThumb"></div>
+            <div class="imgcrop-file-meta">
+              <div class="imgcrop-file-name" id="imgcropFileName"></div>
+              <div class="imgcrop-file-dims" id="imgcropFileDims"></div>
+            </div>
+            <button type="button" class="imgcrop-file-remove" id="imgcropRemove" aria-label="Remove image">✕</button>
+          </div>
+          <div class="imgcrop-instruction-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></svg>
+            <div>
+              <strong>Click and drag to select the area you want to keep.</strong>
+              <p>Resize with its corner/edge handles, or drag inside it to move it.</p>
+            </div>
+          </div>
+          <div>
+            <span class="tool-side-panel-section-label">Aspect ratio</span>
+            <div class="imgcrop-ratio-grid" id="imgcropRatioGrid" style="margin-top:6px;">
+              <button type="button" class="imgcrop-ratio-btn active" data-ratio="free">Free</button>
+              <button type="button" class="imgcrop-ratio-btn" data-ratio="1:1">1:1</button>
+              <button type="button" class="imgcrop-ratio-btn" data-ratio="4:5">4:5</button>
+              <button type="button" class="imgcrop-ratio-btn" data-ratio="16:9">16:9</button>
+              <button type="button" class="imgcrop-ratio-btn" data-ratio="3:2">3:2</button>
+              <button type="button" class="imgcrop-ratio-btn" data-ratio="original">Original</button>
+            </div>
+          </div>
+          <label class="imgcrop-lock-row"><input type="checkbox" id="imgcropLock"> Lock ratio while resizing</label>
+          <div class="split-error" id="imgcropError" hidden></div>
+          <div class="imgcrop-side-actions">
+            <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
+            <button class="btn tool-toolbar-primary" id="go" disabled>Crop Image →</button>
+          </div>
         </aside>
       </div>
       <div id="out"></div>
@@ -9016,8 +9218,26 @@ TOOLS.imgcrop = function(){
   const uploadWrap = document.getElementById("imgcropUploadWrap");
   const privacyHint = document.getElementById("imgcropPrivacyHint");
   const workspace = document.getElementById("imgcropWorkspace");
-  const fileSlot = document.getElementById("imgcropFileSlot");
   const body = document.getElementById("imgcropBody");
+  const errorBox = document.getElementById("imgcropError");
+  const goBtn = document.getElementById("go");
+  const resetBtn = document.getElementById("resetCrop");
+  const viewport = document.getElementById("imgcropViewport");
+  const canvasWrap = document.getElementById("imgcropCanvasWrap");
+  const imgEl = document.getElementById("imgcropImg");
+  const selectLayer = document.getElementById("imgcropSelectLayer");
+  const zoomInBtn = document.getElementById("imgZoomIn");
+  const zoomOutBtn = document.getElementById("imgZoomOut");
+  const zoomFitBtn = document.getElementById("imgZoomFit");
+  const zoomLevelEl = document.getElementById("imgZoomLevel");
+  const lockCheckbox = document.getElementById("imgcropLock");
+  const ratioBtns = [...document.querySelectorAll(".imgcrop-ratio-btn")];
+
+  function showError(msg){
+    if(msg){ errorBox.innerHTML = `<span aria-hidden="true">⚠️</span><span>${msg}</span>`; errorBox.hidden=false; }
+    else { errorBox.hidden=true; errorBox.innerHTML=""; }
+  }
+  function updateGoState(){ goBtn.disabled = !file; }
 
   function showEmptyState(){
     hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
@@ -9028,95 +9248,310 @@ TOOLS.imgcrop = function(){
     hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
     workspace.style.display="flex";
     body.classList.add("is-loaded");
+    motionEnter([document.querySelector(".imgcrop-side-panel")], {fromY:10, duration:MOTION.fast});
   }
 
-  const cropState = {
-    rect: null,
-    redraw(){
-      const canvas = document.getElementById("cropCanvas");
-      const ctx = canvas.getContext("2d");
-      ctx.putImageData(bgImageData, 0, 0);
-      rect = cropState.rect;
-      if(rect && rect.w>0 && rect.h>0){
-        ctx.save();
-        ctx.fillStyle="rgba(0,0,0,0.4)";
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.putImageData(bgImageData, 0, 0, rect.x, rect.y, rect.w, rect.h);
-        ctx.strokeStyle="#E8291B"; ctx.lineWidth=2;
-        ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
-        drawCropHandles(ctx, rect);
-        ctx.restore();
-      }
-      const r = document.getElementById("cropReadout");
-      if(r){
-        if(rect && rect.w>0 && rect.h>0){
-          const ow=Math.round(rect.w/dispScale), oh=Math.round(rect.h/dispScale);
-          const ox=Math.round(rect.x/dispScale), oy=Math.round(rect.y/dispScale);
-          r.textContent = `Selection: ${ow} × ${oh}px at (${ox}, ${oy})`;
-        } else {
-          r.textContent = "Drag on the image above to select an area (defaults to the full image).";
-        }
-      }
-    }
-  };
+  function setActiveRatioBtn(key){
+    ratioBtns.forEach(b=>b.classList.toggle("active", b.dataset.ratio===key));
+  }
+  function resetImageState(){
+    if(objectUrl){ URL.revokeObjectURL(objectUrl); objectUrl=null; }
+    imgRef=null; normRect=null; zoom=1; activeRatio=null;
+    if(rectEl){ rectEl.remove(); rectEl=null; }
+    lockCheckbox.checked=false;
+    setActiveRatioBtn("free");
+  }
+  function removeFile(){
+    loadToken++;
+    file=null;
+    resetImageState();
+    showEmptyState();
+  }
+  document.getElementById("imgcropRemove").addEventListener("click", removeFile);
 
   wireDropzone(async fs=>{
     // See Split PDF's identical guard.
     const myToken = ++loadToken;
     file=fs[0];
-    renderFileList([file], ()=>{
-      loadToken++;
-      file=null; imgRef=null;
-      document.getElementById("cropReadout").textContent="";
-      showEmptyState();
-    });
-    fileSlot.appendChild(document.getElementById("flist"));
-    // See Resize Image's identical fix - was unguarded, silently stuck
-    // the panel forever on a corrupt/unreadable file.
-    let loadedImg;
-    try{ loadedImg = await loadImage(file); }
-    catch(e){
+    showError(null); updateGoState();
+    let loadedImg, newUrl;
+    try{
+      newUrl = URL.createObjectURL(file);
+      loadedImg = await new Promise((res,rej)=>{
+        const img=new Image();
+        img.onload=()=>res(img);
+        img.onerror=()=>rej(new Error(`Could not read "${file.name}" as an image - it may be corrupt or an unsupported format.`));
+        img.src=newUrl;
+      });
+    }catch(e){
+      if(newUrl) URL.revokeObjectURL(newUrl);
       if(myToken !== loadToken) return;
       toast(e.message || "Could not read this image file");
-      file=null; imgRef=null;
-      document.getElementById("cropReadout").textContent="";
+      file=null;
       showEmptyState();
       return;
     }
-    if(myToken !== loadToken) return;
+    if(myToken !== loadToken){ URL.revokeObjectURL(newUrl); return; }
+    resetImageState();
+    objectUrl = newUrl;
     imgRef = loadedImg;
     const qp = document.getElementById("quickPreview"); if(qp) qp.innerHTML = "";
-    const canvas = document.getElementById("cropCanvas");
-    const maxW = 700; // wider cap than before - the main pane has real room now, not a small centered column
-    dispScale = Math.min(1, maxW/imgRef.width);
-    canvas.width = Math.round(imgRef.width*dispScale);
-    canvas.height = Math.round(imgRef.height*dispScale);
-    canvas.getContext("2d").drawImage(imgRef, 0, 0, canvas.width, canvas.height);
-    bgImageData = canvas.getContext("2d").getImageData(0,0,canvas.width,canvas.height);
-    cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
-    cropState.redraw();
+    imgEl.src = objectUrl;
+    const thumb = document.getElementById("imgcropThumb");
+    thumb.innerHTML = "";
+    const thumbImg = document.createElement("img"); thumbImg.src = objectUrl; thumb.appendChild(thumbImg);
+    document.getElementById("imgcropFileName").textContent = file.name;
+    document.getElementById("imgcropFileDims").textContent = `${imgRef.naturalWidth} × ${imgRef.naturalHeight}px · ${fmtSize(file.size)}`;
     showWorkspace();
-    wireCropCanvas(canvas, cropState);
-    document.getElementById("resetCrop").onclick = ()=>{
-      cropState.rect = {x:0, y:0, w:canvas.width, h:canvas.height};
-      cropState.redraw();
-    };
+    applyZoom();
+    wireSelectLayer();
+    updateGoState();
   });
 
-  document.getElementById("go").addEventListener("click", async ()=>{
+  function applyZoom(){
+    if(!imgRef) return;
+    const availW = Math.max(80, viewport.clientWidth - 48);
+    const availH = Math.max(80, viewport.clientHeight - 48);
+    const aspect = imgRef.naturalWidth / imgRef.naturalHeight;
+    // Capped at the image's own natural width so "fit" (zoom = 1) never
+    // UPSCALES a small image just to fill the viewport - a 200px thumbnail
+    // was being blown up to ~600px and rendering visibly soft. Large
+    // images still scale down to fit as before. Explicit zoom-in past
+    // 100% remains available, since that's user-initiated.
+    const fitW = Math.min(availW, availH*aspect, imgRef.naturalWidth);
+    const w = Math.max(60, Math.round(fitW*zoom));
+    const h = Math.round(w/aspect);
+    canvasWrap.style.width = w+"px";
+    canvasWrap.style.height = h+"px";
+    zoomLevelEl.textContent = Math.round(zoom*100)+"%";
+  }
+  zoomInBtn.addEventListener("click", ()=>{ zoom=Math.min(4, +(zoom*1.25).toFixed(3)); applyZoom(); });
+  zoomOutBtn.addEventListener("click", ()=>{ zoom=Math.max(0.1, +(zoom/1.25).toFixed(3)); applyZoom(); });
+  zoomFitBtn.addEventListener("click", ()=>{ zoom=1; applyZoom(); });
+  window.addEventListener("resize", ()=>{ if(workspace.style.display!=="none") applyZoom(); });
+
+  function ensureRectEl(){
+    if(rectEl) return rectEl;
+    const el = document.createElement("div");
+    el.className = "imgcrop-rect"; el.hidden = true;
+    ["nw","n","ne","e","se","s","sw","w"].forEach(h=>{
+      const hd = document.createElement("div");
+      hd.className = "imgcrop-handle "+h; hd.dataset.handle = h;
+      el.appendChild(hd);
+    });
+    canvasWrap.appendChild(el);
+    rectEl = el;
+    return el;
+  }
+  function redrawRect(animate){
+    if(!normRect){
+      if(rectEl) rectEl.hidden = true;
+      updateGoState();
+      return;
+    }
+    const el = ensureRectEl();
+    el.hidden = false;
+    el.style.left = (normRect.x0*100)+"%";
+    el.style.top = (normRect.y0*100)+"%";
+    el.style.width = ((normRect.x1-normRect.x0)*100)+"%";
+    el.style.height = ((normRect.y1-normRect.y0)*100)+"%";
+    if(animate && window.gsap && !MOTION.reduced){
+      gsap.fromTo(el, {opacity:0, scale:0.98}, {opacity:1, scale:1, duration:MOTION.fast, ease:MOTION.ease.enter, overwrite:"auto"});
+      setTimeout(()=>{ if(el.isConnected){ el.style.opacity=""; el.style.transform=""; } }, 500);
+    }
+    updateGoState();
+  }
+  function pulseRect(el){
+    if(!el || !window.gsap || MOTION.reduced) return;
+    gsap.fromTo(el, {filter:"brightness(1.7)"}, {filter:"brightness(1)", duration:.35, ease:"power2.out", overwrite:"auto"});
+    setTimeout(()=>{ if(el.isConnected) el.style.filter=""; }, 600);
+  }
+
+  // Fraction-space dy-per-dx needed to hold a target PIXEL ratio (w/h) -
+  // a 1:1 PIXEL square is NOT a 1:1 fraction square unless the source
+  // image itself is square, since x-fraction scales by naturalWidth and
+  // y-fraction scales by naturalHeight independently.
+  function fractionK(){
+    if(activeRatio==null || !imgRef) return null;
+    return (imgRef.naturalWidth/imgRef.naturalHeight) / activeRatio;
+  }
+
+  function wireSelectLayer(){
+    let mode=null, handle=null, startPt=null, startRect=null;
+    function localPos(clientX, clientY){
+      const r = canvasWrap.getBoundingClientRect();
+      const x=(clientX-r.left)/r.width, y=(clientY-r.top)/r.height;
+      return {x:Math.max(0,Math.min(1,x)), y:Math.max(0,Math.min(1,y))};
+    }
+    function hitHandle(p){
+      if(!normRect) return null;
+      const pts = {
+        nw:{x:normRect.x0,y:normRect.y0}, n:{x:(normRect.x0+normRect.x1)/2,y:normRect.y0}, ne:{x:normRect.x1,y:normRect.y0},
+        e:{x:normRect.x1,y:(normRect.y0+normRect.y1)/2}, se:{x:normRect.x1,y:normRect.y1}, s:{x:(normRect.x0+normRect.x1)/2,y:normRect.y1},
+        sw:{x:normRect.x0,y:normRect.y1}, w:{x:normRect.x0,y:(normRect.y0+normRect.y1)/2}
+      };
+      const r = canvasWrap.getBoundingClientRect();
+      const tolX = 14/r.width, tolY = 14/r.height;
+      for(const k in pts){ if(Math.abs(p.x-pts[k].x)<=tolX && Math.abs(p.y-pts[k].y)<=tolY) return k; }
+      return null;
+    }
+    function inside(p){
+      if(!normRect) return false;
+      return p.x>normRect.x0 && p.x<normRect.x1 && p.y>normRect.y0 && p.y<normRect.y1;
+    }
+    selectLayer.addEventListener("pointerdown", e=>{
+      if(e.button!=null && e.button!==0) return;
+      try{ selectLayer.setPointerCapture(e.pointerId); }catch(err){}
+      const p = localPos(e.clientX, e.clientY);
+      startPt = p; startRect = normRect ? {...normRect} : null;
+      const h = hitHandle(p);
+      if(h){ mode="resize"; handle=h; }
+      else if(inside(p)){ mode="move"; rectEl && rectEl.classList.add("imgcrop-rect-dragging"); }
+      else {
+        mode = "new";
+        normRect = {x0:p.x, y0:p.y, x1:p.x, y1:p.y};
+        redrawRect(true);
+      }
+    });
+    selectLayer.addEventListener("pointermove", e=>{
+      if(!mode){
+        const p = localPos(e.clientX, e.clientY);
+        if(normRect) selectLayer.style.cursor = hitHandle(p) ? "" : (inside(p) ? "grab" : "crosshair");
+        else selectLayer.style.cursor = "crosshair";
+        return;
+      }
+      const p = localPos(e.clientX, e.clientY);
+      const k = fractionK();
+      if(mode==="new"){
+        if(k!=null){
+          const dx=p.x-startPt.x, dy=p.y-startPt.y;
+          const w=Math.abs(dx), h=w*k;
+          const signX = dx<0?-1:1, signY = dy<0?-1:1;
+          const x1=startPt.x+signX*w, y1=startPt.y+signY*h;
+          normRect = {x0:Math.min(startPt.x,x1), y0:Math.min(startPt.y,y1), x1:Math.max(startPt.x,x1), y1:Math.max(startPt.y,y1)};
+        } else {
+          normRect = {x0:Math.min(startPt.x,p.x), y0:Math.min(startPt.y,p.y), x1:Math.max(startPt.x,p.x), y1:Math.max(startPt.y,p.y)};
+        }
+      } else if(mode==="move"){
+        const dx=p.x-startPt.x, dy=p.y-startPt.y;
+        const w=startRect.x1-startRect.x0, h=startRect.y1-startRect.y0;
+        const x0 = Math.max(0, Math.min(1-w, startRect.x0+dx));
+        const y0 = Math.max(0, Math.min(1-h, startRect.y0+dy));
+        normRect = {x0, y0, x1:x0+w, y1:y0+h};
+      } else if(mode==="resize"){
+        let {x0,y0,x1,y1} = startRect;
+        const dx=p.x-startPt.x, dy=p.y-startPt.y;
+        const isCorner = handle.length===2;
+        if(k!=null && isCorner){
+          // Anchor the corner OPPOSITE the one being dragged; derive
+          // height from the dragged corner's new horizontal distance to
+          // that anchor via the locked ratio, instead of resizing both
+          // dimensions independently.
+          const anchorX = handle.includes("w") ? x1 : x0;
+          const anchorY = handle.includes("n") ? y1 : y0;
+          const draggedX = (handle.includes("w") ? x0 : x1) + dx;
+          const w = Math.max(MIN_SIZE, Math.abs(draggedX-anchorX));
+          const h = w*k;
+          const dirX = draggedX<anchorX ? -1 : 1;
+          const dirY = handle.includes("n") ? -1 : 1;
+          x0 = Math.min(anchorX, anchorX+dirX*w); x1 = Math.max(anchorX, anchorX+dirX*w);
+          y0 = Math.min(anchorY, anchorY+dirY*h); y1 = Math.max(anchorY, anchorY+dirY*h);
+        } else {
+          if(handle.includes("n")) y0 = Math.min(y0+dy, y1-MIN_SIZE);
+          if(handle.includes("s")) y1 = Math.max(y1+dy, y0+MIN_SIZE);
+          if(handle.includes("w")) x0 = Math.min(x0+dx, x1-MIN_SIZE);
+          if(handle.includes("e")) x1 = Math.max(x1+dx, x0+MIN_SIZE);
+        }
+        normRect = {x0:Math.max(0,x0), y0:Math.max(0,y0), x1:Math.min(1,x1), y1:Math.min(1,y1)};
+      }
+      redrawRect(false);
+    });
+    function endDrag(){
+      if(mode && rectEl){ rectEl.classList.remove("imgcrop-rect-dragging"); pulseRect(rectEl); }
+      mode=null; handle=null;
+    }
+    selectLayer.addEventListener("pointerup", endDrag);
+    selectLayer.addEventListener("pointercancel", endDrag);
+  }
+
+  function resetSelection(){
+    normRect = null;
+    if(rectEl) rectEl.hidden = true;
+    updateGoState();
+  }
+  resetBtn.addEventListener("click", resetSelection);
+
+  ratioBtns.forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      setActiveRatioBtn(btn.dataset.ratio);
+      const key = btn.dataset.ratio;
+      if(key==="free"){ activeRatio=null; lockCheckbox.checked=false; }
+      else if(key==="original"){ activeRatio = imgRef ? imgRef.naturalWidth/imgRef.naturalHeight : null; lockCheckbox.checked=true; }
+      else { const [a,b] = key.split(":").map(Number); activeRatio = a/b; lockCheckbox.checked=true; }
+    });
+  });
+  lockCheckbox.addEventListener("change", ()=>{
+    if(lockCheckbox.checked){
+      if(activeRatio==null){
+        // Lock whatever ratio the current selection already has, or a
+        // sensible 1:1 default if nothing's been drawn yet.
+        if(normRect && imgRef){
+          const w=(normRect.x1-normRect.x0)*imgRef.naturalWidth, h=(normRect.y1-normRect.y0)*imgRef.naturalHeight;
+          activeRatio = h>0 ? w/h : 1;
+        } else activeRatio = 1;
+      }
+    } else {
+      activeRatio = null;
+      setActiveRatioBtn("free");
+    }
+  });
+
+  function imgcropKeyHandler(e){
+    if(!workspace.isConnected || workspace.style.display==="none") return;
+    const active = document.activeElement;
+    if(active && /INPUT|TEXTAREA/.test(active.tagName)) return;
+    if((e.key==="Escape" || e.key==="Delete" || e.key==="Backspace") && normRect){
+      resetSelection();
+      e.preventDefault();
+      // Capture-phase + stopPropagation, same reasoning as Crop PDF's
+      // identical guard: without this, the sitewide bubble-phase
+      // Escape-closes-the-panel handler (registered at module load,
+      // long before this tool ever opens) would close the whole panel
+      // on the very same Escape meant to just clear the selection.
+      e.stopPropagation();
+    }
+  }
+  document.addEventListener("keydown", imgcropKeyHandler, true);
+
+  goBtn.addEventListener("click", async ()=>{
+    if(!imgRef) return;
     const out=document.getElementById("out"); out.innerHTML=statusEl("Cropping...");
-    const cx=Math.round(rect.x/dispScale), cy=Math.round(rect.y/dispScale);
-    const cw=Math.max(1,Math.round(rect.w/dispScale)), ch=Math.max(1,Math.round(rect.h/dispScale));
-    const canvas=document.createElement("canvas"); canvas.width=cw; canvas.height=ch;
-    canvas.getContext("2d").drawImage(imgRef, cx,cy,cw,ch, 0,0,cw,ch);
-    const {mime, ext} = imgOutputFormat(file);
-    const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
-    const outName = suffixedName(file, "cropped", ext);
-    setStatus("Preparing download...");
-    const {url}=downloadBlob(blob,outName);
-    const im=document.createElement("img"); im.src=url;
-    setStatus("Done", true);
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
+    goBtn.disabled = true; const goLabel = goBtn.textContent; goBtn.textContent = "Cropping...";
+    try{
+      const nw = imgRef.naturalWidth, nh = imgRef.naturalHeight;
+      const r = normRect || {x0:0, y0:0, x1:1, y1:1};
+      const sx = Math.round(r.x0*nw), sy = Math.round(r.y0*nh);
+      const sw = Math.max(1, Math.round((r.x1-r.x0)*nw)), sh = Math.max(1, Math.round((r.y1-r.y0)*nh));
+      // Always sampled from imgRef at its ORIGINAL natural resolution -
+      // never from the on-screen (possibly zoomed/downscaled) display
+      // size, so the output is never silently degraded below source
+      // quality and editor zoom never upscales the actual crop.
+      const canvas = document.createElement("canvas"); canvas.width=sw; canvas.height=sh;
+      canvas.getContext("2d").drawImage(imgRef, sx,sy,sw,sh, 0,0,sw,sh);
+      const {mime, ext} = imgOutputFormat(file);
+      const blob = await new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Could not export the cropped image.")), mime, 0.92));
+      const outName = suffixedName(file, "cropped", ext);
+      setStatus("Preparing download...");
+      const {url} = downloadBlob(blob, outName);
+      const im = document.createElement("img"); im.src=url;
+      setStatus("Done", true);
+      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
+    }catch(e){
+      out.innerHTML = "";
+      showError("Something went wrong while cropping this image. Please try again.");
+    }finally{
+      goBtn.textContent = goLabel; updateGoState();
+    }
   });
 };
 
@@ -9844,13 +10279,36 @@ HeroDeviceFX = (function(){
       string is stripped so a later reload of this same URL can't
       re-attempt it (harmless either way, since consume() is one-shot). */
 (function(){
+  const isBridgeLoad = new URLSearchParams(location.search).get("bridge") === "1";
+  /* Hard reset of every cross-load file carrier, BEFORE any tool init
+     runs. A direct open of a tool page (typed URL, bookmark, double-
+     clicked .html, ordinary nav click) must behave exactly like a
+     brand-new first visit - so the only sanctioned carrier (FileBridge)
+     is emptied unless this specific load is the one explicit "continue
+     with this file" hop that stashed it. AppSession is in-memory and
+     therefore already empty on a real load, but is cleared here too so
+     the bfcache path below (where no script re-runs) gets the same
+     guarantee from one place. */
+  if(!isBridgeLoad){
+    FileBridge.clear();
+    AppSession.clear();
+  }
   const pathToolId = toolIdForPath(location.pathname);
   if(pathToolId && TOOLS[pathToolId]){
     window.__currentToolId = pathToolId;
     TOOLS[pathToolId]();
     const route = TOOL_ROUTES[pathToolId];
     if(route) setPageMeta(route.title, route.description, route.path);
-    if(new URLSearchParams(location.search).get("bridge") === "1"){
+    /* Browsers restore form-control state (including <input type="file">
+       selections) on a soft reload / session restore. TOOLS[id]() above
+       renders a fresh #fi so that normally can't apply, but this makes
+       the empty starting state explicit and unconditional rather than
+       incidental to render order. */
+    if(!isBridgeLoad){
+      const fi = document.getElementById("fi");
+      if(fi) try{ fi.value = ""; }catch(e){}
+    }
+    if(isBridgeLoad){
       FileBridge.consume().then(files=>{
         if(!files || !files.length) return;
         const fi = document.getElementById("fi");

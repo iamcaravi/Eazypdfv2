@@ -946,6 +946,168 @@ html.panel-open{ overflow:hidden; }
   background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
   padding:20px; display:flex; flex-direction:column; gap:16px;
 }
+/* ===== Crop Image workspace =====
+   TOOLS.imgcrop builds .imgcrop-viewport / .imgcrop-canvas-wrap /
+   #imgcropImg / .imgcrop-select-layer / .imgcrop-rect, but none of those
+   classes had ANY rule anywhere in the project - so the <img> fell back
+   to its intrinsic size and rendered at full natural resolution (a 3000px
+   photo painted 3000px wide), blowing past the workspace and making the
+   whole page scroll sideways. applyZoom() was already computing the
+   correct fit box and writing it to .imgcrop-canvas-wrap's inline
+   width/height; the wrap simply had no styling to pass that constraint
+   down to the image. These rules make the image fill (and stay inside)
+   that computed box, and give the wrap the positioning context that
+   .imgcrop-rect's percentage left/top/width/height already assume, so
+   the selection stays locked to the image at any zoom level. Crop math
+   is untouched - normRect stays a 0..1 fraction of the displayed box. */
+.imgcrop-viewport{
+  position:relative; width:100%; max-width:100%; overflow:auto;
+  min-height:320px; max-height:70vh; display:flex; align-items:center; justify-content:center;
+  padding:24px; box-sizing:border-box;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:12px;
+}
+.imgcrop-canvas-wrap{
+  position:relative; flex:none; max-width:100%;
+  line-height:0; touch-action:none; user-select:none;
+}
+/* The actual fix for the overflow: the image can never exceed the fit box
+   applyZoom() computed on the wrap, regardless of its natural size. */
+#imgcropImg{
+  display:block; width:100%; height:100%; max-width:100%;
+  object-fit:contain; -webkit-user-drag:none; user-select:none;
+}
+.imgcrop-select-layer{ position:absolute; inset:0; cursor:crosshair; }
+.imgcrop-rect{
+  position:absolute; box-sizing:border-box;
+  border:2px solid var(--accent-lime, #9CFF00);
+  box-shadow:0 0 0 9999px rgba(0,0,0,0.45), 0 0 14px rgba(156,255,0,0.35);
+  cursor:move;
+}
+.imgcrop-rect[hidden]{ display:none; }
+.imgcrop-handle{
+  position:absolute; width:11px; height:11px; border-radius:2px;
+  background:var(--accent-lime, #9CFF00); border:1px solid rgba(0,0,0,0.55);
+}
+.imgcrop-handle.nw{ left:-6px; top:-6px; cursor:nwse-resize; }
+.imgcrop-handle.n { left:50%; top:-6px; margin-left:-5px; cursor:ns-resize; }
+.imgcrop-handle.ne{ right:-6px; top:-6px; cursor:nesw-resize; }
+.imgcrop-handle.e { right:-6px; top:50%; margin-top:-5px; cursor:ew-resize; }
+.imgcrop-handle.se{ right:-6px; bottom:-6px; cursor:nwse-resize; }
+.imgcrop-handle.s { left:50%; bottom:-6px; margin-left:-5px; cursor:ns-resize; }
+.imgcrop-handle.sw{ left:-6px; bottom:-6px; cursor:nesw-resize; }
+.imgcrop-handle.w { left:-6px; top:50%; margin-top:-5px; cursor:ew-resize; }
+.imgcrop-zoom{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.imgcrop-zoom-btn, .imgcrop-zoom-fit{
+  background:var(--paper-dim); border:1px solid var(--line); color:var(--ink);
+  border-radius:8px; padding:5px 11px; font-family:inherit; font-size:.85rem; cursor:pointer;
+}
+.imgcrop-zoom-btn:hover, .imgcrop-zoom-fit:hover{ border-color:var(--red); }
+.imgcrop-zoom-level{ font-family:'IBM Plex Mono',monospace; font-size:.8rem; color:var(--ink-soft); min-width:46px; text-align:center; }
+.imgcrop-file-card{ display:flex; align-items:center; gap:10px; background:var(--card-bg); border:1px solid var(--line); border-radius:10px; padding:9px; }
+.imgcrop-file-thumb{ width:40px; height:40px; flex:none; border-radius:6px; overflow:hidden; background:var(--paper-dim); }
+.imgcrop-file-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.imgcrop-file-meta{ min-width:0; flex:1; }
+.imgcrop-file-name{ font-size:.82rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.imgcrop-file-dims{ font-size:.72rem; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
+.imgcrop-file-remove{ flex:none; background:none; border:none; color:var(--ink-soft); cursor:pointer; font-size:.95rem; padding:4px; }
+.imgcrop-file-remove:hover{ color:var(--rose); }
+.imgcrop-instruction-card{ display:flex; gap:10px; background:var(--card-bg); border:1px solid var(--line); border-radius:10px; padding:11px; }
+.imgcrop-instruction-card svg{ width:18px; height:18px; flex:none; color:var(--red); }
+.imgcrop-instruction-card strong{ font-size:.8rem; display:block; }
+.imgcrop-instruction-card p{ margin:3px 0 0; font-size:.75rem; color:var(--ink-soft); line-height:1.45; }
+.imgcrop-ratio-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.imgcrop-ratio-btn{
+  background:var(--card-bg); border:1px solid var(--line); color:var(--ink);
+  border-radius:8px; padding:7px 4px; font-family:inherit; font-size:.78rem; cursor:pointer;
+}
+.imgcrop-ratio-btn:hover{ border-color:var(--red); }
+.imgcrop-ratio-btn.active{ border-color:var(--red); color:var(--red); font-weight:700; }
+.imgcrop-lock-row{ display:flex; align-items:center; gap:8px; font-size:.8rem; color:var(--ink-soft); }
+.imgcrop-side-actions{ display:flex; flex-direction:column; gap:9px; }
+@media(max-width:860px){
+  .imgcrop-viewport{ padding:12px; min-height:240px; max-height:56vh; }
+}
+/* ===== Crop PDF workspace =====
+   Same root cause as the Crop Image block above: TOOLS.crop builds
+   .crop-document-viewport / .crop-page / .crop-page-canvas /
+   .crop-select-layer / .crop-rect, but none of those classes had ANY
+   rule in the project. pdf.js sizes each <canvas> to its own device-pixel
+   bitmap (a 300-DPI A4 page is ~2500px wide), and with no CSS the canvas
+   painted at that intrinsic size - so the page rendered far larger than
+   the workspace and pushed the document sideways. applyZoomWidth() was
+   already computing the correct fit width and writing it to .crop-page's
+   inline max-width; the page/canvas simply had no styling to honour it.
+   These rules make the canvas fill its wrapper (never its bitmap size)
+   and give .crop-page the positioning context .crop-rect's percentage
+   geometry already assumes. Crop math is untouched - localPos() keeps
+   normalising against wrapEl's rect, so selections stay mapped to the
+   original PDF points at any zoom. */
+.crop-document-viewport{
+  position:relative; width:100%; max-width:100%; overflow:auto;
+  min-height:340px; max-height:72vh; padding:16px; box-sizing:border-box;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:12px;
+}
+.crop-document{ display:flex; flex-direction:column; align-items:center; gap:18px; width:100%; }
+.crop-page{
+  position:relative; width:100%; max-width:100%; flex:none;
+  background:var(--card-bg); border:1px solid var(--line); border-radius:8px;
+  box-shadow:0 6px 18px -10px rgba(0,0,0,0.5); overflow:hidden; line-height:0;
+  touch-action:none; user-select:none;
+}
+/* The actual fix: the canvas can never exceed the fit width applyZoomWidth()
+   computed on .crop-page, regardless of pdf.js's bitmap resolution. */
+.crop-page-canvas{ display:block; width:100%; height:100%; }
+.crop-page-loading{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:.8rem; color:var(--ink-soft); line-height:normal;
+}
+.crop-page.crop-page-rendered .crop-page-loading{ display:none; }
+.crop-page-num{
+  position:absolute; right:8px; bottom:8px; z-index:3; pointer-events:none;
+  font-family:'IBM Plex Mono',monospace; font-size:.7rem; line-height:normal;
+  background:rgba(0,0,0,0.6); color:#fff; padding:2px 7px; border-radius:20px;
+}
+.crop-page.crop-page-active{ border-color:rgba(var(--brand-shadow-rgb),0.55); }
+.crop-select-layer{ position:absolute; inset:0; z-index:2; cursor:crosshair; }
+.crop-rect{
+  position:absolute; box-sizing:border-box;
+  border:2px solid var(--accent-lime, #9CFF00);
+  box-shadow:0 0 0 9999px rgba(0,0,0,0.45), 0 0 14px rgba(156,255,0,0.35);
+  cursor:move;
+}
+.crop-rect[hidden]{ display:none; }
+.crop-handle{
+  position:absolute; width:11px; height:11px; border-radius:2px;
+  background:var(--accent-lime, #9CFF00); border:1px solid rgba(0,0,0,0.55);
+}
+.crop-handle.nw{ left:-6px; top:-6px; cursor:nwse-resize; }
+.crop-handle.n { left:50%; top:-6px; margin-left:-5px; cursor:ns-resize; }
+.crop-handle.ne{ right:-6px; top:-6px; cursor:nesw-resize; }
+.crop-handle.e { right:-6px; top:50%; margin-top:-5px; cursor:ew-resize; }
+.crop-handle.se{ right:-6px; bottom:-6px; cursor:nwse-resize; }
+.crop-handle.s { left:50%; bottom:-6px; margin-left:-5px; cursor:ns-resize; }
+.crop-handle.sw{ left:-6px; bottom:-6px; cursor:nesw-resize; }
+.crop-handle.w { left:-6px; top:50%; margin-top:-5px; cursor:ew-resize; }
+.crop-zoom{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.crop-zoom-btn{
+  background:var(--paper-dim); border:1px solid var(--line); color:var(--ink);
+  border-radius:8px; padding:5px 11px; font-family:inherit; font-size:.85rem; cursor:pointer;
+}
+.crop-zoom-btn:hover{ border-color:var(--red); }
+.crop-zoom-level, .crop-page-indicator{
+  font-family:'IBM Plex Mono',monospace; font-size:.8rem; color:var(--ink-soft);
+}
+.crop-page-indicator{ margin-left:auto; }
+.crop-instruction-card{ display:flex; gap:10px; background:var(--card-bg); border:1px solid var(--line); border-radius:10px; padding:11px; }
+.crop-instruction-card svg{ width:18px; height:18px; flex:none; color:var(--red); }
+.crop-instruction-card strong{ font-size:.8rem; display:block; }
+.crop-instruction-card p{ margin:3px 0 0; font-size:.75rem; color:var(--ink-soft); line-height:1.45; }
+.crop-scope{ display:flex; flex-direction:column; gap:7px; }
+.crop-scope-option{ display:flex; align-items:center; gap:8px; font-size:.82rem; cursor:pointer; }
+.crop-side-actions{ display:flex; flex-direction:column; gap:9px; }
+@media(max-width:860px){
+  .crop-document-viewport{ padding:10px; min-height:260px; max-height:58vh; }
+}
 .tool-side-panel-title{ font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:1.1rem; margin:0; }
 .tool-side-panel-section-label{ font-size:0.82rem; font-weight:600; display:block; margin-bottom:2px; }
 .tool-side-panel .tool-toolbar-primary{ width:100%; }
@@ -1520,10 +1682,69 @@ html.panel-open{ overflow:hidden; }
 .dl-link{
   display:inline-flex; align-items:center; gap:8px; background:var(--ochre); color:var(--btn-ink);
   padding:11px 16px; border-radius:9px; text-decoration:none; font-weight:600; font-size:0.9rem; width:fit-content;
+  position:relative; overflow:hidden; isolation:isolate; transform-origin:center; will-change:transform;
 }
 .dl-link-primary{
   background:var(--red); padding:14px 24px; font-size:1rem; border-radius:10px;
   box-shadow:0 8px 20px -8px rgba(232,41,27,0.5);
+}
+/* ===== Global download-click animation (DownloadClickFX in app.js) =====
+   Three short-lived elements per click, all appended to document.body
+   (NOT inside the button - so the ring can visibly expand past the
+   button's own edges instead of being clipped to it) and positioned at
+   the exact click point via left/top + a centering negative margin.
+   Deliberately pure CSS @keyframes (not GSAP-tweened opacity/scale) so
+   the effect is driven by the browser's own animation engine the instant
+   the element is inserted - it does not wait on GSAP's rAF ticker to
+   render a first frame, which is what made the effect intermittently
+   invisible before (a tab/rAF hiccup on that very first tick left the
+   element stuck at its CSS resting opacity:0 with nothing to move it).
+   app.js still does the cleanup (removes each element after its
+   animation finishes, via 'animationend' with a setTimeout fallback) -
+   nothing here persists in the DOM. Deliberately hardcoded neon green
+   (rgba(156,255,0,...) == --accent-lime-rgb) rather than the
+   theme-flipped --red/--ochre this button itself uses, so the click
+   "receipt" always reads as YOYOPDF's signature color even in the light
+   theme, matching the same choice already made for the hero upload
+   panel. */
+/* Each element's PIXEL size is set inline by spawnFx() from the button's
+   own measured rect, so these keyframes only drive scale 0 -> 1 (and the
+   fade). That keeps the burst proportional to whatever control was
+   clicked instead of a fixed, too-small px value. */
+@keyframes dlClickRipple{
+  0%{ transform:scale(0); opacity:0.85; }
+  100%{ transform:scale(1); opacity:0; }
+}
+@keyframes dlClickRing{
+  0%{ transform:scale(0.12); opacity:0.95; }
+  70%{ opacity:0.35; }
+  100%{ transform:scale(1); opacity:0; }
+}
+@keyframes dlClickFlash{
+  0%{ transform:scale(0.6); opacity:0; }
+  25%{ transform:scale(1); opacity:1; }
+  100%{ transform:scale(1.05); opacity:0; }
+}
+.dl-click-ripple{
+  position:fixed; border-radius:50%;
+  background:radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(156,255,0,0.8) 40%, rgba(156,255,0,0.25) 65%, transparent 78%);
+  opacity:0; pointer-events:none; z-index:9999;
+  animation:dlClickRipple 0.55s cubic-bezier(.22,.61,.36,1) forwards;
+}
+.dl-click-ring{
+  position:fixed; border-radius:50%; box-sizing:border-box;
+  border:3px solid rgba(156,255,0,0.95); box-shadow:0 0 18px rgba(156,255,0,0.7), inset 0 0 12px rgba(156,255,0,0.35);
+  opacity:0; pointer-events:none; z-index:9999;
+  animation:dlClickRing 0.6s cubic-bezier(.22,.61,.36,1) forwards;
+}
+.dl-click-flash{
+  position:fixed; border-radius:50%;
+  background:radial-gradient(circle, rgba(156,255,0,0.55), rgba(156,255,0,0.18) 50%, transparent 72%);
+  filter:blur(6px); opacity:0; pointer-events:none; z-index:9998;
+  animation:dlClickFlash 0.32s ease-out forwards;
+}
+@media(prefers-reduced-motion: reduce){
+  .dl-click-ripple, .dl-click-ring, .dl-click-flash{ animation:none; display:none; }
 }
 .next-tool-cta{
   display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
@@ -2737,7 +2958,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
      TOOLS.sign/TOOLS.fillform had zero effect in a browser tab that had
      already loaded the old version, even after a hard reload). Bump the
      number whenever js/app.js changes. -->
-<script src="js/app.js?v=110"></script>
+<script src="js/app.js?v=119"></script>
 
 <!-- Sticky Live Activity Bar: config first, then the component itself. -->
 <script src="config/trustStatusBar.js?v=2"></script>
