@@ -85,8 +85,6 @@
 }</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<!-- Sticky Live Activity Bar (replaces the old footer visitor-badge embed) -->
-<link rel="stylesheet" href="css/trust-status-bar.css?v=2">
 <!-- pdf-lib and pdf.js stay eager/blocking: js/app.js references PDFLib/
      pdfjsLib synchronously at its very top (`const {PDFDocument,...} =
      PDFLib`), and (like any non-module script) runs in document order
@@ -369,7 +367,7 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .overlay.open{display:flex;}
 
-/* ===== Quick Tools Rail (global, macOS-Dock-inspired, vertical) =====
+/* ===== Quick Tools Rail (global, macOS-Dock-inspired, horizontal) =====
    Lives outside .overlay/.qa-overlay in the DOM so it's the same single
    persistent element on every page (homepage, any of the 39 tool panels,
    result screens) rather than being torn down and rebuilt per view -
@@ -377,35 +375,35 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
    open, but below header(150)/toast+qa-overlay(200) so a real blocking
    modal still wins. JS reduces (not hides) it during the fullscreen
    editor (.panel-fullscreen) since the editor's own controls live on the
-   right/top, not the far left, so the rail there is normally clear.
+   top, not the bottom, so the dock there is normally clear.
    Transform ownership (see js/app.js's initQuickDock comment for the
-   full reasoning - this was a real bug the first, horizontal build hit):
-   entrance owns opacity+scale only; hover-proximity owns the rail's own
-   `x`; nothing else ever touches those two properties on #quickDock.
-   top is a fixed offset below the header, not 50%/translateY-centered -
-   on a page-centered rail, a short viewport (a real 13" laptop, or any
-   window with less than ~700px of height) pushed the rail's own top
-   upward into the header's own vertical space, overlapping the logo.
-   Anchoring a fixed distance below the header instead makes that
-   overlap structurally impossible regardless of viewport height, and
-   matches the requested logo-then-dock vertical composition directly. */
+   full reasoning): entrance owns opacity+scale+x; hover-proximity owns
+   the dock's own `y` (a small vertical lift) - the two never touch the
+   same property, so they can't fight. Horizontal centering is a THIRD,
+   separate transform component (xPercent:-50, set once in JS and never
+   re-touched by either of those - see initQuickDock) layered on top of
+   both without conflict; the plain CSS transform below is only the
+   pre-JS/no-JS fallback for that same centering.
+   bottom is a fixed offset from the viewport edge (not literally 16-24px
+   variable - picked a single value in that range), consistent with the
+   "floating dock, not a full-width bar" brief: width:fit-content plus
+   left:50%+translateX(-50%) keeps it centered and only as wide as its
+   own icons regardless of viewport width. */
 #quickDock{
-  position:fixed; left:16px; top:104px; z-index:130;
-  display:flex; flex-direction:column; align-items:center; gap:6px;
-  padding:8px 6px; border-radius:18px; width:52px;
-  background:rgba(16,16,16,0.62); backdrop-filter:blur(20px) saturate(160%); -webkit-backdrop-filter:blur(20px) saturate(160%);
-  border:1px solid rgba(255,255,255,0.10);
-  box-shadow:0 20px 50px -18px rgba(0,0,0,0.55), inset 0 1px 0 0 rgba(255,255,255,0.06);
+  position:fixed; left:50%; bottom:20px; transform:translateX(-50%); z-index:130;
+  display:flex; flex-direction:row; align-items:center; gap:6px;
+  padding:0; border-radius:0; width:fit-content;
+  background:none; backdrop-filter:none; -webkit-backdrop-filter:none;
+  border:none; box-shadow:none;
   opacity:0; visibility:hidden; pointer-events:none;
 }
-[data-theme="light"] #quickDock{ background:rgba(255,255,255,0.82); border-color:rgba(0,0,0,0.08); box-shadow:0 8px 30px -10px rgba(0,0,0,0.14), inset 0 1px 0 0 rgba(255,255,255,0.6); }
 #quickDock.is-ready{ opacity:1; visibility:visible; pointer-events:auto; }
 #quickDock.is-reduced{ opacity:0.45; }
 .qd-icon{
   position:relative; flex:none; width:38px; height:38px; border-radius:11px;
   background:var(--paper-dim); border:none; cursor:pointer; padding:0;
   display:flex; align-items:center; justify-content:center;
-  transform-origin:center left; will-change:transform;
+  transform-origin:center bottom; will-change:transform;
   color:var(--red);
 }
 .qd-icon svg{ width:17px; height:17px; }
@@ -413,15 +411,18 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 .qd-icon:focus-visible{ outline:2px solid var(--accent-cyan); outline-offset:3px; }
 .qd-more{ color:var(--ink-soft); background:rgba(255,255,255,0.06); }
 [data-theme="light"] .qd-more{ background:rgba(0,0,0,0.045); color:var(--ink-soft); }
-.qd-divider{ height:1px; align-self:stretch; margin:2px 4px; background:rgba(255,255,255,0.12); flex:none; }
+/* Was a horizontal rule between rows in the vertical column; now a
+   vertical rule between columns in the horizontal row - same divider,
+   same role, rotated to match. */
+.qd-divider{ width:1px; align-self:stretch; margin:4px 2px; background:rgba(255,255,255,0.12); flex:none; }
 [data-theme="light"] .qd-divider{ background:rgba(0,0,0,0.10); }
 .qd-tooltip{
-  position:absolute; left:calc(100% + 12px); top:50%; transform:translateY(-50%) translateX(-6px) scale(0.96);
+  position:absolute; bottom:calc(100% + 12px); left:50%; transform:translateX(-50%) translateY(6px) scale(0.96);
   background:#0A0A0A; color:#F2F2F0; font-size:0.74rem; font-weight:600; white-space:nowrap;
   padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.12);
   opacity:0; pointer-events:none; transition:opacity .15s ease, transform .15s ease;
 }
-.qd-icon.qd-tooltip-show .qd-tooltip{ opacity:1; transform:translateY(-50%) translateX(0) scale(1); }
+.qd-icon.qd-tooltip-show .qd-tooltip{ opacity:1; transform:translateX(-50%) translateY(0) scale(1); }
 @media(prefers-reduced-motion: reduce){
   .qd-icon{ transform:none !important; }
 }
@@ -704,8 +705,11 @@ html.panel-open{ overflow:hidden; }
 /* Reads as the settings panel's own primary heading (iLovePDF's "Page
    Number options"/"Merge PDF" panel-title scale), not a small field
    label - Compress's options list is the entire content of its sidebar,
-   so it deserves the same visual weight as any other tool's panel title. */
-.tool-content-area--flat .tool-content-area-label{ font-size:1.75rem; font-weight:700; margin-bottom:10px; letter-spacing:-0.01em; }
+   so it deserves more visual weight than a small field label. Sized down
+   ~40% from its original 1.75rem alongside the rest of the options panel
+   (.level-row etc.) so the whole panel reads as one consistently-scaled
+   block rather than an oversized heading over compact rows. */
+.tool-content-area--flat .tool-content-area-label{ font-size:1.05rem; font-weight:700; margin-bottom:7px; letter-spacing:-0.01em; }
 
 /* Bottom toolbar: optional secondary controls (0-N fields) + one
    dominant primary action. Generalized from Split's ranges+odd/even+Split
@@ -1108,6 +1112,76 @@ html.panel-open{ overflow:hidden; }
 @media(max-width:860px){
   .crop-document-viewport{ padding:10px; min-height:260px; max-height:58vh; }
 }
+/* ===== Sign PDF workspace =====
+   Sign PDF renders the whole document as one vertically scrolling stack
+   of pages (TOOLS.sign - same architecture as Crop PDF above), so it
+   needs the same "each .sign-page IS the page box, the canvas fills it
+   regardless of pdf.js's own bitmap resolution" treatment. The extra
+   part Crop PDF has no equivalent of is .sign-sig-layer: one signature
+   layer PER page, positioned against that page's own box, which is what
+   keeps a signature bound to its page through scrolling, zooming and
+   window resizes - its left/top/width/height are percentages of this
+   layer, never of the viewport. */
+.sign-document-viewport{
+  position:relative; width:100%; max-width:100%; overflow:auto;
+  min-height:340px; max-height:72vh; padding:16px; box-sizing:border-box;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:12px;
+}
+.sign-document-viewport:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
+.sign-document{ display:flex; flex-direction:column; align-items:center; gap:18px; width:100%; }
+.sign-page{
+  position:relative; width:100%; max-width:100%; flex:none;
+  background:var(--card-bg); border:1px solid var(--line); border-radius:8px;
+  box-shadow:0 6px 18px -10px rgba(0,0,0,0.5); line-height:0;
+  touch-action:none; user-select:none;
+}
+/* Not overflow:hidden (which .crop-page can afford): a selected
+   signature's corner handles and × sit slightly outside its own box, and
+   near a page edge clipping them would put the delete control out of
+   reach. The canvas carries the rounded corners instead. */
+.sign-page-canvas{ display:block; width:100%; height:100%; border-radius:8px; }
+.sign-page-loading{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:.8rem; color:var(--ink-soft); line-height:normal;
+}
+.sign-page.sign-page-rendered .sign-page-loading{ display:none; }
+.sign-page-num{
+  position:absolute; right:8px; bottom:8px; z-index:3; pointer-events:none;
+  font-family:'IBM Plex Mono',monospace; font-size:.7rem; line-height:normal;
+  background:rgba(0,0,0,0.6); color:#fff; padding:2px 7px; border-radius:20px;
+}
+.sign-page.sign-page-active{ border-color:rgba(var(--brand-shadow-rgb),0.55); }
+.sign-sig-layer{ position:absolute; inset:0; z-index:2; }
+.sign-sig{ position:absolute; cursor:move; box-sizing:border-box; }
+.sign-sig-img{ display:block; width:100%; height:100%; pointer-events:none; }
+.sign-sig-selected{ outline:1.5px dashed var(--red); outline-offset:1px; }
+.sign-sig-handle{
+  position:absolute; width:11px; height:11px; border-radius:2px;
+  background:var(--red); border:1px solid #fff;
+}
+.sign-sig-handle.nw{ left:-6px; top:-6px; cursor:nwse-resize; }
+.sign-sig-handle.ne{ right:-6px; top:-6px; cursor:nesw-resize; }
+.sign-sig-handle.se{ right:-6px; bottom:-6px; cursor:nwse-resize; }
+.sign-sig-handle.sw{ left:-6px; bottom:-6px; cursor:nesw-resize; }
+.sign-sig-del{
+  position:absolute; right:-10px; top:-10px; width:20px; height:20px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; padding:0;
+  background:var(--ink); color:var(--paper); border:1.5px solid #fff;
+  font-size:13px; line-height:1; cursor:pointer;
+}
+.sign-zoom{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.sign-zoom-btn{
+  background:var(--paper-dim); border:1px solid var(--line); color:var(--ink);
+  border-radius:8px; padding:5px 11px; font-family:inherit; font-size:.85rem; cursor:pointer;
+}
+.sign-zoom-btn:hover{ border-color:var(--red); }
+.sign-zoom-level, .sign-page-indicator{
+  font-family:'IBM Plex Mono',monospace; font-size:.8rem; color:var(--ink-soft);
+}
+.sign-page-indicator{ margin-left:auto; }
+@media(max-width:860px){
+  .sign-document-viewport{ padding:10px; min-height:260px; max-height:58vh; }
+}
 .tool-side-panel-title{ font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:1.1rem; margin:0; }
 .tool-side-panel-section-label{ font-size:0.82rem; font-weight:600; display:block; margin-bottom:2px; }
 .tool-side-panel .tool-toolbar-primary{ width:100%; }
@@ -1191,16 +1265,18 @@ html.panel-open{ overflow:hidden; }
   font-size:.8rem; color:var(--ink); line-height:1.5;
 }
 .split-error[hidden]{ display:none; }
-/* Compress PDF's compression-level picker: big selectable rows instead of
-   a plain <select>, iLovePDF-style (colored label, description, a
-   checkmark circle on the active row). */
+/* Compress PDF's compression-level picker: selectable rows instead of a
+   plain <select>, iLovePDF-style (colored label, description, a checkmark
+   circle on the active row). */
 .level-picker{ display:flex; flex-direction:column; border-top:1px solid var(--line); }
-/* Full-width horizontal rows, iLovePDF settings-panel scale: each option
-   reads as a substantial row (~90px), not a compact list item - title,
-   description and the selected-state check all sized to match. */
+/* Full-width horizontal rows. Sized ~40% smaller than the original
+   ~90px-tall rows (padding/font-sizes/check-circle all scaled down
+   together) while keeping every control comfortably readable/clickable -
+   title, description and the selected-state check stay proportional to
+   each other, just at a more compact overall scale. */
 .level-row{
-  display:flex; align-items:center; justify-content:space-between; gap:14px;
-  padding:22px 4px; border-bottom:1px solid var(--line); cursor:pointer;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:9px 4px; border-bottom:1px solid var(--line); cursor:pointer;
   background:none; border-left:none; border-right:none; text-align:left; width:100%;
   font-family:inherit; transition:background var(--t-fast,180ms) ease;
 }
@@ -1209,13 +1285,13 @@ html.panel-open{ overflow:hidden; }
 /* Wraps title+desc so they stack (title, then desc, on their own lines) -
    without this the two inline <span>s run together on one line and wrap
    mid-sentence ("HIGH QUALITYSmaller size / reduction, best for photos"). */
-.level-row-text{ display:flex; flex-direction:column; gap:4px; min-width:0; }
-.level-row-title{ font-size:1rem; font-weight:700; color:var(--ink); text-transform:uppercase; letter-spacing:.02em; }
+.level-row-text{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+.level-row-title{ font-size:.8rem; font-weight:700; color:var(--ink); text-transform:uppercase; letter-spacing:.02em; }
 .level-row.active .level-row-title{ color:var(--red); }
-.level-row-desc{ font-size:.95rem; color:var(--ink-soft); line-height:1.35; }
+.level-row-desc{ font-size:.72rem; color:var(--ink-soft); line-height:1.25; }
 .level-row-check{
-  flex:none; width:24px; height:24px; border-radius:50%; border:2px solid var(--line);
-  display:flex; align-items:center; justify-content:center; color:transparent; font-size:.78rem; font-weight:800;
+  flex:none; width:16px; height:16px; border-radius:50%; border:2px solid var(--line);
+  display:flex; align-items:center; justify-content:center; color:transparent; font-size:.6rem; font-weight:800;
   transition:border-color var(--t-fast,180ms) ease, background var(--t-fast,180ms) ease, color var(--t-fast,180ms) ease;
 }
 .level-row.active .level-row-check{ background:var(--success); border-color:var(--success); color:var(--btn-ink); }
@@ -1227,14 +1303,20 @@ html.panel-open{ overflow:hidden; }
 #customSizePanel .field{ margin:0 0 8px; }
 #customSizePanel .mode-info{ margin:0; }
 /* Organize PDF's multi-file "Files:" list — colored letter swatch per
-   source file, matching the color used on that file's page borders. */
+   source file, matching the color used on that file's page borders, but
+   only once there's a second file to actually tell apart from the
+   first (see addFiles()/renderFilesSidebar() in js/app.js) - the base
+   swatch style below is that neutral, uncolored default (same ink/
+   paper-dim tokens the rest of the site's chips use), overridden by an
+   inline background/color only in the multi-file case. */
 .organize-files{ display:flex; flex-direction:column; gap:6px; }
 .organize-file-row{
   display:flex; align-items:center; gap:8px; background:var(--card-bg);
   border:1px solid var(--line); border-radius:9px; padding:7px 8px;
 }
 .organize-file-swatch{
-  width:22px; height:22px; border-radius:50%; flex:none; color:#fff;
+  width:22px; height:22px; border-radius:50%; flex:none; color:var(--ink-soft);
+  background:var(--paper-dim); border:1px solid var(--line);
   font-weight:800; font-size:.72rem; display:flex; align-items:center; justify-content:center;
 }
 .organize-file-name{ flex:1; min-width:0; font-size:.82rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1394,6 +1476,16 @@ html.panel-open{ overflow:hidden; }
    this only fires once loaded - the centered empty-state hero above is
    unaffected and stays the tool's one visible heading). */
 .compress-workspace.is-loaded .tool-sidebar-hero{ display:none; }
+/* Merge PDF's loaded-state sidebar: keep the title, but hide the
+   description that would otherwise show here per the general rule
+   above - #mergeHint (js/app.js, styled with the shared .page-grid-hint
+   class every other page-management tool's own instructional line
+   already uses - Delete/Reorder/Organize/Rotate/Split) takes over as
+   the one visible description once loaded, positioned above the file
+   workspace on the left instead of inside the right-side panel. The
+   empty-state hero (title+description together, centered) is untouched
+   - this only fires once a file is actually loaded. */
+.merge-workspace.is-loaded .tool-sidebar-hero .tool-hero-desc{ display:none; }
 /* Merge/Compress: the dropzone's own "Files stay on this device" hint
    (fileInputHTML(), still visible in the main pane) already gives the
    privacy reassurance once - layoutTwoColumn() unconditionally adds this
@@ -1543,6 +1635,60 @@ html.panel-open{ overflow:hidden; }
 .zoom-btn{ width:26px; height:26px; border-radius:6px; border:1px solid var(--line); background:var(--panel-bg); cursor:pointer; font-family:inherit; font-size:.72rem; font-weight:700; color:var(--ink-soft); }
 .zoom-btn.active{ background:var(--red); color:var(--btn-ink); border-color:var(--red); }
 .page-grid-cards{ display:flex; flex-wrap:wrap; gap:16px; }
+/* Reorder Pages only: the shared .page-grid-cards above left-aligns each
+   row (flex default), so on a document that doesn't fill an exact
+   multiple of "however many 198px cards fit per row" the leftover space
+   collects as one lopsided gap on the right of the last row - visible
+   even at 4-per-row, and worse at narrower widths. Centering each row
+   instead splits that same leftover space evenly on both sides, so the
+   grid reads as intentionally laid out rather than short a card.
+   Scoped to #reorderBody so no other page-grid tool's layout changes. */
+#reorderBody .page-grid-cards{ justify-content:center; }
+/* Extract Pages: same lopsided-empty-space fix as Reorder Pages above,
+   plus hiding buildPageGrid()'s own built-in toolbar row (which for
+   mode:"select" is just a single small "Select all" button) - Extract
+   Pages' sidebar now has its own Select all/Clear pair next to the
+   page-range field, so the top-of-grid one would just be a redundant
+   second control. Both rules scoped to #extractBody only - Delete Pages
+   (the only other mode:"select" tool without its own sidebar controls)
+   keeps that toolbar exactly as before. */
+#extractBody .page-grid-cards{ justify-content:center; }
+#extractBody .page-grid-toolbar{ display:none; }
+/* Delete Pages: same centering fix, plus hiding buildPageGrid()'s own
+   toolbar row - passing removable:true (for the per-thumbnail ✕) also
+   turns on its bulk-selection bar ("✕ Delete"/"Clear" once something is
+   selected), which would now duplicate the sidebar's own Delete/Clear
+   controls. Scoped to #deleteBody only. */
+#deleteBody .page-grid-cards{ justify-content:center; }
+#deleteBody .page-grid-toolbar{ display:none; }
+/* Rotate PDF: same centering fix as Reorder/Extract/Delete above. Its
+   own built-in toolbar (Select all, and now the bulk-bar's Rotate/✕
+   Delete once something is selected) is kept VISIBLE, not hidden like
+   Extract/Delete's - Rotate has no sidebar Select all/Clear of its own,
+   so this is its only Select all control. */
+#rotateBody .page-grid-cards{ justify-content:center; }
+/* Organize PDF: same centering fix as every other page-grid tool above,
+   plus hiding buildPageGrid()'s own toolbar row (the "Select all" pill
+   and, once something is selected, the Rotate/Duplicate/✕ bulk-action
+   bar) so the workspace reads identically to Reorder Pages - just the
+   hint paragraph, then straight into the grid, no separate toolbar
+   strip. Unlike Rotate PDF, Organize doesn't need that toolbar kept
+   visible: its own hint text already documents the keyboard equivalents
+   (Ctrl/Cmd+A select all, Delete to remove, R/Shift+R to rotate), and
+   each card's own hover controls (including duplicate) still work
+   one-at-a-time regardless. Scoped to #organizeBody only. */
+#organizeBody .page-grid-cards{ justify-content:center; }
+#organizeBody .page-grid-toolbar{ display:none; }
+/* Split PDF: same centering fix and same toolbar-hiding as
+   Organize/Extract/Delete above - Split's own sidebar (Range/Pages/Size
+   mode tabs, the Smart panel's Odd/Even/Clear buttons, the Pages panel's
+   text field) already covers selection, so the grid's built-in Select
+   all/bulk-action row would just be a second, redundant control surface
+   sitting above a workspace every other standardized tool leaves clean.
+   Ctrl/Cmd+A still selects all through the grid itself. Scoped to
+   #splitBody only. */
+#splitBody .page-grid-cards{ justify-content:center; }
+#splitBody .page-grid-toolbar{ display:none; }
 /* Split PDF's visual range grouping (Range + Custom mode only): wraps the
    pages belonging to each defined Range in their own dashed, labeled box
    inside the same #pageGrid/.page-grid-cards flex flow the drag-reorder
@@ -1595,8 +1741,19 @@ html.panel-open{ overflow:hidden; }
   transition:background var(--t-fast) ease; pointer-events:none;
 }
 .page-card:hover .page-thumb::after{ background:rgba(0,0,0,.04); }
-.page-card.drag-over .page-thumb{ border-color:var(--red); box-shadow:0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent); }
 .page-card.selected .page-thumb{ border-color:var(--red); box-shadow:0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent); }
+/* Drag insertion line - wirePageGridDrag() (js/app.js) inserts this as a
+   real sibling of .page-card exactly where a drop will land, instead of
+   only outlining the hovered-over card's border (the old .drag-over
+   look) - a precise "it goes right here" cue rather than "somewhere near
+   this card." Sized/positioned as a normal flex item in the same
+   flex-wrap row as the cards themselves, so it naturally sits at the
+   right spot in the wrapped grid and stretches to the row's height. */
+.page-grid-drop-indicator{
+  width:4px; min-height:60px; align-self:stretch; flex:none;
+  border-radius:2px; background:var(--red); pointer-events:none;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--red) 22%, transparent);
+}
 .page-thumb-actions{
   position:absolute; left:0; right:0; bottom:0; display:flex; justify-content:center; gap:6px; padding:6px;
   opacity:0; transition:opacity var(--t-fast) ease; background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,0) 90%);
@@ -1860,11 +2017,11 @@ html.panel-open{ overflow:hidden; }
   background-size:16px 16px; background-position:0 0, 0 8px, 8px -8px, -8px 0px;
   background-color:#fff; padding:8px; border-radius:8px;
 }
-/* Sign PDF / Fill PDF Form's main document stage - same "cap width, let
+/* Fill PDF Form's main document stage - same "cap width, let
    height follow" treatment #cropCanvas already uses, so a portrait page
    never gets stretched/distorted and never causes horizontal overflow
    on narrow viewports. */
-#signPageCanvas, #fillformPageCanvas{ max-width:100%; height:auto; border-radius:6px; display:block; }
+#fillformPageCanvas{ max-width:100%; height:auto; border-radius:6px; display:block; }
 #signPageCanvas{ cursor:grab; touch-action:none; }
 /* position:relative wrapper sized to the (possibly CSS-scaled-down)
    canvas's own rendered box, so the percentage-positioned field overlays
@@ -2369,8 +2526,7 @@ footer{
 }
 
 /* ===== Trust Strip =====
-   Distinct from #quickDock (left rail) and .trust-status-bar (the fixed
-   bottom bar, own component/CSS file) - this is the horizontal strip of
+   Distinct from #quickDock (left rail) - this is the horizontal strip of
    emoji-icon badges (Browser Based/Secure/Private/Fast/Free) between the
    tool grid and "Powerful Tools to Work with PDFs". Its background was a
    literal hardcoded cream (#FEF6E4) with no dark-theme override at all,
@@ -2976,31 +3132,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   <div class="qa-modal" id="qaModal"></div>
 </div>
 
-<!-- ===== Sticky Trust Status Bar (replaces the old simulated "Live Activity
-     Bar" — no counters, no random numbers, only static, always-true trust
-     indicators). Badges are rendered by js/trust-status-bar.js from
-     config/trustStatusBar.js so the list stays a single source of truth;
-     this markup just provides the mount point and the shared popover. See
-     css/trust-status-bar.css and config/trustStatusBar.js. -->
-<div class="trust-status-bar" id="trustStatusBar" role="group" aria-label="Trust indicators"></div>
-
-<div class="trust-status-popover" id="trustStatusPopover" role="tooltip">
-  <h3 id="trustStatusPopoverTitle"></h3>
-  <p id="trustStatusPopoverDesc"></p>
-  <p class="trust-status-popover-extra" id="trustStatusPopoverExtra" style="display:none;"></p>
-</div>
-
-<!-- Cache-busting version query, same convention already used below for
-     config/trustStatusBar.js and js/trust-status-bar.js - without it, a
-     returning visitor's browser can keep serving a stale cached app.js
-     after a deploy (this was actually hit during development: editing
-     TOOLS.sign/TOOLS.fillform had zero effect in a browser tab that had
-     already loaded the old version, even after a hard reload). Bump the
-     number whenever js/app.js changes. -->
+<!-- Cache-busting version query - without it, a returning visitor's
+     browser can keep serving a stale cached app.js after a deploy (this
+     was actually hit during development: editing TOOLS.sign/
+     TOOLS.fillform had zero effect in a browser tab that had already
+     loaded the old version, even after a hard reload). Bump the number
+     whenever js/app.js changes. -->
 <script src="js/app.js?v=119"></script>
-
-<!-- Sticky Live Activity Bar: config first, then the component itself. -->
-<script src="config/trustStatusBar.js?v=2"></script>
-<script src="js/trust-status-bar.js?v=2"></script>
 </body>
 </html>

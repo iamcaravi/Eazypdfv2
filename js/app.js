@@ -1601,16 +1601,122 @@ function looksLikeDocumentPage(width, height){
   const ratio = longest / shortest;
   return ratio > 1.2 && ratio < 1.75;
 }
-/* Recompresses only the embedded JPEG images inside a PDF, in place, at the
+/* Resolves a PDF image ColorSpace entry to a component count (3=RGB,
+   1=Gray) when - and only when - that can be determined with confidence;
+   returns null for anything else (CMYK, Indexed, Separation/DeviceN, Lab,
+   or an ICCBased/array form this can't resolve). Used only by the raw
+   FlateDecode image path in recompressPdfImages(): unlike a JPEG (which
+   is self-describing), raw pixel bytes have no built-in colour signal, so
+   guessing wrong here would corrupt every pixel rather than just miss a
+   compression opportunity - null means "leave this image alone". Handles
+   both a direct Name (/DeviceRGB) and the array form PDFs commonly use
+   for an embedded colour profile ([/ICCBased 5 0 R]), which is what most
+   browser/Office "Print/Save as PDF" exporters attach to PNG-derived
+   images - resolved via the profile stream's own /N (component count),
+   not the profile data itself. */
+function resolveImageComponents(colorSpaceObj, context, PDFName){
+  if(!colorSpaceObj) return null;
+  if(colorSpaceObj.asString){
+    const name = colorSpaceObj.asString();
+    if(/DeviceRGB|CalRGB/.test(name)) return 3;
+    if(/DeviceGray|CalGray/.test(name)) return 1;
+    return null; // CMYK/Indexed/Separation/Lab etc - not handled
+  }
+  const arr = colorSpaceObj.array;
+  if(!Array.isArray(arr) || !arr.length) return null;
+  const head = arr[0];
+  if(head?.asString?.() !== "/ICCBased") return null; // Indexed/Separation/DeviceN/Lab etc - not handled
+  const streamObj = arr[1] && context?.lookup ? context.lookup(arr[1]) : null;
+  const n = streamObj?.dict?.lookup?.(PDFName.of("N"));
+  const nVal = n?.asNumber?.();
+  if(nVal===3) return 3;
+  if(nVal===1) return 1;
+  return null; // 4-component (CMYK) ICC profile, or unresolvable
+}
+/* Inflates a raw (headers-and-all) FlateDecode stream using the browser's
+   native zlib implementation - no extra dependency needed alongside
+   pdf-lib/pdf.js. FlateDecode in PDF is the zlib format (RFC 1950), which
+   is exactly what the Streams API's "deflate" format name means (as
+   opposed to "deflate-raw", RFC 1951 with no zlib wrapper). */
+async function inflateFlateBytes(bytes){
+  const ds = new DecompressionStream("deflate");
+  const stream = new Blob([bytes]).stream().pipeThrough(ds);
+  const buf = await new Response(stream).arrayBuffer();
+  return new Uint8Array(buf);
+}
+/* Reverses PDF's PNG-style predictor (Predictor 10-15: the actual
+   per-row filter type - None/Sub/Up/Average/Paeth - is always encoded as
+   a leading byte on each row, independent of which of 10-15 was declared
+   in DecodeParms) on inflated raw image bytes. Standard PNG defiltering
+   algorithm; bpp below is bytes-per-pixel (3 for 8-bit RGB, 1 for 8-bit
+   Gray), matching the only bit depth this function's caller supports.
+   @param {Uint8Array} data - inflated bytes: (1 + rowBytes) per row.
+   @param {number} height
+   @param {number} components - unused directly, kept for call-site clarity
+   @param {number} rowBytes - bytes per unfiltered row (width*components)
+   @returns {Uint8Array} rowBytes*height bytes, filter type bytes removed.
+*/
+function unfilterPngRows(data, width, height, components, rowBytes){
+  const bpp = components; // 8 bits/component, so bytes-per-pixel === components
+  const out = new Uint8Array(rowBytes*height);
+  let prevRow = new Uint8Array(rowBytes);
+  let pos = 0;
+  for(let y=0; y<height; y++){
+    if(pos >= data.length) return null; // truncated - let the caller bail out
+    const filterType = data[pos++];
+    const outRow = out.subarray(y*rowBytes, y*rowBytes+rowBytes);
+    for(let i=0; i<rowBytes; i++){
+      const raw = data[pos+i] ?? 0;
+      const a = i>=bpp ? outRow[i-bpp] : 0;
+      const b = prevRow[i];
+      const c = i>=bpp ? prevRow[i-bpp] : 0;
+      let val;
+      switch(filterType){
+        case 0: val = raw; break; // None
+        case 1: val = (raw + a) & 0xff; break; // Sub
+        case 2: val = (raw + b) & 0xff; break; // Up
+        case 3: val = (raw + ((a+b)>>1)) & 0xff; break; // Average
+        case 4: { // Paeth
+          const p = a+b-c;
+          const pa = Math.abs(p-a), pb = Math.abs(p-b), pc = Math.abs(p-c);
+          val = (raw + (pa<=pb && pa<=pc ? a : (pb<=pc ? b : c))) & 0xff;
+          break;
+        }
+        default: return null; // unrecognized filter type - don't guess
+      }
+      outRow[i] = val;
+    }
+    pos += rowBytes;
+    prevRow = outRow;
+  }
+  return out;
+}
+/* Recompresses the embedded raster images inside a PDF, in place, at the
    same object reference - page content streams (text, vector paths, fonts)
    are never touched, so text stays exactly as sharp as the original
-   regardless of preset. This is deliberately narrow in scope: only
-   DCTDecode (JPEG) images with a plain RGB/Gray color space and no soft
-   mask are recompressed; anything else (CMYK/Indexed color, non-JPEG
-   filters, images with an alpha channel) is left completely untouched
-   rather than risking wrong colors or lost transparency. Real-world "PDF
-   is too big" cases are almost always driven by embedded photos/scans, so
-   this covers the common case without the risk of a broader rewrite. */
+   regardless of preset. Two source formats are handled:
+     - DCTDecode (already-JPEG) images: decoded and re-encoded at the
+       preset's quality/maxDim.
+     - FlateDecode (raw/lossless) images: this is the common case that was
+       previously invisible to this function entirely - PNG-derived images
+       (screenshots, "Print to PDF" output, Office/browser PDF export,
+       pdf-lib-embedded PNGs) store their pixels as plain zlib-compressed
+       RGB/Gray bytes, optionally with a PNG predictor filter per row.
+       Flate on photographic pixel data rarely beats JPEG by more than a
+       small margin, which is exactly why PDFs built this way "compress"
+       to nearly the same size today - the images were never being
+       recompressed at all, just losslessly re-flated. This path inflates
+       those raw bytes, undoes the PNG predictor if present, and feeds the
+       result through the exact same scale/encode/no-gain-skip pipeline as
+       the JPEG path below, converting it to a real JPEG.
+   Both paths require a colour space this function can confidently resolve
+   to RGB or Gray (DeviceRGB/DeviceGray/CalRGB/CalGray, or an ICCBased
+   space whose stream declares N=3 or N=1) and no soft mask - CMYK,
+   Indexed, Separation/DeviceN, and anything with an alpha channel is left
+   completely untouched rather than risking wrong colors or lost
+   transparency. Real-world "PDF is too big" cases are almost always
+   driven by embedded photos/scans in one of these two forms, so this
+   covers the common case without the risk of a broader rewrite. */
 async function recompressPdfImages(pdfBytes, presetName, onImageProgress){
   // Custom mode (below) needs arbitrary {quality, maxDim} pairs that don't
   // correspond to any named preset - accepting an object here directly,
@@ -1642,24 +1748,72 @@ async function recompressPdfImages(pdfBytes, presetName, onImageProgress){
       if(onImageProgress) onImageProgress(imageIndex, imageObjects.length);
       const filter = dict.lookup(PDFName.of("Filter"));
       const filterName = filter && filter.asString ? filter.asString() : (Array.isArray(filter?.array) ? filter.array.map(f=>f.asString?.()).join(",") : "");
-      if(!filterName || !filterName.includes("DCTDecode")) continue; // only plain JPEG streams
+      const isJpeg = filterName === "/DCTDecode";
+      // Exact match only (not "includes") - a combined filter chain like
+      // "/ASCII85Decode,/FlateDecode" needs a decode step this function
+      // doesn't implement, so it's left untouched rather than guessed at.
+      const isRawFlate = filterName === "/FlateDecode";
+      if(!isJpeg && !isRawFlate) continue; // neither format this function knows how to re-encode
       if(dict.lookup(PDFName.of("SMask"))) continue; // has transparency - skip, JPEG can't keep it
-      const colorSpace = dict.lookup(PDFName.of("ColorSpace"));
-      const csName = colorSpace && colorSpace.asString ? colorSpace.asString() : "";
-      if(csName && !/DeviceRGB|DeviceGray|CalRGB|CalGray/.test(csName)) continue; // skip CMYK/Indexed etc.
 
-      const blob = new Blob([obj.contents], {type:"image/jpeg"});
-      // createImageBitmap() has been observed elsewhere in this app to hang
-      // indefinitely (never resolving or rejecting) rather than erroring on
-      // some inputs - without a timeout here, one bad image would silently
-      // block every remaining image in the PDF forever, since this runs in
-      // a sequential loop. Same "skip on failure" philosophy as CMYK/SMask
-      // above - a timed-out image just gets left untouched.
-      const bitmap = await Promise.race([
-        createImageBitmap(blob),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("decode timed out")), 8000))
-      ]).catch(()=>null);
-      if(!bitmap) continue; // not a browser-decodable JPEG (or timed out) - skip rather than guess
+      let bitmap = null;
+      if(isJpeg){
+        const colorSpace = dict.lookup(PDFName.of("ColorSpace"));
+        const csName = colorSpace && colorSpace.asString ? colorSpace.asString() : "";
+        if(csName && !/DeviceRGB|DeviceGray|CalRGB|CalGray/.test(csName)) continue; // skip CMYK/Indexed etc.
+        const blob = new Blob([obj.contents], {type:"image/jpeg"});
+        // createImageBitmap() has been observed elsewhere in this app to
+        // hang indefinitely (never resolving or rejecting) rather than
+        // erroring on some inputs - without a timeout here, one bad image
+        // would silently block every remaining image in the PDF forever,
+        // since this runs in a sequential loop. Same "skip on failure"
+        // philosophy as CMYK/SMask above - a timed-out image is left
+        // untouched.
+        bitmap = await Promise.race([
+          createImageBitmap(blob),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("decode timed out")), 8000))
+        ]).catch(()=>null);
+      } else {
+        // Raw/lossless image: unlike JPEG, the pixel bytes carry no
+        // built-in colour-space signal, so this path requires a
+        // confidently-resolved component count (3=RGB, 1=Gray) rather
+        // than the JPEG path's "assume RGB unless proven otherwise" -
+        // guessing wrong here would corrupt every pixel, not just miss a
+        // compression opportunity.
+        const width = dict.lookup(PDFName.of("Width"))?.asNumber?.();
+        const height = dict.lookup(PDFName.of("Height"))?.asNumber?.();
+        const bpc = dict.lookup(PDFName.of("BitsPerComponent"))?.asNumber?.();
+        const components = resolveImageComponents(dict.lookup(PDFName.of("ColorSpace")), doc.context, PDFName);
+        // 8 bits/component only - 1/2/4-bit raw images (rare, and usually
+        // already tiny after Flate) and 16-bit are out of scope here.
+        // Width*height capped well under typical browser/canvas limits so
+        // a pathological Width/Height pair can't force an enormous
+        // in-memory pixel buffer before any of the real image bytes have
+        // even been inflated.
+        if(!width || !height || bpc!==8 || !components || width*height>30_000_000) continue;
+        const predictor = dict.lookup(PDFName.of("DecodeParms"))?.lookup?.(PDFName.of("Predictor"))?.asNumber?.() ?? 1;
+        if(predictor!==1 && (predictor<10 || predictor>15)) continue; // TIFF predictor / unknown - not implemented, skip
+        const inflated = await Promise.race([
+          inflateFlateBytes(obj.contents),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("inflate timed out")), 8000))
+        ]).catch(()=>null);
+        if(!inflated) continue;
+        const rowBytes = width*components;
+        const raw = predictor===1 ? inflated : unfilterPngRows(inflated, width, height, components, rowBytes);
+        if(!raw || raw.length < rowBytes*height) continue; // truncated/corrupt - leave untouched
+        const rgba = new Uint8ClampedArray(width*height*4);
+        if(components===3){
+          for(let p=0, s=0; p<width*height; p++, s+=3){
+            rgba[p*4]=raw[s]; rgba[p*4+1]=raw[s+1]; rgba[p*4+2]=raw[s+2]; rgba[p*4+3]=255;
+          }
+        } else { // components===1, DeviceGray/CalGray
+          for(let p=0; p<width*height; p++){
+            const g = raw[p]; rgba[p*4]=g; rgba[p*4+1]=g; rgba[p*4+2]=g; rgba[p*4+3]=255;
+          }
+        }
+        bitmap = await createImageBitmap(new ImageData(rgba, width, height)).catch(()=>null);
+      }
+      if(!bitmap) continue; // not decodable (or timed out) - skip rather than guess
 
       let {width, height} = bitmap;
       const longest = Math.max(width, height);
@@ -1689,6 +1843,12 @@ async function recompressPdfImages(pdfBytes, presetName, onImageProgress){
       newDict.set(PDFName.of("ColorSpace"), PDFName.of("DeviceRGB"));
       newDict.set(PDFName.of("BitsPerComponent"), PDFNumber.of(8));
       newDict.set(PDFName.of("Length"), PDFNumber.of(newBytes.length));
+      // The source dict's DecodeParms (PNG predictor settings) and Decode
+      // (component remap, e.g. an inverted-grayscale mask) no longer apply
+      // once the stream is real DCTDecode/DeviceRGB JPEG data - carrying
+      // either over would misinterpret the new bytes.
+      newDict.delete(PDFName.of("DecodeParms"));
+      newDict.delete(PDFName.of("Decode"));
       doc.context.assign(ref, PDFRawStream.of(newDict, newBytes));
       touched++;
     }catch(e){ /* leave this one object exactly as it was on any failure */ }
@@ -2452,7 +2612,15 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
       });
       card.appendChild(chk);
     }
-    if(mode==="reorder" && removable){
+    // Not restricted to mode==="reorder": Delete Pages (mode:"select")
+    // now also passes removable:true for its own per-thumbnail ✕ button,
+    // reusing this exact same element/wiring rather than a second
+    // implementation. No existing caller combines mode:"select" with
+    // removable:true, so this only adds behavior for a combination
+    // nobody used before - every current reorder+removable caller
+    // (Reorder/Add Blank Page/Split/Organize) and every select-mode
+    // caller without removable (Rotate/Extract Pages) is unaffected.
+    if(removable){
       const rm = document.createElement("button");
       rm.type = "button";
       rm.className = "page-remove";
@@ -2519,7 +2687,18 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
   return {
     getOrder(){ return [...cardsWrap.querySelectorAll(".page-card")].map(c=>parseInt(c.dataset.page)); },
     getSelected(){ return new Set([...cardsWrap.querySelectorAll(".page-card.selected")].map(c=>parseInt(c.dataset.page))); },
-    getPages(){ return [...cardsWrap.querySelectorAll(".page-card")].map(c=>({index:parseInt(c.dataset.page), rotation:parseInt(c.dataset.rotation||"0"), docIndex:parseInt(c.dataset.docIndex||"0")})); },
+    // Blank cards (see insertBlankPage() below - Add Blank Page's own grid
+    // is the only caller that ever creates one) carry no real source page
+    // to copy, so they report {blank:true, width, height} instead of
+    // {index, docIndex} - buildPdfFromPages() branches on that flag.
+    // Every other card is completely unaffected (dataset.blank is simply
+    // absent), so this is a strict addition, not a behavior change, for
+    // every existing caller of getPages().
+    getPages(){ return [...cardsWrap.querySelectorAll(".page-card")].map(c=>
+      c.dataset.blank==="true"
+        ? {blank:true, width:parseFloat(c.dataset.blankWidth), height:parseFloat(c.dataset.blankHeight), rotation:parseInt(c.dataset.rotation||"0")}
+        : {index:parseInt(c.dataset.page), rotation:parseInt(c.dataset.rotation||"0"), docIndex:parseInt(c.dataset.docIndex||"0")}
+    ); },
     getSelectedPages(){ return [...cardsWrap.querySelectorAll(".page-card.selected")].map(c=>({index:parseInt(c.dataset.page), rotation:parseInt(c.dataset.rotation||"0"), docIndex:parseInt(c.dataset.docIndex||"0")})); },
     selectOddEven(which){
       [...cardsWrap.querySelectorAll(".page-card")].forEach((c,pos)=>{
@@ -2560,6 +2739,94 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
     removeSource(docIdx){
       cardsWrap.querySelectorAll(`.page-card[data-doc-index="${docIdx}"]`).forEach(c=>c.remove());
       updateBulkBar();
+    },
+    /**
+     * Inserts a real, blank page-card at on-screen position `afterIndex`
+     * (0 = before every current card) - Add Blank Page's own workflow.
+     * Deliberately its own small function rather than a branch inside
+     * appendCard()/renderCardCanvas() (which every mode/tool above
+     * shares): a blank card has no source pdoc page to render, so
+     * reusing those would mean threading an "isBlank" special case
+     * through code Delete/Extract Pages etc. also depend on, for no
+     * benefit - this instead reuses just the two pieces that already
+     * generalize cleanly: wireCard() (rotate/remove/select wiring) and
+     * rotateCard() (used automatically once the card exists, since it
+     * only ever looks at dataset.rotation + a <canvas> child, both of
+     * which this card has).
+     * Orientation follows whichever neighbor page is closest to the
+     * insertion point (previous page if there is one, else the next
+     * one, else a default A4 portrait size) - including that neighbor's
+     * OWN current rotation, so a blank page inserted next to a page the
+     * user already rotated 90 lands visually matching it, not fighting
+     * it. The blank page itself always starts at rotation 0; the user
+     * can rotate it independently afterward via its own buttons.
+     * @param {number} afterIndex - 0-based on-screen position to insert
+     *   before (i.e. insert after the card currently at afterIndex-1).
+     * @returns {Promise<HTMLElement>} the new card element.
+     */
+    async insertBlankPage(afterIndex){
+      async function dimsOf(card){
+        let w, h;
+        if(card.dataset.blank==="true"){
+          w = parseFloat(card.dataset.blankWidth); h = parseFloat(card.dataset.blankHeight);
+        } else {
+          const docIdx = parseInt(card.dataset.docIndex||"0");
+          const pageNum = parseInt(card.dataset.page)+1;
+          const vp = (await pdocs[docIdx].getPage(pageNum)).getViewport({scale:1});
+          w = vp.width; h = vp.height;
+        }
+        const rot = ((parseInt(card.dataset.rotation||"0"))%360+360)%360;
+        return (rot===90||rot===270) ? {width:h, height:w} : {width:w, height:h};
+      }
+      const allCards = [...cardsWrap.querySelectorAll(".page-card")];
+      const prevCard = allCards[afterIndex-1] || null;
+      const nextCard = allCards[afterIndex] || null;
+      const dims = prevCard ? await dimsOf(prevCard)
+        : nextCard ? await dimsOf(nextCard)
+        : {width:595.28, height:841.89}; // A4 portrait - only when the document has no pages at all
+
+      const card = document.createElement("div");
+      card.className = "page-card";
+      card.dataset.blank = "true";
+      card.dataset.blankWidth = dims.width;
+      card.dataset.blankHeight = dims.height;
+      card.dataset.rotation = "0";
+      card.draggable = mode === "reorder";
+
+      const thumb = document.createElement("div");
+      thumb.className = "page-thumb";
+      const targetH = 260, s = targetH/dims.height;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(dims.width*s));
+      canvas.height = Math.max(1, Math.round(dims.height*s));
+      canvas.getContext("2d").fillStyle = "#fff";
+      canvas.getContext("2d").fillRect(0,0,canvas.width,canvas.height);
+      thumb.appendChild(canvas);
+      if(rotatable){
+        const actions = document.createElement("div");
+        actions.className = "page-thumb-actions";
+        actions.innerHTML = `<button type="button" class="page-rotate-left" aria-label="Rotate blank page left" draggable="false">⟲</button><button type="button" class="page-rotate-right" aria-label="Rotate blank page right" draggable="false">⟳</button>`;
+        thumb.appendChild(actions);
+      }
+      card.appendChild(thumb);
+
+      const label = document.createElement("span");
+      label.className = "page-num";
+      label.textContent = "Blank Page";
+      card.appendChild(label);
+
+      if(removable){
+        const rm = document.createElement("button");
+        rm.type = "button"; rm.className = "page-remove";
+        rm.setAttribute("aria-label", "Remove blank page");
+        rm.setAttribute("draggable", "false");
+        rm.textContent = "✕";
+        card.appendChild(rm);
+      }
+      wireCard(card);
+      if(nextCard) cardsWrap.insertBefore(card, nextCard); else cardsWrap.appendChild(card);
+      updateBulkBar();
+      return card;
     }
   };
 }
@@ -2576,13 +2843,29 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
  */
 async function buildPdfFromPages(srcDoc, pagesSpec){
   const newDoc = await PDFDocument.create();
-  const order = pagesSpec.map(p=>p.index);
-  const pages = await newDoc.copyPages(srcDoc, order);
-  pages.forEach((p,pos)=>{
-    const rot = pagesSpec[pos].rotation || 0;
-    if(rot) p.setRotation(degrees((p.getRotation().angle + rot) % 360));
-    newDoc.addPage(p);
-  });
+  // A `{blank:true, width, height}` entry (Add Blank Page's own grid -
+  // see buildPageGrid()'s insertBlankPage()) has no source page to copy,
+  // so it's excluded from the copyPages() batch below and instead
+  // creates a fresh blank page directly. copyPages() is still called
+  // once for every REAL entry together (not one-by-one), same as
+  // before - only the interleaving with blank entries is new, and only
+  // applies to callers that actually produce blank entries (currently
+  // just Add Blank Page); every other existing caller's pagesSpec has
+  // no `blank` entries, so their output is unchanged.
+  const realIndices = pagesSpec.filter(p=>!p.blank).map(p=>p.index);
+  const copiedPages = await newDoc.copyPages(srcDoc, realIndices);
+  let copyCursor = 0;
+  for(const spec of pagesSpec){
+    const rot = spec.rotation || 0;
+    if(spec.blank){
+      const page = newDoc.addPage([spec.width, spec.height]);
+      if(rot) page.setRotation(degrees(rot % 360));
+    } else {
+      const p = copiedPages[copyCursor++];
+      if(rot) p.setRotation(degrees((p.getRotation().angle + rot) % 360));
+      newDoc.addPage(p);
+    }
+  }
   return newDoc;
 }
 /**
@@ -2658,8 +2941,70 @@ async function splitBySize(srcDoc, maxBytes, onProgress, liveIndexRotation){
   if(current.length) groups.push(current);
   return groups;
 }
+/* Root cause of drops being intermittently ignored (confirmed by directly
+   sampling the grid's own layout): the ~16px CSS gap between every pair
+   of .page-card elements, and the space below/after the last card,
+   belongs to neither card - roughly a third of the grid's visible area,
+   measured. The old dragover/drop handlers below required
+   e.target.closest(".page-card") to resolve to an actual card, so a
+   dragover/drop landing in that dead space did nothing, with zero visual
+   feedback explaining why - which reads exactly like "drop sometimes
+   just doesn't work," needing another attempt nudged a few pixels onto
+   real card pixels. resolveDropTarget() below fixes this at the source:
+   when the pointer isn't directly over a card, it falls back to the
+   nearest card by geometry, so a drop anywhere reasonably close to the
+   grid always resolves to *some* card - dropping in a gap is no longer
+   silently ignored, it lands wherever that gap's nearest neighbor is.
+   A dedicated insertion-line indicator (rather than only highlighting
+   the hovered card's border, as before) also now shows precisely where
+   the card will land, addressed at the same target the drop itself
+   uses, so what's shown during the drag is exactly what happens on
+   release. */
 function wirePageGridDrag(container){
   let dragEl = null;
+  let rafId = null;
+  const indicator = document.createElement("div");
+  indicator.className = "page-grid-drop-indicator";
+  indicator.setAttribute("aria-hidden", "true");
+
+  function candidateCards(){
+    return [...container.querySelectorAll(".page-card")].filter(c=>c!==dragEl);
+  }
+  // Distance from (x,y) to a rect's nearest edge - 0 when the point is
+  // already inside it. Used to find the nearest card when the pointer
+  // isn't directly over one.
+  function distToRect(rect, x, y){
+    const dx = Math.max(rect.left-x, 0, x-rect.right);
+    const dy = Math.max(rect.top-y, 0, y-rect.bottom);
+    return Math.hypot(dx, dy);
+  }
+  function resolveDropTarget(x, y){
+    const direct = document.elementFromPoint(x, y);
+    let card = direct && direct.closest && direct.closest(".page-card");
+    if(card === dragEl) card = null;
+    if(!card){
+      let bestDist = Infinity;
+      for(const c of candidateCards()){
+        const d = distToRect(c.getBoundingClientRect(), x, y);
+        if(d < bestDist){ bestDist = d; card = c; }
+      }
+    }
+    if(!card) return null;
+    const rect = card.getBoundingClientRect();
+    return { card, before: (x - rect.left) < rect.width/2 };
+  }
+  function showIndicatorAt(target){
+    if(!target){ indicator.remove(); return; }
+    // card.parentElement, not `container` - identical for every caller
+    // except Split's Range/Custom mode, where cards sit nested inside a
+    // .range-group-cards wrapper (see regroupSplitPages() in TOOLS.split).
+    // insertBefore() requires the reference node to be a direct child of
+    // whatever element you call it on, so reordering across two different
+    // range groups would throw against the outer `container`; the card's
+    // own immediate parent is always correct regardless of nesting depth.
+    target.card.parentElement.insertBefore(indicator, target.before ? target.card : target.card.nextSibling);
+  }
+
   container.addEventListener("dragstart", e=>{
     const card = e.target.closest(".page-card");
     if(!card) return;
@@ -2671,32 +3016,36 @@ function wirePageGridDrag(container){
     }
   });
   container.addEventListener("dragend", ()=>{
+    if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
     if(dragEl) dragEl.classList.remove("dragging");
-    container.querySelectorAll(".drag-over").forEach(c=>c.classList.remove("drag-over"));
+    indicator.remove();
     dragEl = null;
   });
   container.addEventListener("dragover", e=>{
     e.preventDefault();
-    const card = e.target.closest(".page-card");
-    if(!card || card===dragEl) return;
-    container.querySelectorAll(".drag-over").forEach(c=>c.classList.remove("drag-over"));
-    card.classList.add("drag-over");
+    if(!dragEl) return;
+    if(e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    // rAF-throttled: dragover can fire dozens of times per second, and
+    // resolveDropTarget() walks every card's getBoundingClientRect() when
+    // the pointer isn't over one directly - coalescing to one resolve per
+    // frame keeps that cheap even on a large multi-page document, without
+    // affecting drop correctness (drop always resolves fresh from its own
+    // event coordinates, never from a stale throttled position).
+    const {clientX, clientY} = e;
+    if(rafId) return;
+    rafId = requestAnimationFrame(()=>{
+      rafId = null;
+      if(!dragEl) return;
+      showIndicatorAt(resolveDropTarget(clientX, clientY));
+    });
   });
   container.addEventListener("drop", e=>{
     e.preventDefault();
-    const card = e.target.closest(".page-card");
-    if(!card || !dragEl || card===dragEl) return;
-    card.classList.remove("drag-over");
-    const rect = card.getBoundingClientRect();
-    const before = (e.clientX - rect.left) < rect.width/2;
-    // card.parentElement, not `container` - identical for every caller
-    // except Split's Range/Custom mode, where cards sit nested inside a
-    // .range-group-cards wrapper (see regroupSplitPages() in TOOLS.split).
-    // insertBefore() requires the reference node to be a direct child of
-    // whatever element you call it on, so reordering across two different
-    // range groups would throw against the outer `container`; the card's
-    // own immediate parent is always correct regardless of nesting depth.
-    card.parentElement.insertBefore(dragEl, before ? card : card.nextSibling);
+    if(!dragEl) return;
+    indicator.remove();
+    const target = resolveDropTarget(e.clientX, e.clientY);
+    if(!target || target.card===dragEl) return;
+    target.card.parentElement.insertBefore(dragEl, target.before ? target.card : target.card.nextSibling);
   });
 }
 /**
@@ -3148,6 +3497,17 @@ TOOLS.donate = function(){
     </div>`);
 };
 
+/* ---- DOCS ---- */
+TOOLS.docs = function(){
+  openPanel(`
+    <div class="panel-head"><h3>Docs</h3><div class="panel-head-actions"><button class="panel-close" onclick="closePanel()" aria-label="Close panel">✕</button></div></div>
+    <div class="panel-body">
+      <p style="margin:0;color:var(--ink-soft);font-size:.9rem;line-height:1.6"><strong style="color:var(--ink)">How YOYOPDF works.</strong> Pick a tool from the header, the left-side dock, or the tools grid on the homepage. Drop in a file (or click to browse), adjust that tool's options if it has any, then download the result — every step runs locally in your browser, so nothing is ever uploaded.</p>
+      <p style="margin:0;color:var(--ink-soft);font-size:.9rem;line-height:1.6">Page-based tools (Reorder, Delete, Extract, Add Blank Page, Organize) show every page as a thumbnail: click to select, drag to reorder, or use the small rotate/delete controls on a thumbnail directly. A page-range field (e.g. <code>1,3,5-8</code>) is also available wherever you need to select many pages at once.</p>
+      <p style="margin:0;color:var(--ink-soft);font-size:.9rem;line-height:1.6">Nothing here requires an account or a subscription. If a tool doesn't behave the way you expect, the <button type="button" class="link-btn" data-open="contact" style="background:none;border:none;padding:0;color:var(--red);cursor:pointer;font:inherit;text-decoration:underline">Contact</button> page reaches us directly.</p>
+    </div>`);
+};
+
 /* ---- PRIVACY ---- */
 TOOLS.privacy = function(){
   openPanel(`
@@ -3208,6 +3568,7 @@ TOOLS.merge = function(){
         <h2 class="tool-hero-title">Merge PDF files</h2>
         <p class="tool-hero-desc">Combine PDFs in the order you want with the easiest PDF merger available.</p>
       </div>
+      <p class="page-grid-hint" id="mergeHint" style="display:none">Add PDFs and drag them into the order you want to merge them.</p>
       <div class="tool-upload-wrap workspace-host" id="mergeUploadWrap">
         ${fileInputHTML("application/pdf", true, "Select PDF files")}
         <div class="workspace-action-stack" id="mergeFileToolbar" style="display:none">
@@ -3239,6 +3600,12 @@ TOOLS.merge = function(){
     document.getElementById("go").disabled = files.length<2;
     document.getElementById("mergeToolbar").style.display = files.length ? "flex" : "none";
     document.getElementById("mergeFileToolbar").style.display = files.length ? "flex" : "none";
+    // Same empty->loaded hint reveal Delete/Reorder/Organize/Rotate/Split
+    // all use for their own #gridHint - the sidebar's .tool-hero-desc
+    // (hidden once loaded, see the #mergeBody.is-loaded CSS rule) covers
+    // the pre-upload description instead, so exactly one description is
+    // ever visible at a time.
+    document.getElementById("mergeHint").style.display = files.length ? "block" : "none";
     const countBadge = document.getElementById("mergeFileCount");
     if(files.length){ countBadge.hidden=false; countBadge.textContent = files.length; } else countBadge.hidden = true;
     document.getElementById("mergeBody").classList.toggle("is-loaded", files.length>0);
@@ -3408,7 +3775,15 @@ TOOLS.split = function(){
     const bytes = await file.arrayBuffer();
     if(myToken !== loadToken) return;
     gridHint.style.display="block";
-    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, multiSelect:true, zoomable:true});
+    // zoomable dropped - same de-S/M/L-ing as every other standardized
+    // page-grid tool (Rotate/Organize); the shared default size is used
+    // instead. Its visual toolbar row (Select all + bulk-action bar) is
+    // hidden via #splitBody .page-grid-toolbar in index.html, same
+    // pattern as Extract/Delete/Organize - selection itself is
+    // untouched (click-to-select, Ctrl/Cmd+A, and the Smart panel's own
+    // Odd/Even/Clear buttons all keep working through gridApi directly,
+    // none of them go through that toolbar).
+    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, multiSelect:true});
     if(myToken !== loadToken) return;
     gridApi = builtGridApi;
     totalPages = gridApi.getPages().length;
@@ -4040,7 +4415,7 @@ TOOLS.rotate = function(){
       </div>
       <div class="tool-app-workspace" id="rotateWorkspace" style="display:none">
         <div class="tool-main-pane">
-          <p class="page-grid-hint" id="gridHint" style="display:none">Hover any page to rotate it on its own, or select several pages and use "Apply to selected/all" below.</p>
+          <p class="page-grid-hint" id="gridHint" style="display:none">Hover any page to rotate or remove it on its own, or select several pages and use "Apply to selected/all" below.</p>
           <div class="page-grid tool-content-area" id="pageGrid"></div>
         </div>
         <aside class="tool-side-panel">
@@ -4090,7 +4465,15 @@ TOOLS.rotate = function(){
     const bytes = await file.arrayBuffer();
     if(myToken !== loadToken) return;
     gridHint.style.display="block";
-    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select", rotatable:true, zoomable:true});
+    // zoomable dropped - Rotate's own S/M/L size toggle was the one
+    // thing making its workspace look like a separate tool instead of
+    // the standard Reorder/Organize/Delete page-grid; every other
+    // page-management tool just uses the shared default (zoom-m) size,
+    // so Rotate now does too. removable:true adds the same per-card ✕
+    // Delete Pages already uses (see appendCard()'s own comment - the
+    // mode:"select"+removable combination was already made to work
+    // there, so this needs no further changes to buildPageGrid itself).
+    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select", rotatable:true, removable:true});
     if(myToken !== loadToken) return;
     gridApi = builtGridApi;
     showWorkspace();
@@ -4111,6 +4494,11 @@ TOOLS.rotate = function(){
     const bytes=await file.arrayBuffer();
     const src=await loadPdfSafe(bytes);
     const pagesSpec = gridApi.getPages();
+    // Rotate's ✕ is new (removable:true, added alongside the rest of
+    // this phase's grid standardization) - same "don't let every page
+    // get deleted out from under the export" guard Organize/Delete
+    // Pages already use.
+    if(pagesSpec.length===0){ toast("At least one page must remain"); out.innerHTML=""; return; }
     const newDoc = await buildPdfFromPages(src, pagesSpec);
     const outBytes=await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
@@ -4122,9 +4510,22 @@ TOOLS.rotate = function(){
   });
 };
 
-/* ---- DELETE PAGES ---- */
+/* ---- DELETE PAGES ----
+   Same thumbnail workspace as Extract Pages (buildPageGrid mode:"select"
+   + the shared page-range field/parser), with the meaning of "selected"
+   flipped - here selection marks pages to REMOVE, so the action button
+   reads "Delete N Pages" and export keeps everything NOT selected.
+   Also passes removable:true for a direct per-thumbnail ✕ (the one
+   compatibility change this needed in buildPageGrid: its ✕ button was
+   previously reorder-mode only - see appendCard()'s own comment). */
 TOOLS.deletepages = function(){
-  let file=null, gridApi=null, loadToken=0;
+  let file=null, gridApi=null, loadToken=0, totalPages=0;
+  // See Extract Pages' identical guard: true only while
+  // applyWantedSelection() is programmatically clicking cards to match a
+  // typed range, so those clicks don't re-enter the thumbnails->text
+  // sync and fight the field the user is actively typing into.
+  let suppressClickSync = false;
+
   openPanel(`
     <div class="panel-head"><h3>Delete Pages</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="deleteBody">
@@ -4138,13 +4539,20 @@ TOOLS.deletepages = function(){
       <p class="tool-privacy-hint" id="deletePrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
       <div class="tool-app-workspace" id="deleteWorkspace" style="display:none">
         <div class="tool-main-pane">
-          <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to delete.</p>
+          <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to delete, or use ✕ on a thumbnail.</p>
           <div class="page-grid tool-content-area" id="pageGrid"></div>
         </div>
         <aside class="tool-side-panel">
           <h3 class="tool-side-panel-title">Delete Pages</h3>
           <div id="deleteFileSlot"></div>
-          <button class="btn tool-toolbar-primary" id="go">Delete Pages</button>
+          <div class="field"><label for="deleteRangeInput">Pages to delete</label>
+            <input type="text" id="deleteRangeInput" placeholder="e.g. 1,3,5-8" autocomplete="off">
+          </div>
+          <div class="row">
+            <button class="btn secondary btn-sm" id="deleteSelectAll" type="button" style="flex:1">Select all</button>
+            <button class="btn secondary btn-sm" id="deleteClearSel" type="button" style="flex:1">Clear</button>
+          </div>
+          <button class="btn tool-toolbar-primary" id="go" style="margin-top:10px" disabled>Delete Pages</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -4157,6 +4565,9 @@ TOOLS.deletepages = function(){
   const fileSlot = document.getElementById("deleteFileSlot");
   const gridHint = document.getElementById("gridHint");
   const body = document.getElementById("deleteBody");
+  const pageGrid = document.getElementById("pageGrid");
+  const rangeInput = document.getElementById("deleteRangeInput");
+  const goBtn = document.getElementById("go");
 
   function showEmptyState(){
     hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
@@ -4169,18 +4580,81 @@ TOOLS.deletepages = function(){
     body.classList.add("is-loaded");
   }
 
+  function selected1Based(){ return [...gridApi.getSelected()].map(i=>i+1).sort((a,b)=>a-b); }
+  function updateGoButton(count){
+    goBtn.disabled = count===0;
+    goBtn.textContent = count===0 ? "Delete Pages" : `Delete ${count} Page${count===1?"":"s"}`;
+  }
+  function syncFromThumbnails(){
+    const sel = selected1Based();
+    rangeInput.value = sel.join(",");
+    updateGoButton(sel.length);
+  }
+  function applyWantedSelection(wanted1Based){
+    const wanted = new Set(wanted1Based);
+    const cur = new Set(selected1Based());
+    suppressClickSync = true;
+    pageGrid.querySelectorAll(".page-card").forEach(c=>{
+      const pageNum = parseInt(c.dataset.page)+1;
+      if(wanted.has(pageNum) !== cur.has(pageNum)) c.click();
+    });
+    suppressClickSync = false;
+  }
+  rangeInput.addEventListener("input", ()=>{
+    if(!gridApi) return;
+    const wanted = parsePageRangeInput(rangeInput.value, totalPages);
+    applyWantedSelection(wanted);
+    updateGoButton(wanted.length);
+  });
+  pageGrid.addEventListener("click", e=>{
+    if(suppressClickSync || !gridApi) return;
+    if(e.target.closest(".page-remove")) return; // handled below via gridObserver, not a selection toggle
+    if(e.target.closest(".page-card")) syncFromThumbnails();
+  });
+  // A direct ✕ removes the card entirely (see wireCard()'s .page-remove
+  // handler in buildPageGrid) rather than toggling .selected, so the
+  // click listener above intentionally ignores it - stopPropagation()
+  // on that same handler also means a bubble-phase listener here would
+  // never see the click anyway. Watching for the actual DOM removal
+  // instead is what keeps the range field/button correct regardless of
+  // exactly how a card disappears, without needing any of that.
+  new MutationObserver(muts=>{
+    if(gridApi && muts.some(m=>[...m.removedNodes].some(n=>n.nodeType===1 && n.classList?.contains("page-card")))){
+      syncFromThumbnails();
+    }
+  }).observe(pageGrid, {childList:true, subtree:true});
+  document.getElementById("deleteSelectAll").addEventListener("click", ()=>{
+    if(!gridApi) return;
+    gridApi.selectAll();
+    syncFromThumbnails();
+  });
+  document.getElementById("deleteClearSel").addEventListener("click", ()=>{
+    if(!gridApi) return;
+    gridApi.clearSelection();
+    syncFromThumbnails();
+  });
+
   wireDropzone(async fs=>{
     // See Split PDF's identical guard.
     const myToken = ++loadToken;
     file=fs[0];
-    renderFileList([file], ()=>{ loadToken++; file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; gridHint.style.display="none"; showEmptyState(); });
+    renderFileList([file], ()=>{
+      loadToken++; file=null; gridApi=null; totalPages=0;
+      pageGrid.innerHTML=""; gridHint.style.display="none"; rangeInput.value="";
+      updateGoButton(0);
+      showEmptyState();
+    });
     fileSlot.appendChild(document.getElementById("flist"));
     const bytes = await file.arrayBuffer();
     if(myToken !== loadToken) return;
     gridHint.style.display="block";
-    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select"});
+    // removable:true - see appendCard()'s comment above; mode:"select"
+    // never has drag enabled, so the ✕ can't collide with reordering.
+    const builtGridApi = await buildPageGrid(pageGrid, bytes, {mode:"select", removable:true});
     if(myToken !== loadToken) return;
     gridApi = builtGridApi;
+    totalPages = gridApi.getPages().length;
+    syncFromThumbnails();
     showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
@@ -4188,23 +4662,72 @@ TOOLS.deletepages = function(){
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
     const del = gridApi.getSelected();
-    const keep = doc.getPageIndices().filter(i=>!del.has(i));
-    const newDoc = await PDFDocument.create();
-    const pages = await newDoc.copyPages(doc, keep);
-    pages.forEach(p=>newDoc.addPage(p));
+    // getPages() is already in ascending original order (mode:"select"
+    // never reorders cards) - filtering out the deleted ones keeps that
+    // order and each kept page's existing rotation, then
+    // buildPdfFromPages() (shared with Reorder/Extract/Split/Organize/
+    // Rotate) does the actual copy, same as every other page-grid tool.
+    const keepSpec = gridApi.getPages().filter(p=>!del.has(p.index));
+    if(keepSpec.length===0){ toast("At least one page must remain"); out.innerHTML=""; return; }
+    const newDoc = await buildPdfFromPages(doc, keepSpec);
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "pages_removed", "pdf");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
-    setStatus("Done — "+keep.length+" pages remaining", true);
+    setStatus("Done — "+keepSpec.length+" pages remaining", true);
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   });
 };
 
-/* ---- EXTRACT PAGES ---- */
+/**
+ * Parses a comma-separated page-list/range string ("5,6,7,10",
+ * "5-7,10", "1,3,5-8") into a sorted, de-duplicated array of 1-based
+ * page numbers within [1,maxPage]. Reversed ranges ("7-5") are
+ * normalized; malformed or out-of-range tokens are silently dropped
+ * rather than erroring, so one typo doesn't block the rest of a valid
+ * list - same "degrade gracefully" approach every other free-text input
+ * in this app already takes.
+ * @param {string} str
+ * @param {number} maxPage
+ * @returns {number[]}
+ */
+function parsePageRangeInput(str, maxPage){
+  const set = new Set();
+  String(str||"").split(",").forEach(tok=>{
+    tok = tok.trim();
+    if(!tok) return;
+    const range = tok.match(/^(\d+)\s*-\s*(\d+)$/);
+    if(range){
+      let a = parseInt(range[1],10), b = parseInt(range[2],10);
+      if(a>b) [a,b] = [b,a];
+      for(let n=a; n<=b; n++){ if(n>=1 && n<=maxPage) set.add(n); }
+    } else if(/^\d+$/.test(tok)){
+      const n = parseInt(tok,10);
+      if(n>=1 && n<=maxPage) set.add(n);
+    }
+  });
+  return [...set].sort((a,b)=>a-b);
+}
+/* ---- EXTRACT PAGES ----
+   Same buildPageGrid() thumbnail workspace Reorder/Add Blank Page use
+   (mode:"select" - already existed, unchanged here) plus a compact
+   page-range text field kept in sync with thumbnail selection in both
+   directions: typing a range selects the matching thumbnails, and
+   clicking thumbnails updates the text field. Both directions reuse
+   gridApi's own existing selection API (getSelected/selectAll/
+   clearSelection) and, for text->thumbnails, the grid's OWN real click
+   handling (via a genuine card.click(), not a class toggled from
+   outside) - buildPageGrid()/wirePageGridDrag() are not modified at all. */
 TOOLS.extractpages = function(){
-  let file=null, gridApi=null, loadToken=0;
+  let file=null, gridApi=null, loadToken=0, totalPages=0;
+  // Set only while applyWantedSelection() is programmatically clicking
+  // cards to match a typed range - without this, each of those clicks
+  // would also trigger the thumbnails->text sync below and overwrite
+  // rangeInput.value mid-typing (or mid-batch), fighting the very
+  // input that triggered them.
+  let suppressClickSync = false;
+
   openPanel(`
     <div class="panel-head"><h3>Extract Pages</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="extractBody">
@@ -4224,7 +4747,14 @@ TOOLS.extractpages = function(){
         <aside class="tool-side-panel">
           <h3 class="tool-side-panel-title">Extract Pages</h3>
           <div id="extractFileSlot"></div>
-          <button class="btn tool-toolbar-primary" id="go">Extract Pages</button>
+          <div class="field"><label for="extractRangeInput">Pages to extract</label>
+            <input type="text" id="extractRangeInput" placeholder="e.g. 1,3,5-8" autocomplete="off">
+          </div>
+          <div class="row">
+            <button class="btn secondary btn-sm" id="extractSelectAll" type="button" style="flex:1">Select all</button>
+            <button class="btn secondary btn-sm" id="extractClearSel" type="button" style="flex:1">Clear</button>
+          </div>
+          <button class="btn tool-toolbar-primary" id="go" style="margin-top:10px" disabled>Extract Pages</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -4237,6 +4767,9 @@ TOOLS.extractpages = function(){
   const fileSlot = document.getElementById("extractFileSlot");
   const gridHint = document.getElementById("gridHint");
   const body = document.getElementById("extractBody");
+  const pageGrid = document.getElementById("pageGrid");
+  const rangeInput = document.getElementById("extractRangeInput");
+  const goBtn = document.getElementById("go");
 
   function showEmptyState(){
     hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
@@ -4249,29 +4782,84 @@ TOOLS.extractpages = function(){
     body.classList.add("is-loaded");
   }
 
+  function selected1Based(){ return [...gridApi.getSelected()].map(i=>i+1).sort((a,b)=>a-b); }
+  function updateGoButton(count){
+    goBtn.disabled = count===0;
+    goBtn.textContent = count===0 ? "Extract Pages" : `Extract ${count} Page${count===1?"":"s"}`;
+  }
+  // Thumbnails -> text field + button. Triggered by a real click on a
+  // card (delegated), or right after Select all/Clear.
+  function syncFromThumbnails(){
+    const sel = selected1Based();
+    rangeInput.value = sel.join(",");
+    updateGoButton(sel.length);
+  }
+  // Text field -> thumbnails + button. Deliberately never writes back to
+  // rangeInput.value itself (see suppressClickSync above for why).
+  function applyWantedSelection(wanted1Based){
+    const wanted = new Set(wanted1Based);
+    const cur = new Set(selected1Based());
+    suppressClickSync = true;
+    pageGrid.querySelectorAll(".page-card").forEach(c=>{
+      const pageNum = parseInt(c.dataset.page)+1;
+      if(wanted.has(pageNum) !== cur.has(pageNum)) c.click();
+    });
+    suppressClickSync = false;
+  }
+  rangeInput.addEventListener("input", ()=>{
+    if(!gridApi) return;
+    const wanted = parsePageRangeInput(rangeInput.value, totalPages);
+    applyWantedSelection(wanted);
+    updateGoButton(wanted.length);
+  });
+  pageGrid.addEventListener("click", e=>{
+    if(suppressClickSync || !gridApi) return;
+    if(e.target.closest(".page-card")) syncFromThumbnails();
+  });
+  document.getElementById("extractSelectAll").addEventListener("click", ()=>{
+    if(!gridApi) return;
+    gridApi.selectAll();
+    syncFromThumbnails();
+  });
+  document.getElementById("extractClearSel").addEventListener("click", ()=>{
+    if(!gridApi) return;
+    gridApi.clearSelection();
+    syncFromThumbnails();
+  });
+
   wireDropzone(async fs=>{
     // See Split PDF's identical guard.
     const myToken = ++loadToken;
     file=fs[0];
-    renderFileList([file], ()=>{ loadToken++; file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; gridHint.style.display="none"; showEmptyState(); });
+    renderFileList([file], ()=>{
+      loadToken++; file=null; gridApi=null; totalPages=0;
+      pageGrid.innerHTML=""; gridHint.style.display="none"; rangeInput.value="";
+      updateGoButton(0);
+      showEmptyState();
+    });
     fileSlot.appendChild(document.getElementById("flist"));
     const bytes = await file.arrayBuffer();
     if(myToken !== loadToken) return;
     gridHint.style.display="block";
-    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"select"});
+    const builtGridApi = await buildPageGrid(pageGrid, bytes, {mode:"select"});
     if(myToken !== loadToken) return;
     gridApi = builtGridApi;
+    totalPages = gridApi.getPages().length;
+    syncFromThumbnails();
     showWorkspace();
   });
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
-    const keep = [...gridApi.getSelected()].sort((a,b)=>a-b);
-    if(keep.length===0){ toast("Select at least one page to keep"); out.innerHTML=""; return; }
-    const newDoc = await PDFDocument.create();
-    const pages = await newDoc.copyPages(doc, keep);
-    pages.forEach(p=>newDoc.addPage(p));
+    // getSelectedPages() (not a raw index list) - carries each selected
+    // card's existing rotation through buildPdfFromPages() (the same
+    // helper Reorder/Split/Organize/Rotate already use), and is already
+    // in ascending original-page order since mode:"select" never
+    // reorders cards, so no extra sort is needed.
+    const selectedPages = gridApi.getSelectedPages();
+    if(selectedPages.length===0){ toast("Select at least one page to keep"); out.innerHTML=""; return; }
+    const newDoc = await buildPdfFromPages(doc, selectedPages);
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "extracted", "pdf");
@@ -4338,7 +4926,13 @@ TOOLS.reorder = function(){
     const bytes = await file.arrayBuffer();
     if(myToken !== loadToken) return;
     gridHint.style.display="block";
-    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder"});
+    // rotatable/removable reuse the exact same per-card controls (rotate
+    // left/right, ✕ to delete) Split/Organize already ship, rather than
+    // building a second implementation - see wireCard()/appendCard() in
+    // buildPageGrid(). multiSelect stays off: Reorder's own drag-to-
+    // reorder is still the primary interaction, click-to-select would
+    // conflict with dragging a card by its whole surface.
+    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true});
     if(myToken !== loadToken) return;
     gridApi = builtGridApi;
     showWorkspace();
@@ -4347,10 +4941,13 @@ TOOLS.reorder = function(){
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
-    const order = gridApi.getOrder();
-    const newDoc = await PDFDocument.create();
-    const pages = await newDoc.copyPages(doc, order);
-    pages.forEach(p=>newDoc.addPage(p));
+    // getPages() (not just getOrder()) - carries each card's current
+    // rotation too, and buildPdfFromPages() (the same helper Split/
+    // Organize/Rotate already use) applies it on top of the page's
+    // existing rotation. Using only getOrder() here previously meant a
+    // rotation dialed in on a thumbnail was a purely visual change that
+    // silently vanished from the downloaded file.
+    const newDoc = await buildPdfFromPages(doc, gridApi.getPages());
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "reordered", "pdf");
@@ -4361,46 +4958,118 @@ TOOLS.reorder = function(){
   });
 };
 
-/* ---- ADD BLANK PAGE ---- */
+/* ---- ADD BLANK PAGE ----
+   Same thumbnail-grid workspace as Reorder Pages (buildPageGrid() with
+   mode:"reorder", removable+rotatable) instead of a blind "position
+   number + one Add button" flow with no visual feedback - the grid
+   gives drag-to-reorder/rotate/delete on every existing page for free,
+   and buildPageGrid()'s insertBlankPage() (see its own comment) slots a
+   real blank card into that exact same grid, wired through the exact
+   same rotate/remove/drag machinery every other card already uses. Export
+   goes through buildPdfFromPages() (shared with Reorder Pages/Split/
+   Organize/Rotate), extended there to recognize a blank card's
+   {blank:true, width, height} entry and insert a real blank PDFPage at
+   that exact position instead of copying from the source document. */
 TOOLS.addblank = function(){
-  let file=null;
+  let file=null, gridApi=null, loadToken=0;
   openPanel(`
     <div class="panel-head"><h3>Add Blank Page</h3></div>
-    <div class="panel-body compact tool-workspace" id="addblankBody">
-      <div class="tool-hero">
+    <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="addblankBody">
+      <div class="tool-hero" id="addblankHero">
         <h2 class="tool-hero-title">Add Blank Page</h2>
-        <p class="tool-hero-desc">Insert a blank page anywhere in your PDF.</p>
+        <p class="tool-hero-desc">Insert a blank page anywhere in your document, then download the result.</p>
       </div>
-      <div class="tool-upload-wrap">
+      <div class="tool-upload-wrap" id="addblankUploadWrap">
         ${fileInputHTML("application/pdf", false, "Select PDF file")}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-toolbar" id="addblankToolbar" style="display:none">
-        <div class="tool-toolbar-secondary">
-          <div class="field" style="margin:0"><label>Position (page number after which to insert, 0 = beginning)</label><input type="number" id="pos" value="0" min="0"></div>
+      <p class="tool-privacy-hint" id="addblankPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="tool-app-workspace" id="addblankWorkspace" style="display:none">
+        <div class="tool-main-pane">
+          <p class="page-grid-hint" id="addblankGridHint" style="display:none">Drag pages to reorder, or insert a blank page below.</p>
+          <div class="page-grid tool-content-area" id="pageGrid"></div>
         </div>
-        <button class="btn tool-toolbar-primary" id="go">Add Blank Page</button>
+        <aside class="tool-side-panel">
+          <h3 class="tool-side-panel-title">Add Blank Page</h3>
+          <div id="addblankFileSlot"></div>
+          <div class="field"><label for="addblankPos">Insert after page</label>
+            <input type="number" id="addblankPos" value="0" min="0">
+          </div>
+          <button class="btn secondary" id="insertBlank" type="button" style="width:100%">+ Add Blank Page</button>
+          <button class="btn tool-toolbar-primary" id="go" style="margin-top:10px">Download PDF</button>
+        </aside>
       </div>
       <div id="out"></div>
     </div>`);
-  wireDropzone(fs=>{
+
+  const hero = document.getElementById("addblankHero");
+  const uploadWrap = document.getElementById("addblankUploadWrap");
+  const privacyHint = document.getElementById("addblankPrivacyHint");
+  const workspace = document.getElementById("addblankWorkspace");
+  const fileSlot = document.getElementById("addblankFileSlot");
+  const gridHint = document.getElementById("addblankGridHint");
+  const body = document.getElementById("addblankBody");
+  const posInput = document.getElementById("addblankPos");
+
+  function showEmptyState(){
+    hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
+    workspace.style.display="none";
+    body.classList.remove("is-loaded");
+  }
+  function showWorkspace(){
+    hero.style.display="none"; uploadWrap.style.display="none"; privacyHint.style.display="none";
+    workspace.style.display="flex";
+    body.classList.add("is-loaded");
+  }
+  // Keeps the position field bounded to the grid's current card count
+  // (blank cards included) so "Insert after page" can never be pointed
+  // past the end of the document - defaults to "append at the end",
+  // the most common intent, but stays editable for inserting in the
+  // middle.
+  function syncPosBounds(){
+    const count = document.querySelectorAll("#pageGrid .page-card").length;
+    posInput.max = count;
+    if(posInput.value==="" || parseInt(posInput.value) > count) posInput.value = count;
+  }
+
+  wireDropzone(async fs=>{
+    // See Split PDF's identical guard.
+    const myToken = ++loadToken;
     file=fs[0];
-    renderFileList([file], ()=>{ file=null; document.getElementById("addblankToolbar").style.display="none"; document.getElementById("addblankBody").classList.remove("is-loaded"); renderFileList([], ()=>{}); });
-    document.getElementById("addblankToolbar").style.display="flex";
-    document.getElementById("addblankBody").classList.add("is-loaded");
+    renderFileList([file], ()=>{ loadToken++; file=null; gridApi=null; document.getElementById("pageGrid").innerHTML=""; gridHint.style.display="none"; showEmptyState(); });
+    fileSlot.appendChild(document.getElementById("flist"));
+    const bytes = await file.arrayBuffer();
+    if(myToken !== loadToken) return;
+    gridHint.style.display="block";
+    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true});
+    if(myToken !== loadToken) return;
+    gridApi = builtGridApi;
+    syncPosBounds();
+    showWorkspace();
   });
+
+  document.getElementById("insertBlank").addEventListener("click", async ()=>{
+    if(!gridApi) return;
+    const afterIndex = Math.max(0, parseInt(posInput.value)||0);
+    const card = await gridApi.insertBlankPage(afterIndex);
+    // Scrolls the new card into view and briefly pulses it so "where did
+    // it go" is never a question, even in a long document where the
+    // insertion point might be off-screen.
+    card.scrollIntoView({block:"center", behavior: MOTION.reduced ? "auto" : "smooth"});
+    if(window.gsap && !MOTION.reduced) gsap.fromTo(card, {filter:"brightness(1.6)"}, {filter:"brightness(1)", duration:.5, ease:"power2.out"});
+    syncPosBounds();
+  });
+
   document.getElementById("go").addEventListener("click", async ()=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
-    setStatus("Adding blank page...");
-    const pos = parseInt(document.getElementById("pos").value)||0;
-    const ref = doc.getPage(0).getSize();
-    doc.insertPage(pos, [ref.width, ref.height]);
-    const outBytes=await doc.save();
+    // Same getPages()+buildPdfFromPages() export path Reorder Pages uses -
+    // blank cards flow through automatically via the {blank:true,...}
+    // shape getPages() now emits for them.
+    const newDoc = await buildPdfFromPages(doc, gridApi.getPages());
+    const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "with_blank", "pdf");
-    setStatus("Preparing download...");
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
     setStatus("Done", true);
@@ -5673,7 +6342,18 @@ TOOLS.invertpdf = function(){
    every one of its page thumbnails and as a swatch in the "Files" list,
    so it's obvious at a glance which original file any page came from
    while drag-reordering/mixing pages across files. */
-const ORGANIZE_FILE_COLORS = ["#E0201B","#3B82F6","#F5B22D","#8B5CF6","#22C55E","#EC4899","#14B8A6","#F97316"];
+// Per-source-file identity color for Organize PDF's multi-file mode
+// (lets a page's card show which uploaded file it came from). These are
+// applied as inline styles (see buildPageGrid()'s appendCard()), so
+// unlike the rest of the shared page-card CSS they can't theme-swap via
+// a CSS variable - deliberately excludes the site's own --red (which IS
+// the brand accent in light mode) and any green/lime shade (reserved
+// for the selected-state accent), so a source-file color is never
+// mistaken for either. Only ever used when 2+ files are actually loaded
+// together - see addFiles() below - so a single-file Organize session
+// (the common case) shows the exact same plain, uncolored cards Reorder
+// Pages does.
+const ORGANIZE_FILE_COLORS = ["#3B82F6","#8B5CF6","#F5B22D","#EC4899","#06B6D4","#F97316","#6366F1","#F43F5E"];
 TOOLS.organize = function(){
   const entries = []; // {file, color, removed}
   let gridApi=null;
@@ -5725,11 +6405,19 @@ TOOLS.organize = function(){
   }
 
   function renderFilesSidebar(){
+    // Color-coding only means anything once there's a second file to
+    // tell apart from the first - with exactly one file loaded (the
+    // common case), the swatch stays the same neutral style as every
+    // other file-identity chip on the site instead of an arbitrary
+    // per-file color nobody needs yet. See addFiles()'s identical
+    // reasoning for the page-card borders/labels themselves.
+    const multiFile = entries.filter(e=>!e.removed).length > 1;
     filesListEl.innerHTML = entries.map((e, i)=>{
       if(e.removed) return "";
       const letter = String.fromCharCode(65 + i);
+      const swatchStyle = multiFile ? ` style="background:${e.color};color:#fff"` : "";
       return `<div class="organize-file-row" data-doc-index="${i}">
-        <span class="organize-file-swatch" style="background:${e.color}">${letter}</span>
+        <span class="organize-file-swatch"${swatchStyle}>${letter}</span>
         <span class="organize-file-name" title="${escapeAttr(e.file.name)}">${escapeAttr(e.file.name)}</span>
         <button type="button" class="organize-file-remove" data-doc-index="${i}" aria-label="Remove ${escapeAttr(e.file.name)}">✕</button>
       </div>`;
@@ -5757,8 +6445,28 @@ TOOLS.organize = function(){
     renderFilesSidebar();
     if(!gridApi){
       gridHint.style.display="block";
+      // A single file uploaded together (by far the common case, and
+      // what every other page-grid tool - Reorder Pages included -
+      // looks like) gets no per-file color at all, so its cards render
+      // identically to Reorder's plain ones. Uploading several files
+      // together IS a real "tell them apart" need, so those keep their
+      // assigned colors. Adding a 2nd file later via addSource() below
+      // always means 2+ files exist by definition, so that path is
+      // untouched - see its own call for why.
       const sources = await Promise.all(newSources.map(async s=>({bytes:await s.file.arrayBuffer(), color:s.color})));
-      gridApi = await buildPageGrid(pageGridEl, sources, {mode:"reorder", removable:true, rotatable:true, duplicable:true, multiSelect:true, zoomable:true});
+      const gridSources = sources.length>1 ? sources : sources.map(s=>({...s, color:null}));
+      // zoomable dropped - matches Rotate PDF's own de-S/M/L-ing: every
+      // page-grid tool now just uses the shared default size instead of
+      // a tool-specific zoom toggle. multiSelect stays on (Organize's
+      // bulk rotate/duplicate/delete genuinely depend on it), but its
+      // visual toolbar row (the "Select all" pill + bulk-action bar) is
+      // hidden via #organizeBody .page-grid-toolbar in index.html, same
+      // as Extract/Delete Pages - the underlying capability is still
+      // fully reachable via the existing keyboard shortcuts this tool's
+      // own hint text already documents (Ctrl/Cmd+A select all, Delete
+      // to remove, R/Shift+R to rotate), plus each card's own hover
+      // controls for one-at-a-time actions including duplicate.
+      gridApi = await buildPageGrid(pageGridEl, gridSources, {mode:"reorder", removable:true, rotatable:true, duplicable:true, multiSelect:true});
       showWorkspace();
     } else {
       for(const s of newSources){
@@ -7968,17 +8676,31 @@ TOOLS.excel2pdf = function(){
 };
 
 /* ---- SIGN PDF ----
-   Main pane shows the actual page (renderPdfPageCanvas() - same
-   hang-proof renderer Crop PDF already uses, not a raw page.render()
-   call) instead of just a blind page-number field; the drawn signature
-   is composited onto that same canvas as a draggable stamp, using the
-   exact "restore background ImageData, redraw overlay" technique
-   wireCropCanvas()/cropState already established, so exporting can
-   convert the stamp's on-screen position back into real PDF points via
-   the same dispScale math Crop PDF uses - the signature lands where it
-   was actually dragged, not at one of a fixed set of corners. */
+   Workspace mirrors Crop PDF's: the whole document renders as one
+   vertically scrolling stack of real pages (lazy per-page bitmaps via
+   IntersectionObserver + a geometry fallback scan, exactly the pattern
+   TOOLS.crop established) instead of the old one-page-at-a-time canvas
+   with ‹/› page buttons. Scrolling is now the only way to change page.
+
+   Coordinate system: every page gets its OWN .sign-page wrapper whose
+   on-screen box IS that page (width set by applyZoomWidth(), height
+   following from CSS aspect-ratio built out of the page's real point
+   dimensions), and each page carries its own .sign-sig-layer. A
+   signature is an absolutely positioned element inside one page's layer,
+   sized/placed in PERCENTAGES of that layer - so it is bound to its page
+   by construction: scrolling, zooming and window resizing move page and
+   signature together, and no viewport coordinate ever leaks into the
+   stored placement. The placements themselves are exactly the fractions
+   the old single-canvas version already used (xFrac/yFrac of the page's
+   own width/height, wFrac of its width, height derived from the image's
+   aspect ratio), so "same position on every page", "apply to all pages"
+   and the pdf-lib export path below are all unchanged. */
 TOOLS.sign = function(){
-  let file=null, pdoc=null, currentPage=1, dispScale=1, pageBgImageData=null, loadToken=0;
+  let file=null, pdoc=null, loadToken=0, numPages=0;
+  // One entry per page, created up front in a cheap metadata-only pass
+  // so the whole document exists in the scroll flow immediately; pixels
+  // are rendered lazily as pages come near the viewport.
+  let pagesMeta=[]; // {index, pageNum, widthPt, heightPt, wrapEl, canvasEl, layerEl, rendered, rendering}
   // Reusable signature ASSETS (created once via draw/type/upload) each
   // carrying a default placement plus optional per-page overrides,
   // instead of one independent stamp per page - so a signature is
@@ -7995,22 +8717,35 @@ TOOLS.sign = function(){
   // stored, so the signature's true aspect ratio is preserved even on a
   // page whose own aspect ratio differs from the one it was placed on.
   let assets=[], selectedAssetId=null, assetIdCounter=0, panelState="default";
-  let dragMode=null, dragAsset=null, dragStart=null, dragStartRect=null, resizeCorner=-1, resizeAnchor=null;
+  // activePage (1-based) is the page every sidebar control acts on - the
+  // page hosting the selected signature, or, with nothing selected,
+  // whichever page is most in view. It replaces the `currentPage` the
+  // removed ‹/› page buttons used to set.
+  let activePage=1, currentPageIndex=0;
+  let zoom=1, docObserver=null, fallbackScanHandler=null, resizeHandler=null;
+  let drag=null; // {mode:"move"|"resize", asset, meta, startPt, startRect, corner, anchor}
+
   openPanel(`
     <div class="panel-head"><h3>Sign PDF</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="signBody">
       <div class="tool-hero" id="signHero">
         <h2 class="tool-hero-title">Sign PDF</h2>
-        <p class="tool-hero-desc">Draw, type, or upload a signature — it's applied to every page, drag to reposition, then download the signed PDF.</p>
+        <p class="tool-hero-desc">Draw, type, or upload a signature — it's applied to every page, scroll to any page to reposition it, then download the signed PDF.</p>
       </div>
       <div class="tool-upload-wrap" id="signUploadWrap">
         ${fileInputHTML("application/pdf", false, "Select PDF file")}
       </div>
       <p class="tool-privacy-hint" id="signPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
-      <div class="tool-app-workspace" id="signWorkspace" style="display:none">
-        <div class="tool-main-pane">
-          <div class="tool-content-area crop-stage" id="signStage">
-            <canvas id="signPageCanvas"></canvas>
+      <div class="tool-app-workspace sign-app-workspace" id="signWorkspace" style="display:none">
+        <div class="tool-main-pane sign-main-pane">
+          <div class="sign-zoom">
+            <button type="button" class="sign-zoom-btn" id="signZoomOut" aria-label="Zoom out">−</button>
+            <span class="sign-zoom-level" id="signZoomLevel">100%</span>
+            <button type="button" class="sign-zoom-btn" id="signZoomIn" aria-label="Zoom in">+</button>
+            <span class="sign-page-indicator" id="signPageIndicator">Page 1 / 1</span>
+          </div>
+          <div class="sign-document-viewport" id="signDocViewport">
+            <div class="sign-document" id="signDocument"></div>
           </div>
           <div class="mono" id="signReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
         </div>
@@ -8018,14 +8753,6 @@ TOOLS.sign = function(){
           <h3 class="tool-side-panel-title">Sign PDF</h3>
           <div id="signFileSlot"></div>
           <div class="tool-content-area" id="sigPanelArea"></div>
-          <div class="field" id="signPageField" style="display:none">
-            <label>Page</label>
-            <div class="row">
-              <button class="btn secondary btn-sm" id="sigPrevPage" type="button" aria-label="Previous page">‹</button>
-              <input type="number" id="pageNum" value="1" min="1" style="text-align:center">
-              <button class="btn secondary btn-sm" id="sigNextPage" type="button" aria-label="Next page">›</button>
-            </div>
-          </div>
           <button class="btn tool-toolbar-primary" id="go">Sign PDF</button>
         </aside>
       </div>
@@ -8038,11 +8765,14 @@ TOOLS.sign = function(){
   const workspace = document.getElementById("signWorkspace");
   const fileSlot = document.getElementById("signFileSlot");
   const body = document.getElementById("signBody");
-  const pageCanvas = document.getElementById("signPageCanvas");
-  const pageField = document.getElementById("signPageField");
-  const pageNumInput = document.getElementById("pageNum");
   const readout = document.getElementById("signReadout");
   const sigPanelArea = document.getElementById("sigPanelArea");
+  const docViewport = document.getElementById("signDocViewport");
+  const docEl = document.getElementById("signDocument");
+  const pageIndicator = document.getElementById("signPageIndicator");
+  const zoomInBtn = document.getElementById("signZoomIn");
+  const zoomOutBtn = document.getElementById("signZoomOut");
+  const zoomLevelEl = document.getElementById("signZoomLevel");
 
   function showEmptyState(){
     hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
@@ -8059,11 +8789,11 @@ TOOLS.sign = function(){
   // + "+ Add Signature") ----
   function effectivePlacement(asset, page){ return asset.pageOverrides[page] || asset.defaultPlacement; }
   function hasOtherPageOverrides(asset){
-    return Object.keys(asset.pageOverrides).some(p=>parseInt(p,10)!==currentPage);
+    return Object.keys(asset.pageOverrides).some(p=>parseInt(p,10)!==activePage);
   }
   function placementStatusText(asset){
-    if(asset.hiddenPages.has(currentPage)) return "Hidden on this page";
-    if(asset.pageOverrides[currentPage]) return "Custom position on this page";
+    if(asset.hiddenPages.has(activePage)) return `Hidden on page ${activePage}`;
+    if(asset.pageOverrides[activePage]) return `Custom position on page ${activePage}`;
     return "Same position on every page";
   }
   function renderSigListRows(){
@@ -8071,7 +8801,7 @@ TOOLS.sign = function(){
     // role="button"/tabindex here (not just the delete button) - this
     // row is otherwise the only way to select a signature at all, and a
     // bare click-only <div> is invisible to keyboard/screen-reader use.
-    // Once selected, the canvas keydown handler below (nudge/resize/
+    // Once selected, the viewport keydown handler below (nudge/resize/
     // delete) picks up from here.
     return `<div class="sig-list">` + assets.map(a=>`
       <div class="sig-list-item ${a.id===selectedAssetId?"active":""}" data-asset-id="${a.id}" role="button" tabindex="0" aria-pressed="${a.id===selectedAssetId}" aria-label="Signature, ${placementStatusText(a)}">
@@ -8089,7 +8819,7 @@ TOOLS.sign = function(){
       ${selected ? `
       <div class="sig-active-controls" id="sigActiveControls">
         <button class="btn secondary btn-sm" id="applyAllBtn" type="button" style="width:100%">Apply to all pages</button>
-        <button class="btn secondary btn-sm" id="toggleHideBtn" type="button" style="width:100%;margin-top:6px">${selected.hiddenPages.has(currentPage) ? "Show on this page" : "Hide on this page"}</button>
+        <button class="btn secondary btn-sm" id="toggleHideBtn" type="button" style="width:100%;margin-top:6px">${selected.hiddenPages.has(activePage) ? `Show on page ${activePage}` : `Hide on page ${activePage}`}</button>
       </div>` : ``}
       <button class="btn" id="addSigBtn" type="button" style="margin-top:10px;width:100%">+ Add Signature</button>
     `;
@@ -8098,7 +8828,7 @@ TOOLS.sign = function(){
       row.addEventListener("click", e=>{
         if(e.target.closest("[data-del-id]")) return;
         selectedAssetId = parseInt(row.dataset.assetId, 10);
-        redrawStage();
+        redrawAllPages();
         showSigDefault();
       });
       row.addEventListener("keydown", e=>{
@@ -8130,18 +8860,18 @@ TOOLS.sign = function(){
     document.getElementById("confirmApplyAll").addEventListener("click", ()=> applyToAllPages(asset));
   }
   function applyToAllPages(asset){
-    asset.defaultPlacement = {...effectivePlacement(asset, currentPage)};
+    asset.defaultPlacement = {...effectivePlacement(asset, activePage)};
     asset.pageOverrides = {};
-    redrawStage();
+    redrawAllPages();
     showSigDefault();
   }
   function toggleHidden(asset){
-    if(asset.hiddenPages.has(currentPage)){ asset.hiddenPages.delete(currentPage); }
+    if(asset.hiddenPages.has(activePage)){ asset.hiddenPages.delete(activePage); }
     else{
-      asset.hiddenPages.add(currentPage);
+      asset.hiddenPages.add(activePage);
       if(selectedAssetId===asset.id) selectedAssetId=null;
     }
-    redrawStage();
+    redrawAllPages();
     showSigDefault();
   }
   function refreshSigListIfIdle(){ if(panelState==="default") showSigDefault(); }
@@ -8312,154 +9042,128 @@ TOOLS.sign = function(){
     return c.toDataURL("image/png");
   }
   function addSignature(img){
-    if(!pageBgImageData){ toast("Page isn't ready yet - try again in a moment"); return; }
+    const meta = pagesMeta[activePage-1] || pagesMeta[0];
+    if(!meta){ toast("Page isn't ready yet - try again in a moment"); return; }
     const pngDataUrl = toPngDataUrl(img);
     const ratio = img.naturalWidth/img.naturalHeight;
     // Default placement: bottom-right, safe margins, moderate size -
-    // computed once against whichever page is on screen right now, then
-    // stored as page-relative fractions so it's immediately valid for
-    // every page (including ones not rendered yet).
-    const wPx = Math.min(180, pageCanvas.width*0.42);
+    // computed against a reference rendering of the page in view (the
+    // same "cap the page at 700px wide" baseline the old single-canvas
+    // preview used, so the default size is unchanged), then stored as
+    // page-relative fractions so it's immediately valid for every page
+    // (including ones not rendered yet).
+    const refScale = Math.min(1, 700/meta.widthPt);
+    const refW = meta.widthPt*refScale, refH = meta.heightPt*refScale;
+    const wPx = Math.min(180, refW*0.42);
     const hPx = wPx/ratio;
     const margin = 20;
-    const xPx = pageCanvas.width - wPx - margin;
-    const yPx = pageCanvas.height - hPx - margin;
-    const defaultPlacement = { xFrac: xPx/pageCanvas.width, yFrac: yPx/pageCanvas.height, wFrac: wPx/pageCanvas.width };
+    const defaultPlacement = {
+      xFrac: (refW - wPx - margin)/refW,
+      yFrac: (refH - hPx - margin)/refH,
+      wFrac: wPx/refW
+    };
     const id = ++assetIdCounter;
     assets.push({id, img, pngDataUrl, ratio, defaultPlacement, pageOverrides:{}, hiddenPages:new Set()});
     selectedAssetId = id;
-    redrawStage();
+    redrawAllPages();
     showSigDefault();
   }
   function deleteAsset(id){
     assets = assets.filter(a=>a.id!==id);
     if(selectedAssetId===id) selectedAssetId=null;
-    redrawStage();
+    redrawAllPages();
     refreshSigListIfIdle();
   }
 
-  // ---- Main stage: render + drag/resize/delete. Every asset not
-  // hidden on the current page is drawn automatically - a signature
-  // never needs re-adding per page. ----
-  function placementToRect(asset, placement){
-    const w = placement.wFrac * pageCanvas.width;
-    return { x: placement.xFrac*pageCanvas.width, y: placement.yFrac*pageCanvas.height, w, h: w/asset.ratio };
+  // ---- Signature layers: one per page, rebuilt from the asset model.
+  // Every asset not hidden on that page is drawn automatically - a
+  // signature never needs re-adding per page. ----
+
+  /** Placement -> page-relative rect, all four values fractions 0..1 of
+   * THAT page's own box. Height is derived from the image's aspect ratio
+   * and the page's own point dimensions, so the signature keeps its true
+   * proportions on pages of any shape.
+   *
+   * The clamp matters on documents that mix page sizes: a placement made
+   * on a portrait page is taller in fractions of a landscape page, so a
+   * shared default placed near the bottom can run past the edge there.
+   * The export below already clamps exactly this way (its x/y are
+   * Math.max(0, Math.min(..., width-w / height-h))), so clamping here
+   * too is what makes the preview show the position the signed PDF
+   * actually gets, rather than one hanging off the page. */
+  function placementRect(asset, meta, placement){
+    const w = placement.wFrac;
+    const h = (w * meta.widthPt / asset.ratio) / meta.heightPt;
+    return {
+      x: Math.max(0, Math.min(placement.xFrac, 1-w)),
+      y: Math.max(0, Math.min(placement.yFrac, 1-h)),
+      w, h
+    };
   }
-  function redrawStage(){
-    if(!pageBgImageData) return;
-    const ctx = pageCanvas.getContext("2d");
-    ctx.putImageData(pageBgImageData, 0, 0);
+  function redrawPage(meta){
+    if(!meta || !meta.layerEl) return;
+    meta.layerEl.textContent = "";
     assets.forEach(asset=>{
-      if(asset.hiddenPages.has(currentPage)) return;
-      const rect = placementToRect(asset, effectivePlacement(asset, currentPage));
-      ctx.drawImage(asset.img, rect.x, rect.y, rect.w, rect.h);
-      if(asset.id === selectedAssetId){
-        ctx.save();
-        ctx.strokeStyle = "#E8291B"; ctx.lineWidth = 1.5; ctx.setLineDash([5,4]);
-        ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-        ctx.restore();
-        const hs = 5;
-        ctx.fillStyle = "#E8291B";
-        [[rect.x,rect.y],[rect.x+rect.w,rect.y],[rect.x+rect.w,rect.y+rect.h],[rect.x,rect.y+rect.h]].forEach(([cx,cy])=>{
-          ctx.fillRect(cx-hs, cy-hs, hs*2, hs*2);
-          ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(cx-hs, cy-hs, hs*2, hs*2);
+      if(asset.hiddenPages.has(meta.pageNum)) return;
+      const r = placementRect(asset, meta, effectivePlacement(asset, meta.pageNum));
+      const isSel = asset.id===selectedAssetId && meta.pageNum===activePage;
+      const el = document.createElement("div");
+      el.className = "sign-sig" + (isSel ? " sign-sig-selected" : "");
+      el.dataset.assetId = String(asset.id);
+      el.style.left = (r.x*100)+"%";
+      el.style.top = (r.y*100)+"%";
+      el.style.width = (r.w*100)+"%";
+      el.style.height = (r.h*100)+"%";
+      const im = document.createElement("img");
+      im.className = "sign-sig-img"; im.src = asset.pngDataUrl; im.alt = "Signature";
+      el.appendChild(im);
+      if(isSel){
+        ["nw","ne","se","sw"].forEach((c,i)=>{
+          const hd = document.createElement("div");
+          hd.className = "sign-sig-handle "+c; hd.dataset.corner = String(i);
+          el.appendChild(hd);
         });
-        const dbx = rect.x+rect.w+2, dby = rect.y-2;
-        ctx.beginPath(); ctx.arc(dbx, dby, 9, 0, Math.PI*2); ctx.fillStyle = "#15181A"; ctx.fill();
-        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(dbx-3,dby-3); ctx.lineTo(dbx+3,dby+3); ctx.moveTo(dbx+3,dby-3); ctx.lineTo(dbx-3,dby+3); ctx.stroke();
+        const del = document.createElement("button");
+        del.type = "button"; del.className = "sign-sig-del";
+        del.setAttribute("aria-label","Delete signature");
+        del.textContent = "×";
+        el.appendChild(del);
       }
+      meta.layerEl.appendChild(el);
     });
+  }
+  function redrawAllPages(){
+    pagesMeta.forEach(m=>{
+      m.wrapEl.classList.toggle("sign-page-active", m.pageNum===activePage && selectedAssetId!==null);
+      redrawPage(m);
+    });
+    updateReadout();
+  }
+  function updateReadout(){
     readout.textContent = assets.length===0
-      ? "Add a signature - it appears on every page automatically."
+      ? "Add a signature - it appears on every page automatically. Scroll to move through the document."
       : selectedAssetId
         ? "Drag to move, use the corner handles to resize, or the × to delete. Arrow keys move, +/- resize, Delete removes."
-        : "Drag to move, use the corner handles to resize, or the × to delete.";
+        : "Scroll to any page, then drag a signature to move it, resize it by its corners, or delete it with the ×.";
   }
 
-  pageCanvas.style.touchAction = "none";
-  // Every placement interaction above (drag to move, corner-handle
-  // resize, click the × to delete) was pointer-only - a keyboard/screen-
-  // reader user could add a signature but then had no way at all to
-  // reposition, resize, or remove it. Mirrors the same operations via
-  // the keyboard once a signature is selected (from the sidebar list or
-  // by tabbing to the canvas itself): arrows nudge, Shift+arrow nudges
-  // further, +/- resizes (anchored top-left, aspect ratio preserved,
-  // same clamping the mouse resize/move paths already use so a keyboard
-  // user can't push a signature off the page either), Delete/Backspace
-  // removes it, Escape deselects.
-  pageCanvas.tabIndex = 0;
-  pageCanvas.setAttribute("role", "application");
-  pageCanvas.setAttribute("aria-label", "PDF page with signature placement - use arrow keys to move the selected signature, plus/minus to resize, Delete to remove");
-  pageCanvas.addEventListener("keydown", e=>{
-    const selected = assets.find(a=>a.id===selectedAssetId && !a.hiddenPages.has(currentPage));
-    if(!selected) return;
-    const rect = placementToRect(selected, effectivePlacement(selected, currentPage));
-    const step = e.shiftKey ? 20 : 4;
-    let handled = true;
-    if(e.key==="ArrowLeft" || e.key==="ArrowRight" || e.key==="ArrowUp" || e.key==="ArrowDown"){
-      const dx = e.key==="ArrowLeft" ? -step : e.key==="ArrowRight" ? step : 0;
-      const dy = e.key==="ArrowUp" ? -step : e.key==="ArrowDown" ? step : 0;
-      commitRect(selected, {
-        x: Math.max(0, Math.min(pageCanvas.width-rect.w, rect.x+dx)),
-        y: Math.max(0, Math.min(pageCanvas.height-rect.h, rect.y+dy)),
-        w: rect.w, h: rect.h
-      });
-    } else if(e.key==="+" || e.key==="=" || e.key==="-" || e.key==="_"){
-      const grow = (e.key==="+" || e.key==="=");
-      const factor = grow ? 1.1 : 0.9;
-      let newW = Math.max(24, rect.w*factor);
-      newW = Math.min(newW, pageCanvas.width-rect.x);
-      let newH = newW/selected.ratio;
-      newH = Math.min(newH, pageCanvas.height-rect.y);
-      newW = newH*selected.ratio;
-      commitRect(selected, {x:rect.x, y:rect.y, w:newW, h:newH});
-    } else if(e.key==="Delete" || e.key==="Backspace"){
-      e.preventDefault(); e.stopPropagation();
-      deleteAsset(selected.id); // already calls redrawStage() + refreshes the list itself
-      return;
-    } else if(e.key==="Escape"){
-      // Must stop this from bubbling to document's own Escape handler
-      // (closePanel() - see its comment for the identical conflict
-      // TOOLS.edit already had to guard against) - without this, Escape
-      // while the canvas is focused doesn't just deselect the signature,
-      // it closes the ENTIRE Sign PDF panel and discards all of the
-      // user's in-progress signature placement. Confirmed by testing:
-      // this is exactly what happened before this stopPropagation() was
-      // added.
-      e.preventDefault(); e.stopPropagation();
-      selectedAssetId = null;
-      redrawStage();
-      refreshSigListIfIdle();
-      return;
-    } else {
-      handled = false;
-    }
-    if(handled){ e.preventDefault(); e.stopPropagation(); redrawStage(); }
-  });
-  function stagePos(e){
-    const r = pageCanvas.getBoundingClientRect();
-    const x = Math.max(0, Math.min(pageCanvas.width, (e.clientX-r.left)*(pageCanvas.width/r.width)));
-    const y = Math.max(0, Math.min(pageCanvas.height, (e.clientY-r.top)*(pageCanvas.height/r.height)));
-    return {x,y};
+  // ---- Placement interaction, wired per page. Everything is expressed
+  // in fractions of the page's OWN box, never in viewport or canvas-
+  // bitmap pixels, so scroll position and zoom are irrelevant to the
+  // stored placement. ----
+  function pageBox(meta){ return meta.wrapEl.getBoundingClientRect(); }
+  function commitRect(asset, meta, rect){
+    // Clamp inside the page, then store as that page's own override.
+    const w = Math.min(rect.w, 1), h = Math.min(rect.h, 1);
+    asset.pageOverrides[meta.pageNum] = {
+      xFrac: Math.max(0, Math.min(1-w, rect.x)),
+      yFrac: Math.max(0, Math.min(1-h, rect.y)),
+      wFrac: w
+    };
   }
-  function hitTestHandle(rect, p){
-    const hs=8;
-    const corners=[{i:0,x:rect.x,y:rect.y},{i:1,x:rect.x+rect.w,y:rect.y},{i:2,x:rect.x+rect.w,y:rect.y+rect.h},{i:3,x:rect.x,y:rect.y+rect.h}];
-    for(const c of corners){ if(Math.abs(p.x-c.x)<=hs && Math.abs(p.y-c.y)<=hs) return c.i; }
-    return -1;
-  }
-  function hitTestDelete(rect, p){
-    return Math.hypot(p.x-(rect.x+rect.w+2), p.y-(rect.y-2)) <= 11;
-  }
-  function assetAtPoint(p){
-    for(let i=assets.length-1;i>=0;i--){
-      const a=assets[i];
-      if(a.hiddenPages.has(currentPage)) continue;
-      const rect = placementToRect(a, effectivePlacement(a, currentPage));
-      if(p.x>=rect.x && p.x<=rect.x+rect.w && p.y>=rect.y && p.y<=rect.y+rect.h) return a;
-    }
-    return null;
+  function setActivePage(pageNum){
+    if(activePage === pageNum) return;
+    activePage = pageNum;
   }
   function cornerAnchor(rect, corner){
     switch(corner){
@@ -8469,101 +9173,344 @@ TOOLS.sign = function(){
       default: return {x:rect.x+rect.w, y:rect.y};
     }
   }
-  function commitRect(asset, rect){
-    asset.pageOverrides[currentPage] = { xFrac: rect.x/pageCanvas.width, yFrac: rect.y/pageCanvas.height, wFrac: rect.w/pageCanvas.width };
-  }
-  pageCanvas.onpointerdown = e=>{
-    const p = stagePos(e);
-    const selected = assets.find(a=>a.id===selectedAssetId && !a.hiddenPages.has(currentPage));
-    if(selected){
-      const rect = placementToRect(selected, effectivePlacement(selected, currentPage));
-      if(hitTestDelete(rect,p)){ deleteAsset(selected.id); return; }
-      const corner = hitTestHandle(rect,p);
-      if(corner>=0){
-        pageCanvas.setPointerCapture(e.pointerId);
-        dragMode="resize"; dragAsset=selected; resizeCorner=corner; dragStartRect=rect;
-        resizeAnchor = cornerAnchor(rect, corner);
+  function wireSigLayer(meta){
+    meta.layerEl.addEventListener("pointerdown", e=>{
+      if(e.button!=null && e.button!==0) return;
+      // Keyboard nudge/resize/delete listens on the viewport, so give it
+      // focus on any placement interaction. preventScroll: focusing must
+      // never yank the document away from the page just clicked.
+      try{ docViewport.focus({preventScroll:true}); }catch(err){ docViewport.focus(); }
+      const sigEl = e.target.closest(".sign-sig");
+      if(!sigEl){
+        if(selectedAssetId!==null){ selectedAssetId=null; redrawAllPages(); refreshSigListIfIdle(); }
         return;
       }
-      if(p.x>=rect.x && p.x<=rect.x+rect.w && p.y>=rect.y && p.y<=rect.y+rect.h){
-        pageCanvas.setPointerCapture(e.pointerId);
-        dragMode="move"; dragAsset=selected; dragStart=p; dragStartRect=rect;
-        return;
+      const asset = assets.find(a=>a.id===parseInt(sigEl.dataset.assetId,10));
+      if(!asset) return;
+      if(e.target.closest(".sign-sig-del")){ deleteAsset(asset.id); return; }
+      // A handle only counts when this signature was ALREADY the
+      // selected one on this page - the handles don't exist otherwise,
+      // and the first click on an unselected signature just selects it.
+      const wasSelectedHere = (selectedAssetId===asset.id && activePage===meta.pageNum);
+      const handleEl = wasSelectedHere ? e.target.closest(".sign-sig-handle") : null;
+      if(!wasSelectedHere){
+        selectedAssetId = asset.id;
+        setActivePage(meta.pageNum);
+        redrawAllPages();
+        refreshSigListIfIdle();
       }
+      const box = pageBox(meta);
+      if(!box.width || !box.height) return;
+      const r = placementRect(asset, meta, effectivePlacement(asset, meta.pageNum));
+      const rectPx = {x:r.x*box.width, y:r.y*box.height, w:r.w*box.width, h:r.h*box.height};
+      // Capture is best-effort (keeps the drag tracking correctly if the
+      // pointer leaves this page's own bounds mid-gesture) - it can throw
+      // in some browsers/edge cases, which must not abort the handler.
+      try{ meta.layerEl.setPointerCapture(e.pointerId); }catch(err){}
+      if(handleEl){
+        const corner = parseInt(handleEl.dataset.corner,10);
+        drag = {mode:"resize", asset, meta, corner, anchor:cornerAnchor(rectPx, corner)};
+      }else{
+        drag = {mode:"move", asset, meta, startPt:{x:e.clientX-box.left, y:e.clientY-box.top}, startRect:rectPx};
+      }
+      e.preventDefault();
+    });
+    meta.layerEl.addEventListener("pointermove", e=>{
+      if(!drag || drag.meta!==meta) return;
+      const box = pageBox(meta);
+      if(!box.width || !box.height) return;
+      const px = e.clientX-box.left, py = e.clientY-box.top;
+      let rectPx;
+      if(drag.mode==="move"){
+        const dx = px-drag.startPt.x, dy = py-drag.startPt.y;
+        rectPx = {
+          x: Math.max(0, Math.min(box.width-drag.startRect.w, drag.startRect.x+dx)),
+          y: Math.max(0, Math.min(box.height-drag.startRect.h, drag.startRect.y+dy)),
+          w: drag.startRect.w, h: drag.startRect.h
+        };
+      }else{
+        // The page box and the page's point box are uniformly scaled
+        // versions of each other (the wrapper's CSS aspect-ratio IS the
+        // page's), so the image's own w/h ratio holds directly in these
+        // page pixels - same arithmetic the old canvas version used.
+        const ratio = drag.asset.ratio, a = drag.anchor;
+        const dx = px-a.x;
+        let newW = Math.max(24, Math.abs(dx));
+        let newH = newW/ratio;
+        if(newH < 24){ newH = 24; newW = newH*ratio; }
+        const growRight = drag.corner===1||drag.corner===2;
+        const growDown = drag.corner===2||drag.corner===3;
+        newW = Math.min(newW, growRight ? box.width-a.x : a.x);
+        newH = newW/ratio;
+        newH = Math.min(newH, growDown ? box.height-a.y : a.y);
+        newW = newH*ratio;
+        rectPx = {w:newW, h:newH, x: growRight?a.x:a.x-newW, y: growDown?a.y:a.y-newH};
+      }
+      commitRect(drag.asset, meta, {x:rectPx.x/box.width, y:rectPx.y/box.height, w:rectPx.w/box.width, h:rectPx.h/box.height});
+      redrawPage(meta);
+      e.preventDefault();
+    });
+    function endDrag(){
+      if(drag && drag.meta===meta){ drag=null; refreshSigListIfIdle(); }
     }
-    const hit = assetAtPoint(p);
-    if(hit){
-      selectedAssetId = hit.id;
-      refreshSigListIfIdle();
-      redrawStage();
+    meta.layerEl.addEventListener("pointerup", endDrag);
+    meta.layerEl.addEventListener("pointercancel", endDrag);
+  }
+
+  // Every placement interaction above (drag to move, corner-handle
+  // resize, click the × to delete) is pointer-only - a keyboard/screen-
+  // reader user could add a signature but then have no way at all to
+  // reposition, resize, or remove it. Mirrors the same operations from
+  // the keyboard once a signature is selected (from the sidebar list or
+  // by tabbing to the document): arrows nudge, Shift+arrow nudges
+  // further, +/- resizes (anchored top-left, aspect ratio preserved,
+  // same clamping the pointer paths use so a keyboard user can't push a
+  // signature off the page either), Delete/Backspace removes it, Escape
+  // deselects. Listening on the viewport rather than on a per-signature
+  // element keeps this working across the signature-layer rebuilds that
+  // every edit triggers.
+  docViewport.tabIndex = 0;
+  docViewport.setAttribute("role", "application");
+  docViewport.setAttribute("aria-label", "PDF pages with signature placement - scroll to move through pages, arrow keys move the selected signature, plus/minus resize, Delete removes");
+  docViewport.addEventListener("keydown", e=>{
+    const meta = pagesMeta[activePage-1];
+    const selected = assets.find(a=>a.id===selectedAssetId && !a.hiddenPages.has(activePage));
+    if(!selected || !meta) return;
+    const box = pageBox(meta);
+    if(!box.width || !box.height) return;
+    const r = placementRect(selected, meta, effectivePlacement(selected, meta.pageNum));
+    const rectPx = {x:r.x*box.width, y:r.y*box.height, w:r.w*box.width, h:r.h*box.height};
+    const step = e.shiftKey ? 20 : 4;
+    let handled = true;
+    if(e.key==="ArrowLeft" || e.key==="ArrowRight" || e.key==="ArrowUp" || e.key==="ArrowDown"){
+      const dx = e.key==="ArrowLeft" ? -step : e.key==="ArrowRight" ? step : 0;
+      const dy = e.key==="ArrowUp" ? -step : e.key==="ArrowDown" ? step : 0;
+      const x = Math.max(0, Math.min(box.width-rectPx.w, rectPx.x+dx));
+      const y = Math.max(0, Math.min(box.height-rectPx.h, rectPx.y+dy));
+      commitRect(selected, meta, {x:x/box.width, y:y/box.height, w:r.w, h:r.h});
+    } else if(e.key==="+" || e.key==="=" || e.key==="-" || e.key==="_"){
+      const grow = (e.key==="+" || e.key==="=");
+      const factor = grow ? 1.1 : 0.9;
+      let newW = Math.max(24, rectPx.w*factor);
+      newW = Math.min(newW, box.width-rectPx.x);
+      let newH = newW/selected.ratio;
+      newH = Math.min(newH, box.height-rectPx.y);
+      newW = newH*selected.ratio;
+      commitRect(selected, meta, {x:r.x, y:r.y, w:newW/box.width, h:newH/box.height});
+    } else if(e.key==="Delete" || e.key==="Backspace"){
+      e.preventDefault(); e.stopPropagation();
+      deleteAsset(selected.id); // already redraws + refreshes the list itself
       return;
-    }
-    if(selectedAssetId!==null){ selectedAssetId=null; redrawStage(); refreshSigListIfIdle(); }
-  };
-  pageCanvas.onpointermove = e=>{
-    if(!dragMode || !dragAsset) return;
-    const p = stagePos(e);
-    let rect;
-    if(dragMode==="move"){
-      const dx = p.x-dragStart.x, dy = p.y-dragStart.y;
-      rect = {
-        x: Math.max(0, Math.min(pageCanvas.width-dragStartRect.w, dragStartRect.x+dx)),
-        y: Math.max(0, Math.min(pageCanvas.height-dragStartRect.h, dragStartRect.y+dy)),
-        w: dragStartRect.w, h: dragStartRect.h
-      };
+    } else if(e.key==="Escape"){
+      // Must stop this from bubbling to document's own Escape handler
+      // (closePanel() - see its comment for the identical conflict
+      // TOOLS.edit already had to guard against) - without this, Escape
+      // while the document is focused doesn't just deselect the
+      // signature, it closes the ENTIRE Sign PDF panel and discards all
+      // of the user's in-progress signature placement.
+      e.preventDefault(); e.stopPropagation();
+      selectedAssetId = null;
+      redrawAllPages();
+      refreshSigListIfIdle();
+      return;
     } else {
-      const ratio = dragAsset.ratio;
-      const dx = p.x-resizeAnchor.x, dy = p.y-resizeAnchor.y;
-      let newW = Math.max(24, Math.abs(dx));
-      let newH = newW/ratio;
-      if(newH < 24){ newH=24; newW=newH*ratio; }
-      const growRight = resizeCorner===1||resizeCorner===2;
-      const growDown = resizeCorner===2||resizeCorner===3;
-      newW = Math.min(newW, growRight ? pageCanvas.width-resizeAnchor.x : resizeAnchor.x);
-      newH = newW/ratio;
-      newH = Math.min(newH, growDown ? pageCanvas.height-resizeAnchor.y : resizeAnchor.y);
-      newW = newH*ratio;
-      rect = { w:newW, h:newH, x: growRight?resizeAnchor.x:resizeAnchor.x-newW, y: growDown?resizeAnchor.y:resizeAnchor.y-newH };
+      handled = false;
     }
-    commitRect(dragAsset, rect);
-    redrawStage();
-  };
-  pageCanvas.onpointerup = ()=>{
-    if(dragAsset) refreshSigListIfIdle();
-    dragMode=null; dragAsset=null;
-  };
+    if(handled){ e.preventDefault(); e.stopPropagation(); redrawPage(meta); refreshSigListIfIdle(); }
+  });
 
-  async function renderPage(pageNum, myToken){
-    readout.textContent = "Rendering page…";
-    let rendered;
+  // ---- Continuous multi-page document (same architecture as Crop PDF) ----
+
+  /** Tears down the page list/observer/scroll handler and releases every
+   * page bitmap - used both when starting a fresh build and when the
+   * file is removed, so a second upload can never leave the first
+   * document's canvases (or its pdf.js worker data) alive. */
+  function resetDocState(){
+    if(docObserver){ docObserver.disconnect(); docObserver=null; }
+    if(fallbackScanHandler){ docViewport.removeEventListener("scroll", fallbackScanHandler); fallbackScanHandler=null; }
+    pagesMeta.forEach(m=>{ if(m.canvasEl){ m.canvasEl.width=0; m.canvasEl.height=0; } });
+    pagesMeta=[]; numPages=0; activePage=1; currentPageIndex=0; drag=null;
+    docEl.textContent="";
+    if(pdoc){ try{ pdoc.destroy(); }catch(e){} pdoc=null; }
+  }
+
+  /** Lays out every page up front (cheap metadata-only pass - no pixels
+   * rendered yet) so the full document exists in the scroll flow
+   * immediately, then wires lazy bitmap rendering + the "current page"
+   * tracker off one shared IntersectionObserver. */
+  async function buildDocument(myToken){
+    for(let i=1; i<=numPages; i++){
+      const page = await pdoc.getPage(i);
+      if(myToken !== loadToken) return;
+      const vp = page.getViewport({scale:1});
+      const wrap = document.createElement("div");
+      wrap.className = "sign-page";
+      wrap.dataset.pageIndex = String(i-1);
+      wrap.style.aspectRatio = `${vp.width} / ${vp.height}`;
+      wrap.innerHTML = `
+        <canvas class="sign-page-canvas"></canvas>
+        <div class="sign-page-loading">Loading page ${i}…</div>
+        <div class="sign-sig-layer"></div>
+        <div class="sign-page-num">${i} / ${numPages}</div>`;
+      const meta = {
+        index:i-1, pageNum:i, widthPt:vp.width, heightPt:vp.height,
+        wrapEl:wrap, canvasEl:wrap.querySelector(".sign-page-canvas"),
+        layerEl:wrap.querySelector(".sign-sig-layer"),
+        rendered:false, rendering:false
+      };
+      docEl.appendChild(wrap);
+      pagesMeta.push(meta);
+      wireSigLayer(meta);
+      page.cleanup();
+    }
+    applyZoomWidth();
+    updatePageIndicator();
+    redrawAllPages();
+
+    docObserver = new IntersectionObserver((entries)=>{
+      let bestIdx = currentPageIndex, bestRatio = 0;
+      entries.forEach(entry=>{
+        const idx = Number(entry.target.dataset.pageIndex);
+        if(entry.isIntersecting){
+          renderPageIfNeeded(pagesMeta[idx], myToken);
+          if(entry.intersectionRatio > bestRatio){ bestRatio = entry.intersectionRatio; bestIdx = idx; }
+        }
+      });
+      if(bestRatio > 0 && bestIdx !== currentPageIndex){
+        currentPageIndex = bestIdx;
+        onCurrentPageChanged();
+      }
+      releaseDistantPages();
+    }, {root:docViewport, rootMargin:"600px 0px", threshold:[0,0.15,0.3,0.5,0.75,1]});
+    pagesMeta.forEach(m=>docObserver.observe(m.wrapEl));
+
+    // Geometry-based fallback alongside the observer above (not instead
+    // of it): IntersectionObserver callbacks are tied to the browser
+    // actually producing compositor frames, which some embedded/headless
+    // hosts suspend for an offscreen/inactive view - without this, pages
+    // could sit permanently unrendered there even though every rect is
+    // correct. setTimeout-throttled rather than rAF-throttled for that
+    // same reason. Same fallback Crop PDF needed for the same hosts.
+    let fallbackQueued = false;
+    function fallbackScan(){
+      fallbackQueued = false;
+      if(myToken !== loadToken) return;
+      const vRect = docViewport.getBoundingClientRect();
+      let bestIdx = currentPageIndex, bestOverlap = 0;
+      pagesMeta.forEach(m=>{
+        const r = m.wrapEl.getBoundingClientRect();
+        const overlap = Math.max(0, Math.min(r.bottom, vRect.bottom) - Math.max(r.top, vRect.top));
+        if(overlap > 0 && r.top < vRect.bottom + 900 && r.bottom > vRect.top - 900){
+          renderPageIfNeeded(m, myToken);
+        }
+        if(overlap > bestOverlap){ bestOverlap = overlap; bestIdx = m.index; }
+      });
+      if(bestOverlap > 0 && bestIdx !== currentPageIndex){
+        currentPageIndex = bestIdx;
+        onCurrentPageChanged();
+      }
+      releaseDistantPages();
+    }
+    function queueFallbackScan(){
+      if(fallbackQueued) return;
+      fallbackQueued = true;
+      setTimeout(fallbackScan, 100);
+    }
+    fallbackScanHandler = queueFallbackScan;
+    docViewport.addEventListener("scroll", fallbackScanHandler, {passive:true});
+    queueFallbackScan();
+  }
+
+  async function renderPageIfNeeded(meta, myToken){
+    if(!meta || !pdoc || meta.rendered || meta.rendering) return;
+    meta.rendering = true;
     try{
-      rendered = await renderPdfPageCanvas(pdoc, pageNum, dispScale);
+      // Fixed bitmap width baseline (not tied to the current CSS zoom
+      // level) - stays sharp from 60% to 160% zoom without a re-render
+      // per zoom step, since zoom only ever changes the page's CSS width.
+      const targetW = 900;
+      const scale = targetW / meta.widthPt;
+      const rendered = await renderPdfPageCanvas(pdoc, meta.pageNum, scale);
+      if(myToken !== loadToken || !meta.canvasEl.isConnected) return;
+      meta.canvasEl.width = rendered.width; meta.canvasEl.height = rendered.height;
+      meta.canvasEl.getContext("2d").drawImage(rendered, 0, 0);
+      meta.rendered = true;
+      meta.wrapEl.classList.add("sign-page-rendered");
     }catch(e){
-      if(myToken !== loadToken) return false;
-      readout.textContent = "Could not render this page. Try a different file.";
-      return false;
+      if(myToken !== loadToken) return;
+      const loading = meta.wrapEl.querySelector(".sign-page-loading");
+      if(loading) loading.textContent = "Couldn't render this page.";
+    }finally{
+      meta.rendering = false;
     }
-    if(myToken !== loadToken) return false;
-    pageCanvas.width = rendered.width; pageCanvas.height = rendered.height;
-    pageCanvas.getContext("2d").drawImage(rendered, 0, 0);
-    pageBgImageData = pageCanvas.getContext("2d").getImageData(0,0,pageCanvas.width,pageCanvas.height);
-    currentPage = pageNum;
-    pageNumInput.value = pageNum;
-    redrawStage();
-    return true;
   }
 
-  async function goToPage(n){
-    const myToken = loadToken;
-    const clamped = Math.min(Math.max(n,1), pdoc.numPages);
-    if(clamped === currentPage) return;
-    await renderPage(clamped, myToken);
+  // A 900px-wide page bitmap costs a few MB, so a 100+ page document
+  // scrolled end to end would otherwise hold every one of them alive at
+  // once. Pages far outside the viewport drop their bitmap and re-render
+  // lazily on the way back; the signature layer is plain DOM in page
+  // percentages and is never touched, so placements survive the round
+  // trip exactly. Only long documents evict - short ones behave exactly
+  // as before, with every page staying rendered.
+  const KEEP_RADIUS = 8;
+  function releaseDistantPages(){
+    if(numPages <= 20) return;
+    pagesMeta.forEach(m=>{
+      if(!m.rendered || m.rendering) return;
+      if(Math.abs(m.index - currentPageIndex) <= KEEP_RADIUS) return;
+      m.canvasEl.width = 0; m.canvasEl.height = 0;
+      m.rendered = false;
+      m.wrapEl.classList.remove("sign-page-rendered");
+    });
   }
-  document.getElementById("sigPrevPage").addEventListener("click", ()=>goToPage(currentPage-1));
-  document.getElementById("sigNextPage").addEventListener("click", ()=>goToPage(currentPage+1));
-  pageNumInput.addEventListener("change", ()=>goToPage(parseInt(pageNumInput.value)||1));
+
+  function onCurrentPageChanged(){
+    updatePageIndicator();
+    // Scrolling is now the only way to change page, so the page every
+    // per-page control acts on ("Hide on page N", "Apply to all pages"
+    // reading its source placement, the selection outline) follows the
+    // page in view. Without this, selecting a signature from the
+    // sidebar list and then scrolling would leave those controls
+    // silently pinned to the page the user has scrolled away from. Not
+    // while a drag is in flight: retargeting mid-gesture would hand the
+    // move/resize to a different page's placement.
+    if(drag || activePage === currentPageIndex+1) return;
+    const prevMeta = pagesMeta[activePage-1];
+    activePage = currentPageIndex+1;
+    const nowMeta = pagesMeta[activePage-1];
+    // Only the two pages whose selection state actually changed get
+    // rebuilt - a full redrawAllPages() here would rebuild every page's
+    // layer on every scrolled-past page of a long document.
+    if(prevMeta){ prevMeta.wrapEl.classList.remove("sign-page-active"); redrawPage(prevMeta); }
+    if(nowMeta){ nowMeta.wrapEl.classList.toggle("sign-page-active", selectedAssetId!==null); redrawPage(nowMeta); }
+    refreshSigListIfIdle();
+  }
+  function updatePageIndicator(){ pageIndicator.textContent = `Page ${currentPageIndex+1} / ${Math.max(numPages,1)}`; }
+
+  // Fits the page to the actual workspace on BOTH axes, not just width -
+  // a portrait page capped only by width can still be taller than the
+  // whole viewport, forcing a scroll just to see page 1. Same sizing
+  // Crop PDF uses. Signatures need no adjustment on zoom/resize: they
+  // are percentages of this same box.
+  function applyZoomWidth(){
+    if(!pagesMeta.length) return;
+    const containerW = docViewport.clientWidth - 32;
+    const containerH = docViewport.clientHeight - 44;
+    const aspect = pagesMeta[0].widthPt / pagesMeta[0].heightPt;
+    const widthFromWidth = containerW || 640;
+    const widthFromHeight = (containerH>0 ? containerH : 620) * 0.82 * aspect;
+    const base = Math.max(320, Math.min(680, widthFromWidth, widthFromHeight));
+    const w = Math.round(base*zoom);
+    pagesMeta.forEach(m=>{ m.wrapEl.style.maxWidth = w+"px"; });
+  }
+  function updateZoomLabel(){ zoomLevelEl.textContent = Math.round(zoom*100)+"%"; }
+  zoomInBtn.addEventListener("click", ()=>{ zoom=Math.min(1.6, +(zoom+0.1).toFixed(2)); applyZoomWidth(); updateZoomLabel(); });
+  zoomOutBtn.addEventListener("click", ()=>{ zoom=Math.max(0.6, +(zoom-0.1).toFixed(2)); applyZoomWidth(); updateZoomLabel(); });
+  resizeHandler = ()=>{ if(workspace.isConnected && workspace.style.display!=="none") applyZoomWidth(); };
+  window.addEventListener("resize", resizeHandler);
 
   showSigDefault();
+  updateReadout();
 
   wireDropzone(async fs=>{
     // Same loadToken guard as every other async wireDropzone tool - a
@@ -8573,7 +9520,8 @@ TOOLS.sign = function(){
     file=fs[0];
     renderFileList([file], ()=>{
       loadToken++;
-      file=null; pdoc=null; assets=[]; selectedAssetId=null; pageBgImageData=null;
+      file=null; assets=[]; selectedAssetId=null;
+      resetDocState();
       showSigDefault();
       showEmptyState();
     });
@@ -8582,22 +9530,35 @@ TOOLS.sign = function(){
     showSigDefault();
     const bytes = await file.arrayBuffer();
     if(myToken !== loadToken) return;
-    const loadedPdoc = await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
-    if(myToken !== loadToken) return;
+    let loadedPdoc;
+    try{
+      loadedPdoc = await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
+    }catch(e){
+      if(myToken !== loadToken) return;
+      toast("Could not read this PDF. Try a different file.");
+      return;
+    }
+    if(myToken !== loadToken){ try{ loadedPdoc.destroy(); }catch(e){} return; }
+    resetDocState();
     pdoc = loadedPdoc;
-    const page1 = await pdoc.getPage(1);
-    if(myToken !== loadToken) return;
-    const vp1 = page1.getViewport({scale:1});
-    const maxW = 700;
-    dispScale = Math.min(1, maxW/vp1.width);
-    pageField.style.display = pdoc.numPages>1 ? "block" : "none";
-    pageNumInput.max = pdoc.numPages;
+    numPages = pdoc.numPages;
+    // Workspace must already be laid out (display:flex, real box sizes)
+    // before buildDocument() creates the IntersectionObserver - observing
+    // targets still inside a display:none subtree means the observer's
+    // root never has a size, so pages never get marked as intersecting
+    // even after the subtree becomes visible.
     showWorkspace();
-    await renderPage(1, myToken);
+    try{
+      await buildDocument(myToken);
+    }catch(e){
+      if(myToken !== loadToken) return;
+      toast("Could not render this PDF's pages. Try a different file.");
+    }
   });
 
   document.getElementById("go").addEventListener("click", async ()=>{
     const out=document.getElementById("out");
+    if(!file){ toast("Choose a PDF first"); return; }
     if(assets.length===0){ toast("Add a signature first"); return; }
     out.innerHTML=statusEl("Placing signature"+(assets.length>1?"s":"")+"...");
     const bytes=await file.arrayBuffer();
@@ -10344,27 +11305,29 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 /* ==================================================================
-   Quick Tools Rail - global, macOS-Dock-inspired, vertical. #quickDock
-   is one persistent DOM node (index.html, outside .overlay/.qa-overlay)
-   so it's never torn down/rebuilt between the homepage and any of the
-   39 tool panels. Reuses rather than re-implements: CATEGORIES/
-   CATEGORY_META for icon+color data, iconFor() for the glyphs, the
-   existing document-level [data-open] click delegation for navigation,
-   goHome() for "More", window.__currentToolId for active-state.
+   Quick Tools Rail - global, macOS-Dock-inspired, horizontal, floating
+   bottom-center. #quickDock is one persistent DOM node (index.html,
+   outside .overlay/.qa-overlay) so it's never torn down/rebuilt between
+   the homepage and any of the 39 tool panels. Reuses rather than
+   re-implements: CATEGORIES/CATEGORY_META for icon+color data, iconFor()
+   for the glyphs, the existing document-level [data-open] click
+   delegation for navigation, goHome() for "More", window.__currentToolId
+   for active-state.
 
-   TRANSFORM OWNERSHIP (the first, horizontal build of this component hit
-   a real bug from skipping this): the entrance tween and the hover-
-   proximity quickTo both wanted to drive #quickDock's `x`, and because
-   they can both be alive in the same instant right after load, GSAP's
-   two owners of one property fought and the hover nudge silently lost.
-   Fixed here by strict sequencing, not by luck: entrance holds x/scale/
-   autoAlpha exclusively until its own onComplete, and the hover-x
-   quickTo is only *constructed* inside that onComplete - it cannot exist
-   yet while entrance is still running, so there is no window where two
-   tweens can touch #quickDock's x at once. Per-icon, magnification
-   (scaleX/scaleY) and proximity movement (x) are two separate quickTo
-   arrays on two different properties, so they never conflict with each
-   other either. */
+   TRANSFORM OWNERSHIP (the first build of this component hit a real bug
+   from skipping this): the entrance tween and the hover-proximity
+   quickTo must never drive the same transform property, or GSAP's two
+   owners of it fight and one silently loses. Entrance holds x/scale/
+   autoAlpha exclusively until its own onComplete, and the hover quickTo
+   (a small vertical lift toward the page content above the dock, `y`)
+   is only *constructed* inside that onComplete - it cannot exist yet
+   while entrance is still running, so there is no window where two
+   tweens can touch the same property at once. Horizontal centering
+   (xPercent:-50) is a third, independent transform component set once
+   below and never re-touched by either of those, so all three coexist
+   without conflict. Per-icon magnification (scaleX/scaleY) and
+   per-icon pop-up movement (y) are likewise two separate quickTo arrays
+   on two different properties. */
 (function(){
   const dock = document.getElementById("quickDock");
   const fab = document.getElementById("quickDockFab");
@@ -10382,6 +11345,14 @@ window.addEventListener("unhandledrejection", (event) => {
 
   const moreIconSvg = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>`;
   const homeIconSvg = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/></svg>`;
+  // Docs isn't a PDF-processing tool, so - like Home/More above - it's
+  // hand-built here rather than routed through CATEGORIES/CATEGORY_META
+  // (which only describe actual PDF tools) or QUICK_DOCK_IDS. It still
+  // uses TOOLS.docs()/data-open="docs" underneath, so it gets the exact
+  // same click-delegation, active-state sync (data-tool-id, matched
+  // below by the shared syncActiveState()) and hover physics as every
+  // other .qd-icon - no new plumbing, just one more of these buttons.
+  const docsIconSvg = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4"/><path d="M9.5 12h5M9.5 15.5h5M9.5 8.5h2"/></svg>`;
 
   // ---- Desktop/tablet vertical rail ----
   dock.innerHTML = `<button type="button" class="qd-icon qd-home" id="qdHomeBtn" aria-label="Home" style="color:var(--accent-lime)">${homeIconSvg}<span class="qd-tooltip">Home</span></button>
@@ -10392,6 +11363,7 @@ window.addEventListener("unhandledrejection", (event) => {
       <span class="qd-tooltip">${t.name}</span>
     </button>`).join("")
     + `<div class="qd-divider" aria-hidden="true"></div>
+    <button type="button" class="qd-icon qd-more" data-open="docs" data-tool-id="docs" aria-label="Open Docs">${docsIconSvg}<span class="qd-tooltip">Docs</span></button>
     <button type="button" class="qd-icon qd-more" id="qdMoreBtn" aria-label="More tools">${moreIconSvg}<span class="qd-tooltip">More tools</span></button>`;
   const icons = [...dock.querySelectorAll(".qd-icon")];
   document.getElementById("qdHomeBtn")?.addEventListener("click", ()=>goHome());
@@ -10404,6 +11376,7 @@ window.addEventListener("unhandledrejection", (event) => {
       <button type="button" class="qdm-item" data-open="${t.id}" data-tool-id="${t.id}" role="menuitem">
         <span class="qdm-icon" style="color:${t.color}">${iconFor(t.id)}</span>${t.name}
       </button>`).join("")
+      + `<button type="button" class="qdm-item" data-open="docs" data-tool-id="docs" role="menuitem"><span class="qdm-icon">${docsIconSvg}</span>Docs</button>`
       + `<button type="button" class="qdm-item" id="qdMoreBtnMobile" role="menuitem"><span class="qdm-icon">${moreIconSvg}</span>More tools</button>`;
   }
   const menuItems = menu ? [...menu.querySelectorAll(".qdm-item")] : [];
@@ -10456,14 +11429,14 @@ window.addEventListener("unhandledrejection", (event) => {
   homeBtnMobile?.addEventListener("click", ()=>{ closeMobileMenu(); goHome(); });
 
   // ---- Reduce (not hide) during the fullscreen editor - its own
-  // controls live top/right, not far-left, so the rail usually stays
+  // controls live top/right, not the bottom, so the dock usually stays
   // clear; dimming it is enough to keep it visually secondary there.
   // Driven via GSAP (reducedOpacityTo), not a plain CSS class toggle: a
   // CSS class's opacity would get silently beaten by GSAP's own inline
   // opacity style left behind by the entrance tween below (inline always
   // wins over a class) - confirmed live, the dimming never actually
   // rendered until this was fixed to use the same quickTo-handoff pattern
-  // as hoverXTo. ----
+  // as hoverYTo. ----
   const overlayEl = document.getElementById("overlay");
   let reducedOpacityTo = null;
   function syncReducedState(){
@@ -10476,24 +11449,33 @@ window.addEventListener("unhandledrejection", (event) => {
   if(overlayEl) new MutationObserver(syncReducedState).observe(overlayEl, {attributes:true, attributeFilter:["class"]});
 
   dock.classList.add("is-ready");
+  // xPercent:-50 is the dock's horizontal-centering half of its
+  // transform (left:50% in CSS positions its LEFT edge at center, this
+  // pulls it back by half its own width) - set once, here, before any
+  // other gsap.set/to touches the dock, so it's established as a
+  // permanent baseline. Every later call below only ever specifies x/y/
+  // scale/autoAlpha, never xPercent, so GSAP leaves this alone for the
+  // dock's entire lifetime - see the file header for why entrance/hover
+  // are also kept off each other's properties the same way.
   if(!window.gsap || MOTION.reduced){
     if(window.gsap){
-      gsap.set(dock, {x:0, scale:1, autoAlpha:1});
+      gsap.set(dock, {xPercent:-50, x:0, scale:1, autoAlpha:1});
       reducedOpacityTo = gsap.quickTo(dock, "opacity", {duration:0.3, ease:"power2.out"});
       syncReducedState();
     }
     return; // no physics under reduced-motion/no-gsap - plain, fully usable buttons
   }
 
-  // Entrance: owns x/scale/autoAlpha, then hands x and opacity off
-  // entirely (see file header) once it completes.
-  gsap.set(dock, {x:-20, scale:0.96, autoAlpha:0});
+  // Entrance: owns x/scale/autoAlpha, then hands opacity off entirely
+  // (see file header) once it completes. Hover-lift takes `y` instead,
+  // never `x`, so the two can't fight even though both run soon after.
+  gsap.set(dock, {xPercent:-50, x:-20, scale:0.96, autoAlpha:0});
   gsap.set(icons, {autoAlpha:0, scale:0.9});
-  let hoverXTo = null;
+  let hoverYTo = null;
   gsap.to(dock, {
     x:0, scale:1, autoAlpha:1, duration:0.6, ease:"power3.out",
     onComplete:()=>{
-      hoverXTo = gsap.quickTo(dock, "x", {duration:0.3, ease:"power2.out"});
+      hoverYTo = gsap.quickTo(dock, "y", {duration:0.3, ease:"power2.out"});
       reducedOpacityTo = gsap.quickTo(dock, "opacity", {duration:0.3, ease:"power2.out"});
       syncReducedState();
     }
@@ -10502,18 +11484,27 @@ window.addEventListener("unhandledrejection", (event) => {
 
   if(shouldSkipCursorFx()) return; // touch/reduced-motion: rail still fully clickable, just static
 
-  const MAX_SCALE = 1.55, FALLOFF = 60, TOOLTIP_DIST = 24, MAX_ICON_X = 10, ZONE_RIGHT = 60, ZONE_PAD = 12;
+  // FALLOFF/TOOLTIP_DIST stay in px, same values as the vertical rail -
+  // only the AXIS they're measured along changes below (X, since icons
+  // now sit side by side, not stacked). MAX_ICON_Y is the per-icon
+  // pop-UP distance (negative y) instead of the old rail's pop-right
+  // (positive x) - real macOS docks pop icons upward toward the content
+  // above them, which for a bottom-center dock is "up", not "right".
+  // ZONE_TOP (was ZONE_RIGHT) widens the magnetic hit-zone toward that
+  // same content-side - up, not right - so the effect still engages
+  // naturally as the cursor approaches from where the page content is.
+  const MAX_SCALE = 1.55, FALLOFF = 60, TOOLTIP_DIST = 24, MAX_ICON_Y = 10, ZONE_TOP = 60, ZONE_PAD = 12;
   const scaleXTo = icons.map(el=>gsap.quickTo(el, "scaleX", {duration:0.25, ease:"power2.out"}));
   const scaleYTo = icons.map(el=>gsap.quickTo(el, "scaleY", {duration:0.25, ease:"power2.out"}));
-  const iconXTo = icons.map(el=>gsap.quickTo(el, "x", {duration:0.25, ease:"power2.out"}));
+  const iconYTo = icons.map(el=>gsap.quickTo(el, "y", {duration:0.25, ease:"power2.out"}));
 
   // Cache geometry - never read layout inside the pointermove hot path.
   // Recomputed on resize only, per the performance requirement.
   let iconCenters = [], zone = {left:0,right:0,top:0,bottom:0};
   function cacheGeometry(){
-    iconCenters = icons.map(el=>{ const r = el.getBoundingClientRect(); return r.top + r.height/2; });
+    iconCenters = icons.map(el=>{ const r = el.getBoundingClientRect(); return r.left + r.width/2; });
     const r = dock.getBoundingClientRect();
-    zone = {left:r.left-ZONE_PAD, right:r.right+ZONE_RIGHT, top:r.top-ZONE_PAD, bottom:r.bottom+ZONE_PAD};
+    zone = {left:r.left-ZONE_PAD, right:r.right+ZONE_PAD, top:r.top-ZONE_TOP, bottom:r.bottom+ZONE_PAD};
   }
   cacheGeometry();
   window.addEventListener("resize", cacheGeometry, {passive:true});
@@ -10526,8 +11517,8 @@ window.addEventListener("unhandledrejection", (event) => {
     if(tooltipEl) tooltipEl.classList.add("qd-tooltip-show");
   }
   function applyIdle(){
-    scaleXTo.forEach(s=>s(1)); scaleYTo.forEach(s=>s(1)); iconXTo.forEach(s=>s(0));
-    if(hoverXTo) hoverXTo(0);
+    scaleXTo.forEach(s=>s(1)); scaleYTo.forEach(s=>s(1)); iconYTo.forEach(s=>s(0));
+    if(hoverYTo) hoverYTo(0);
     setTooltip(null);
   }
   function onPointerMove(e){
@@ -10535,14 +11526,14 @@ window.addEventListener("unhandledrejection", (event) => {
     if(!inZone){ applyIdle(); return; }
     let nearestI = -1, nearestDist = Infinity;
     icons.forEach((el,i)=>{
-      const dist = Math.abs(e.clientY - iconCenters[i]);
+      const dist = Math.abs(e.clientX - iconCenters[i]);
       const t = Math.max(0, 1 - dist/FALLOFF);
       const scale = 1 + (MAX_SCALE-1) * t*t;
       scaleXTo[i](scale); scaleYTo[i](scale);
-      iconXTo[i](MAX_ICON_X * t*t);
+      iconYTo[i](-MAX_ICON_Y * t*t);
       if(dist < nearestDist){ nearestDist = dist; nearestI = i; }
     });
-    if(hoverXTo) hoverXTo(3);
+    if(hoverYTo) hoverYTo(-3);
     setTooltip(nearestDist < TOOLTIP_DIST ? icons[nearestI] : null);
   }
   window.addEventListener("pointermove", onPointerMove, {passive:true});
