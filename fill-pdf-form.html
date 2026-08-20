@@ -29,7 +29,7 @@
 <meta name="twitter:description" content="Fill out fillable form fields in a PDF and save the result, free and browser-based.">
 <meta name="twitter:image" content="https://yoyopdf.in/assets/og/yoyopdf-default-og.png">
 
-<meta name="theme-color" content="#B3121A">
+<meta name="theme-color" content="#050505">
 <link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
@@ -117,20 +117,63 @@ function ensureMammoth(){ return typeof mammoth!=="undefined" ? Promise.resolve(
 function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"); }
 </script>
 <style>
+/* Every tool open/close is a REAL cross-document navigation (see
+   openTool()/goHome() in app.js - each tool has its own physical page,
+   deliberately, for direct-URL/SEO correctness), which browsers
+   otherwise hard-cut between with a blank flash. @view-transition
+   opts every same-origin navigation on this site into the browser's
+   native cross-document View Transition, which automatically
+   crossfades old->new instead - zero JS, zero added latency, and a
+   complete no-op (falls back to the exact previous hard-cut behavior)
+   in any browser that doesn't support it yet. Not a redesign: it
+   doesn't change what renders, only how the browser paints the
+   transition between two already-correct pages. */
+@view-transition {
+  navigation: auto;
+}
 :root{
   --paper:#FFFFFF;
-  --paper-dim:#FBF2F1;
+  /* Was #FBF2F1 (warm pink-tinted, matching the old red brand) - a
+     faint green tint instead so the page's own dim/tinted surfaces read
+     as "this site's brand" rather than a leftover red undertone bleeding
+     through neutral backgrounds. */
+  --paper-dim:#F5FBF0;
   --panel-bg:#FFFFFF;
   --ink:#1A1214;
   --ink-soft:#6E5C59;
-  --red:#E0201B;
-  --red-rgb: 224,32,27;
+  /* LIGHT THEME BRAND CORRECTION: --red/--brand-grad/--brand-shadow-rgb/
+     --btn-ink/--ochre/--glow-shadow were still the OLD red identity here
+     - dark theme (below) already replaced all of these with neon lime
+     and left a comment saying so ("replacing the light theme's red/
+     orange brand color everywhere"), but light theme itself never
+     actually got that same treatment. Same technique as dark theme's
+     remap: redefine what these EXISTING tokens resolve to, so every
+     button/card/focus-ring/glow already written as var(--red) or
+     var(--brand-grad) picks up the new green brand for free - no
+     hunting down individual usages, no parallel color system. Uses the
+     brief's own specified triad (#8DFF00 primary / #5FA800 mid / #244500
+     deep) rather than reusing dark theme's --accent-lime (#9CFF00)
+     outright - pure neon lime text/icons are unreadable on a white
+     background, so light mode needs its own slightly deeper primary
+     plus real dark-green shades for text/icon contrast, which dark
+     theme's single lime value was never designed to provide. --rose
+     (errors/destructive - delete buttons, invalid states, "bad" size
+     badges) is a SEPARATE token, untouched by this - confirmed via grep
+     that every destructive/error usage in this file already reads
+     var(--rose), never var(--red), so this rebrand cannot accidentally
+     turn a delete button or error message green. */
+  --red:#5FA800;
+  --red-rgb: 95,168,0;
   --orange:#FF6A3D;
-  --brand-grad: linear-gradient(135deg, #FF3B30, #7A0000);
-  --teal:#D99A1B;
-  --teal-rgb:217,154,27;
-  --teal-deep:#B57C10;
-  --ochre:#B33A1E;
+  --brand-grad: linear-gradient(135deg, #8DFF00, #5FA800);
+  /* Donate/support stays visually distinct from the primary green CTA
+     (same principle dark theme uses purple for) - a deeper, quieter
+     green rather than the old unrelated gold, so it still reads as
+     "this brand" without competing with the bright primary green. */
+  --teal:#5FA800;
+  --teal-rgb:95,168,0;
+  --teal-deep:#244500;
+  --ochre:#8DFF00;
   --rose:#D63A3A;
   --success:#1E9E5A;
   --success-rgb: 30,158,90;
@@ -138,18 +181,19 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
   --header-bg:#FFFFFF;
   --card-bg:#FFFFFF;
   --radius: 10px;
-  --glow-shadow: 0 0 0 1px rgba(224,32,27,0.35), 0 10px 30px -8px rgba(224,32,27,0.45);
+  --glow-shadow: 0 0 0 1px rgba(141,255,0,0.35), 0 10px 30px -8px rgba(95,168,0,0.35);
   /* Backs every hardcoded `rgba(var(--brand-shadow-rgb),...)` brand-color shadow across
      this file (buttons, cards, hero CTA, workspace actions - ~15 call
      sites) - introduced so dark mode's lime remap below can correct all
      of them at once via rgba(var(--brand-shadow-rgb),X) instead of
      leaving them mismatched red glows around lime buttons. --btn-ink is
-     the primary-button TEXT color - white reads fine on the light
-     theme's dark red, but white-on-bright-lime in dark mode is a real
-     contrast failure, so this is dark-mode-flipped below instead of
-     staying a hardcoded #fff. */
-  --brand-shadow-rgb: 255,59,48;
-  --btn-ink: #fff;
+     the primary-button TEXT color - near-black reads correctly on the
+     new bright-green primary (white-on-bright-green would be the same
+     contrast failure dark theme's own comment already flags for lime),
+     so this is brand-green-flipped here instead of staying the old #fff
+     that assumed a dark red button. */
+  --brand-shadow-rgb: 141,255,0;
+  --btn-ink: #142400;
   /* Neon accent system (design brief: "black + neon lime primary +
      colorful supporting accents") - defined on bare :root so they're
      available regardless of theme, but only visually dominant once dark
@@ -267,7 +311,13 @@ header{
      blocking, page-level modals that should still cover the header. */
   position:sticky; top:0; z-index:150;
   display:flex; align-items:center; justify-content:space-between;
-  padding:20px 28px;
+  /* 13px vertical + the tallest header control (the ~41px Contact Us/
+     Donate pill buttons, taller than both the 36px round theme toggle
+     and the 115px-wide logo's own ~22px height at this aspect ratio)
+     works out to ~67px total - compact and iLovePDF-proportioned
+     instead of the old 88px (20px padding + a 48px-tall logo that no
+     longer exists). */
+  padding:13px 28px;
   background:transparent;
   border-bottom:1px solid transparent;
   transition:background .25s ease, border-color .25s ease, box-shadow .25s ease, padding .25s ease;
@@ -277,7 +327,7 @@ header.scrolled{
   backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
   border-bottom:1px solid var(--line);
   box-shadow:0 6px 18px -14px rgba(17,43,92,0.16), 0 1px 0 0 rgba(var(--brand-shadow-rgb),0.18);
-  padding:10px 28px;
+  padding:9px 28px;
 }
 .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.25rem; text-decoration:none; cursor:pointer;}
 .brand .brand-text{display:flex; flex-direction:column; line-height:1.15;}
@@ -399,6 +449,14 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 #quickDock.is-ready{ opacity:1; visibility:visible; pointer-events:auto; }
 #quickDock.is-reduced{ opacity:0.45; }
+/* Hidden on a tool's own upload/landing state (panel open, no file
+   loaded yet) - matches iLovePDF, which never shows its own floating
+   nav until you're actually inside a workspace. Declared after
+   .is-ready so it wins the pointer-events tie (both are one ID + one
+   class, same specificity - see initQuickDock's syncDockVisibility for
+   the opacity/visibility half, driven inline since GSAP already owns
+   those two properties on this element). */
+#quickDock.is-hidden{ pointer-events:none; }
 .qd-icon{
   position:relative; flex:none; width:38px; height:38px; border-radius:11px;
   background:var(--paper-dim); border:none; cursor:pointer; padding:0;
@@ -436,9 +494,13 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
   width:52px; height:52px; border-radius:50%; border:none; cursor:pointer;
   background:var(--brand-grad); color:var(--btn-ink); box-shadow:0 14px 30px -10px rgba(var(--brand-shadow-rgb),0.55);
   align-items:center; justify-content:center; font-weight:800; font-size:0.68rem; letter-spacing:-0.02em;
-  opacity:0; visibility:hidden;
+  opacity:0; visibility:hidden; transition:opacity .25s ease, visibility .25s ease;
 }
 #quickDockFab.is-ready{ opacity:1; visibility:visible; }
+/* Mobile's equivalent of #quickDock.is-hidden - same landing-state rule
+   (see initQuickDock's syncReducedState), just applied to the FAB since
+   mobile swaps the whole rail for it rather than shrinking it down. */
+#quickDockFab.is-hidden{ opacity:0; visibility:hidden; pointer-events:none; }
 #quickDockMenu{
   display:none; position:fixed; left:18px; bottom:80px; z-index:130;
   min-width:200px; border-radius:16px; padding:8px; flex-direction:column; gap:2px;
@@ -943,7 +1005,20 @@ html.panel-open{ overflow:hidden; }
    is showing, the centered hero above it would just repeat the same tool
    name a second time - hide it rather than duplicate the title. */
 .tool-workspace.tool-app-shell.is-loaded .tool-hero{ display:none; }
-.tool-app-workspace{ display:flex; align-items:flex-start; gap:24px; max-width:1400px; margin:0 auto; width:100%; }
+/* align-items:stretch (not the flex-start it used to be) so
+   .tool-side-panel's box grows to match .tool-main-pane's height instead
+   of only ever being as tall as its own handful of fields - that's what
+   lets .tool-toolbar-primary's margin-top:auto (below) actually push the
+   primary action down to the panel's bottom edge rather than sitting
+   right under the last control. Safe to do unconditionally here (unlike
+   the OTHER, older sidebar system below, which deliberately avoids this
+   for a real reason - see its own comment): every .tool-main-pane that
+   sits opposite a .tool-side-panel already caps its own height itself
+   (.page-grid max-height:520px; every *-viewport max-height:70-72vh) and
+   scrolls internally past that, so stretching to match it can never
+   produce the "sidebar/CTA pushed 1000+px down the page" problem a
+   genuinely unbounded main pane would. */
+.tool-app-workspace{ display:flex; align-items:stretch; gap:24px; max-width:1400px; margin:0 auto; width:100%; }
 .tool-main-pane{ flex:1; min-width:0; }
 .tool-side-panel{
   width:300px; flex:none; position:sticky; top:20px;
@@ -1184,7 +1259,33 @@ html.panel-open{ overflow:hidden; }
 }
 .tool-side-panel-title{ font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:1.1rem; margin:0; }
 .tool-side-panel-section-label{ font-size:0.82rem; font-weight:600; display:block; margin-bottom:2px; }
-.tool-side-panel .tool-toolbar-primary{ width:100%; }
+/* iLovePDF-style anchored bottom CTA: .tool-side-panel is already
+   display:flex;flex-direction:column (above), and now stretches to
+   match .tool-main-pane's height (see .tool-app-workspace's own
+   comment) - margin-top:auto on the LAST flex child pushes only that
+   child (the primary action button, always the final element in every
+   one of these sidebars) down to the panel's bottom edge, leaving
+   everything above it (title, file info, secondary controls like
+   Rotate's "Apply Rotation") exactly where it already sits in the DOM.
+   One shared rule instead of a per-tool spacer element.
+   position:sticky + bottom:0 on top of that: a field-heavy tool (Page
+   Numbers' position/format/start-number/preview) can have enough
+   content to make .tool-side-panel itself hit its own JS-computed
+   max-height cap (syncWorkspaceMinHeight() in app.js) and start
+   scrolling internally - without this, margin-top:auto only ever
+   anchors the button to the bottom of the FULL scrollable content, so
+   it scrolls out of view along with everything else instead of staying
+   reachable. Sticky keeps it pinned to the panel's visible bottom edge
+   regardless of scroll position, same end result the flex-spacer +
+   footer split gives the other sidebar system for free. The button's
+   own background (.btn's brand gradient) is already fully opaque
+   across its whole border-box, so no separate backing fill is needed -
+   the extra top padding just grows that already-opaque area upward a
+   little, as a buffer against scrolled content's top edge. */
+.tool-side-panel .tool-toolbar-primary{
+  width:100%; margin-top:auto; position:sticky; bottom:0;
+  padding-top:8px; margin-bottom:-8px;
+}
 .tool-side-panel .field{ margin:0; }
 /* Segmented mode-switcher tabs (iLovePDF's Range/Pages/Size, Custom/Fixed/Smart pattern) */
 .mode-tabs{
@@ -1386,20 +1487,19 @@ html.panel-open{ overflow:hidden; }
    edge instead). The post-upload two-column row layout overrides this
    back to flex-start just below - see that rule for why. */
 .tool-layout{ display:flex; gap:0; align-items:stretch; width:100%; }
-/* Loaded state only: flex-start, not the base stretch above. .tool-sidebar
-   is position:sticky, but a sticky element can only ever stay pinned
-   within the bounds of its OWN box - stretching the sidebar to
-   .tool-main's full height (stretch's effect once a file grid exists)
-   made the sidebar's box just as tall as the file grid beside it, so on
-   a tool with a lot of content (Merge with 20+ files pushes .tool-main
-   past 1700px) the primary action button, anchored toward the bottom of
-   that stretched box via .tool-sidebar-spacer, ended up 1500+px down and
-   effectively unreachable without scrolling almost as far as with no
-   sidebar at all - defeating the sticky behavior entirely. flex-start
-   lets the sidebar take its own natural (short) content height instead,
-   so position:sticky actually keeps the whole thing - including the
-   button - in view regardless of how tall the main pane grows. */
-.tool-workspace.is-loaded .tool-layout{ align-items:flex-start; }
+/* Loaded state: keeps the base stretch above (was overridden to
+   flex-start here previously) so .tool-sidebar's box grows to match
+   .tool-main's height - same reasoning as .tool-app-workspace's
+   equivalent rule - which is what lets .tool-sidebar-spacer actually
+   push the primary action toward the bottom instead of only ever
+   leaving its own min-height gap. The real problem the old flex-start
+   workaround was papering over (a tool with a lot of content, e.g.
+   Merge with 20+ files, pushes .tool-main past 1700px, which would drag
+   a stretched sidebar - and its CTA - down with it) is fixed at the
+   source below: .tool-sidebar itself is now height-capped and
+   internally scrollable, so it can never grow past a sane, always-
+   reachable size no matter how tall .tool-main gets. */
+.tool-workspace.is-loaded .tool-layout{ align-items:stretch; }
 /* Before any file is picked, .tool-layout's two-column split (built once,
    up front, by layoutTwoColumn()) has nothing real to put in the sidebar
    yet - options/CTA stay hidden until upload - so it was rendering as a
@@ -1452,6 +1552,22 @@ html.panel-open{ overflow:hidden; }
 .tool-sidebar{
   width:380px; flex:none; display:flex; flex-direction:column; gap:0;
   position:sticky; top:0; padding:28px 0 28px 32px;
+  /* Caps how tall "stretch to match .tool-main" (above) is ever allowed
+     to make this box, and lets it scroll internally past that - the
+     actual fix for the unreachable-CTA case the stretch override used
+     to just avoid outright. In the common case (sidebar's own content
+     is short) this never engages: .tool-sidebar-spacer simply stops
+     growing once it hits the cap, same visual result as before, and the
+     primary action stays pinned at the bottom of a properly viewport-
+     sized panel instead of at an arbitrary mid-page height.
+     106px (not 40px) specifically leaves room for #quickDock, which
+     only ever shows once a tool-workspace is actually loaded - the same
+     moment this cap is most likely to engage (a tall file list/page
+     grid). Dock footprint is bottom:20px + 38px tall icons = 58px from
+     the viewport edge; the extra ~48px above that is breathing room so
+     the sidebar's own clipped bottom edge never sits inside the dock's
+     band, even before its entrance/hover animation is accounted for. */
+  max-height:calc(100vh - 106px); overflow-y:auto;
 }
 /* .tool-hero, reparented into the sidebar as its title+instruction block
    (see layoutTwoColumn()) - restyled left-aligned and compact instead of
@@ -1460,32 +1576,28 @@ html.panel-open{ overflow:hidden; }
   text-align:left; align-items:flex-start; padding:0; gap:8px;
 }
 .tool-sidebar-hero .tool-hero-title{ font-size:1.5rem; }
-/* Same specificity (3 classes) as the ".tool-workspace.is-loaded
-   .tool-hero-desc{display:none}" rule earlier in this file, so this one
-   winning is purely "declared later" - the instruction line stays
-   visible once the sidebar owns it, instead of disappearing once a file
-   loads (that hide-on-load behavior only makes sense for the old
-   full-width centered hero, which nothing uses anymore once a sidebar
-   exists). */
-.tool-workspace.is-loaded .tool-sidebar-hero .tool-hero-desc{
-  display:block; font-size:.88rem; max-width:none;
-}
+/* iLovePDF's own right-side workspace panel never repeats the tool's
+   description once a file is actually loaded - only the title survives
+   into the loaded sidebar. But the EMPTY-state hero (centered, above the
+   dropzone - see the :not(.is-loaded) centering override above) is a
+   completely different, single-column layout that reuses this same
+   .tool-sidebar-hero wrapper (layoutTwoColumn() reparents .tool-hero
+   into it unconditionally, loaded or not) - a blanket display:none here
+   was hiding the description on THAT screen too, which is a real
+   regression: every tool's landing page must show its description
+   directly under the title, matching iLovePDF's own upload screen.
+   Scoping this to .is-loaded only is the fix - description shows on
+   the empty/landing state, disappears once the workspace/right panel
+   takes over (any tool that still wants an instructional line there
+   uses its own inline hint in the main pane instead, e.g. #mergeHint,
+   styled with the shared .page-grid-hint class). */
+.tool-workspace.is-loaded .tool-sidebar-hero .tool-hero-desc{ display:none; }
 /* Compress PDF's loaded-state sidebar: skip straight to "Compression
-   level" and the options instead of repeating the title/description a
-   second time above them (empty-state .panel-head is hidden now, so
-   this only fires once loaded - the centered empty-state hero above is
-   unaffected and stays the tool's one visible heading). */
+   level" and the options instead of repeating the title a second time
+   above them (empty-state .panel-head is hidden now, so this only fires
+   once loaded - the centered empty-state hero above is unaffected and
+   stays the tool's one visible heading). */
 .compress-workspace.is-loaded .tool-sidebar-hero{ display:none; }
-/* Merge PDF's loaded-state sidebar: keep the title, but hide the
-   description that would otherwise show here per the general rule
-   above - #mergeHint (js/app.js, styled with the shared .page-grid-hint
-   class every other page-management tool's own instructional line
-   already uses - Delete/Reorder/Organize/Rotate/Split) takes over as
-   the one visible description once loaded, positioned above the file
-   workspace on the left instead of inside the right-side panel. The
-   empty-state hero (title+description together, centered) is untouched
-   - this only fires once a file is actually loaded. */
-.merge-workspace.is-loaded .tool-sidebar-hero .tool-hero-desc{ display:none; }
 /* Merge/Compress: the dropzone's own "Files stay on this device" hint
    (fileInputHTML(), still visible in the main pane) already gives the
    privacy reassurance once - layoutTwoColumn() unconditionally adds this
@@ -2052,15 +2164,37 @@ footer{
 }
 
 /* ===== New header / nav ===== */
-/* Two separate logo files (both opaque PNGs, no alpha channel) swapped per
-   theme instead of one image forced to work in both - the dark-theme file
-   gets its own always-dark chip since its background is baked-in black;
-   the light-theme file was made for a light header, so it renders as-is. */
-.brand-logo{ height:48px; width:auto; object-fit:contain; flex:none; }
-.brand-logo-dark{ background:#000; border-radius:10px; padding:4px 8px; }
+/* Two separate logo files, transparent PNGs this time (not the old opaque-
+   background pair that needed an always-dark chip behind the dark-theme
+   one to hide its baked-in black square) - dark-theme file is white+lime
+   "YoyoPDF" for a dark header, light-theme file is black+lime for a light
+   one, same horizontal wordmark, same proportions, swapped per theme with
+   nothing but a display toggle. width (not height) is the fixed dimension
+   since the wordmark is wide/short (~5.3:1) - constraining height instead
+   would make it render narrower than the 105-125px a header logo should
+   read at. */
+.brand-logo{ width:115px; height:auto; object-fit:contain; flex:none; }
 [data-theme="light"] .brand-logo-dark{ display:none; }
 .brand-logo-light{ display:none; }
 [data-theme="light"] .brand-logo-light{ display:block; }
+/* Smaller reuse of the same .brand-logo/.brand-logo-dark/.brand-logo-light
+   pair, for the hero drop-card mockup's own "YOYOPDF" label (part of the
+   hero - out of scope for edits below the "Everything You Need"
+   boundary, so this stays exactly as it was). Used to be a plain green
+   box + literal "YOYOPDF" text, a placeholder never swapped out for the
+   real logo once one existed. Same theme-toggle display rules above
+   already handle which asset shows per theme; this only adds the
+   smaller size that context needs instead of the header's 115px. */
+.brand-logo-sm{ width:90px; }
+/* Footer's own logo size, split out from .brand-logo-sm rather than
+   sharing it: the brief calls for the footer logo to read at
+   approximately the SAME size as the header logo (115px), which would
+   have meant changing .brand-logo-sm and, as a side effect, resizing
+   the hero mockup's logo too - out of bounds for this pass. 112px
+   (not the full 115px) leaves a hair of hierarchy between "the site's
+   actual nav" and "a footer credit", per the brief's own "approximately
+   the same, not larger" wording. */
+.brand-logo-footer{ width:112px; }
 .topnav{ display:flex; align-items:center; justify-content:center; gap:2px; flex-wrap:nowrap; flex:1; min-width:0; }
 .topnav .nav-tool, .topnav .nav-dd-trigger{ padding:7px 8px; font-size:0.88rem; white-space:nowrap; }
 .nav-tool{
@@ -2266,7 +2400,12 @@ footer{
   .nav-actions .nav-tool{ display:none; }
   .hamburger{ display:flex; }
   .brand-text{ font-size:1.05rem; }
-  .brand-logo{ height:40px; width:auto; }
+  /* Leftover from the old, roughly-square logo mark, which a 40px
+     HEIGHT constraint suited - the new wordmark is wide/short (~5.3:1),
+     so constraining height instead of width blew it out to ~210px wide
+     (confirmed live), wider than a phone's own available header space.
+     Same width-based sizing as desktop, just a touch narrower. */
+  .brand-logo{ width:92px; height:auto; }
 }
 
 /* ============================================================
@@ -2434,8 +2573,7 @@ footer{
   border-radius:14px; padding:18px 16px; min-height:220px;
   display:flex; flex-direction:column;
 }
-.laptop-screen-brand{ display:flex; align-items:center; gap:7px; font-weight:800; color:#F2F2F0; font-size:0.86rem; margin-bottom:14px; }
-.laptop-screen-brand .mini-mark{ width:17px; height:17px; border-radius:5px; background:linear-gradient(135deg,#9CFF00,#5FBF00); flex:none; }
+.laptop-screen-brand{ display:flex; align-items:center; margin-bottom:14px; }
 .mock-dropzone{
   flex:1; border:1.5px dashed rgba(var(--accent-lime-rgb),0.28); border-radius:12px; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:10px; padding:24px 14px; text-align:center;
@@ -2474,6 +2612,46 @@ footer{
 .mock-choose-btn:hover{ transform:translateY(-2px) scale(1.03); box-shadow:0 12px 26px -8px rgba(var(--accent-lime-rgb),0.65); filter:brightness(1.06); }
 .mock-choose-btn:active{ transform:translateY(0) scale(0.97); }
 .mock-choose-btn:focus-visible{ outline:2px solid #9CFF00; outline-offset:2px; }
+
+/* Light-theme hero drop-card: every color above (.hero-upload-device
+   through .mock-dz-or) was hardcoded near-black/white for the dark
+   "device mockup" look with no [data-theme="light"] counterpart at all,
+   so the homepage's own upload card stayed dark even in light mode - a
+   plain SaaS card (white/--card-bg, subtle --line border, soft shadow,
+   dark --ink text) reusing the exact same theme tokens every other
+   light-mode surface already uses, not a second parallel color system.
+   Same box model/dimensions as the dark version throughout - only
+   background/border/shadow/text swap, exactly per the "same layout,
+   different colors" brief. Glow and shadow are deliberately toned down
+   (a lime radial glow that reads as "premium ambient light" on near-
+   black looks like a colored stain on white) rather than removed
+   outright, so the card still visibly belongs to the same brand. */
+[data-theme="light"] .hero-upload-glow{ opacity:0.35; }
+[data-theme="light"] .hero-upload-device{
+  background:var(--card-bg);
+  border:1px solid var(--line);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255,255,255,0.6),
+    0 1px 2px 0 rgba(26,18,20,0.04),
+    0 20px 44px -22px rgba(26,18,20,0.16);
+}
+[data-theme="light"] .hero-upload-device.drag-active{
+  border-color:rgba(var(--accent-lime-rgb),0.6);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255,255,255,0.6),
+    0 0 0 1px rgba(var(--accent-lime-rgb),0.3),
+    0 20px 44px -20px rgba(26,18,20,0.18);
+}
+[data-theme="light"] .laptop-screen{
+  background:var(--paper-dim); border-color:var(--line);
+}
+[data-theme="light"] .mock-dropzone{
+  border-color:rgba(var(--accent-lime-rgb),0.4);
+  background:radial-gradient(60% 60% at 50% 40%, rgba(var(--accent-lime-rgb),0.06), transparent 70%);
+}
+[data-theme="light"] .mock-dz-title{ color:var(--ink); }
+[data-theme="light"] .mock-dz-or{ color:var(--ink-soft); }
+[data-theme="light"] .mock-choose-btn{ color:#0A0A0A; }
 
 @media(max-width:980px){
   .hero-v2{ grid-template-columns:1fr; padding:32px 24px 12px; gap:28px; text-align:center; }
@@ -2555,37 +2733,51 @@ footer{
 .trust-ico{ font-size:1rem; line-height:1; }
 
 /* ===== Features ===== */
-.features-section{ max-width:1180px; margin:36px auto 0; padding:14px 28px; }
+.features-section{ max-width:1180px; margin:28px auto 0; padding:10px 28px; }
 .features-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; perspective:1200px; perspective-origin:center center; }
 @media(max-width:900px){ .features-grid{ grid-template-columns:1fr 1fr; } }
 @media(max-width:520px){ .features-grid{ grid-template-columns:1fr; } }
+/* Premium pass: real elevation lift on hover (was color-only before),
+   compact-but-comfortable padding - was briefly bumped to 30px/18px
+   radius for more "breathing room", then trimmed back down slightly
+   per the follow-up brief's own "reduce unnecessary vertical
+   whitespace... do not make the cards excessively tall" - same card,
+   same content, still reads as a considered surface, just denser. */
 .feature-card{
-  background:var(--card-bg); border:1px solid var(--line); border-radius:14px; padding:20px 18px; position:relative; overflow:hidden;
-  transition:box-shadow .2s ease, border-color .2s ease; display:flex; flex-direction:column; align-items:center; text-align:center; gap:9px;
+  background:var(--card-bg); border:1px solid var(--line); border-radius:16px; padding:24px 20px; position:relative; overflow:hidden;
+  transition:box-shadow .25s ease, border-color .25s ease, transform .25s ease;
+  display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px;
   transform-origin:center center; will-change:transform; transform-style:preserve-3d; backface-visibility:hidden;
 }
-/* Same cursor-following spotlight as .card, but tinted per-card via
-   --accent-rgb (set inline per feature-card in the HTML, matching that
-   card's own icon color) instead of always lime - "each card can retain
-   its existing icon color" per the brief. */
+/* Cursor-following spotlight, same technique as .card - previously
+   tinted per-card via an inline --accent-rgb (a different pastel color
+   per card: teal/gold/navy/rose). One consistent brand-green identity
+   across all four now (falls through to --brand-shadow-rgb, lime in
+   dark / green in light) instead of four unrelated hues, matching every
+   other accent on the site post-rebrand. */
 .feature-card::after{
   content:""; position:absolute; inset:0; z-index:0; opacity:0; pointer-events:none;
-  background:radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.16), rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.05) 30%, transparent 65%);
+  background:radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(var(--brand-shadow-rgb),0.16), rgba(var(--brand-shadow-rgb),0.05) 30%, transparent 65%);
   transition:opacity .25s ease;
 }
 .feature-card:hover::after{ opacity:1; }
 .feature-card > *{ position:relative; z-index:1; }
-.feature-card:hover{ box-shadow:0 0 0 1px rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.45), 0 10px 34px -6px rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.35); border-color:rgba(var(--accent-rgb,var(--brand-shadow-rgb)),0.55); }
+.feature-card:hover{
+  transform:translateY(-4px);
+  box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.4), 0 18px 38px -14px rgba(var(--brand-shadow-rgb),0.3);
+  border-color:rgba(var(--brand-shadow-rgb),0.5);
+}
+/* Uniform brand-green icon badge (was 4 separate pastel fills: teal/
+   gold/navy/rose via .ficon-green/gold/navy/rose, now unused/removed) -
+   a soft tinted circle with a green outline, same "accent detail, not a
+   solid block" restraint as the rest of the redesigned surfaces. */
 .feature-card .ficon{
-  width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none;
+  width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none;
+  background:rgba(var(--brand-shadow-rgb),0.12); border:1.5px solid rgba(var(--brand-shadow-rgb),0.4); color:var(--ochre);
 }
 .feature-card .ficon svg{ width:20px; height:20px; }
-.ficon-green{ background:#E4F9F1; color:#20C997; }
-.ficon-gold{ background:#FEF3D8; color:#F6B62A; }
-.ficon-navy{ background:#E9EEF7; color:#112B5C; }
-.ficon-rose{ background:#FBE7E8; color:#E5484D; }
-.feature-card h3{ margin:0; font-size:0.98rem; color:var(--ink); }
-.feature-card p{ margin:0; font-size:0.82rem; color:var(--ink-soft); line-height:1.5; }
+.feature-card h3{ margin:0; font-size:1rem; font-weight:700; color:var(--ink); }
+.feature-card p{ margin:0; font-size:0.84rem; color:var(--ink-soft); line-height:1.55; }
 
 /* Tool SEO content (build/generate-landing.js) - the long-form "what is
    this tool / how it works / features / use cases / FAQ / related tools"
@@ -2619,20 +2811,56 @@ footer{
 .tool-seo-related a:hover{ border-color:var(--red); color:var(--red); }
 
 /* ===== Bottom CTA (light blue band + illustration) ===== */
-.cta-section{ max-width:1180px; margin:39px auto 0; padding:0 28px; }
+.cta-section{ max-width:1240px; margin:36px auto 0; padding:0 28px; }
+/* Premium redesign of the "Everything You Need" card - background/border
+   now token-driven (var(--card-bg)/var(--line)) instead of a hardcoded
+   light-blue fill with a separate dark-mode-only override bolted on: one
+   rule instead of two now correctly reads as near-black in dark mode and
+   white/off-white in light mode, both via the same tokens every other
+   card on the site already uses. Column ratio widened (1.3fr -> 1.6fr)
+   and the section's own max-width bumped (1180 -> 1240) specifically so
+   the heading has enough real room to stay on one line at desktop
+   widths without needing an aggressively small font size - see
+   .cta-copy h2's own white-space:nowrap below, which is the actual
+   guarantee; the width increase is what keeps that guarantee from ever
+   overflowing the card. */
 .cta-card{
-  position:relative; overflow:hidden; border-radius:20px; padding:28px 36px;
-  background:#EEF3FB; display:grid; grid-template-columns:1.3fr 1fr; gap:24px; align-items:center;
+  position:relative; overflow:hidden; border-radius:22px; padding:34px 40px;
+  background:var(--card-bg); border:1px solid var(--line);
+  display:grid; grid-template-columns:1.6fr 1fr; gap:28px; align-items:center;
+  box-shadow:0 30px 70px -42px rgba(0,0,0,0.35);
 }
-/* Hardcoded light background never had a dark-mode override - --ink text
-   (near-white in dark mode) was rendering as white-on-white against this. */
-[data-theme="dark"] .cta-card{ background:var(--card-bg); border:1px solid var(--line); }
-.cta-copy h2{ color:var(--ink); font-size:clamp(1.3rem, 2.4vw, 1.7rem); margin:0 0 10px; font-weight:800; }
-.cta-copy p{ color:var(--ink-soft); font-size:0.94rem; margin:0; max-width:52ch; line-height:1.6; }
-.cta-art{ display:flex; align-items:center; justify-content:center; }
-.cta-art svg{ width:100%; max-width:180px; height:auto; }
+/* Restrained ambient glow - same radial-blur technique the hero upload
+   card already uses (.hero-upload-glow), just smaller/quieter here so it
+   reads as "premium ambient light" rather than "glowing everything". */
+.cta-card::before{
+  content:""; position:absolute; z-index:0; top:-40%; right:-10%; width:55%; height:180%;
+  background:radial-gradient(50% 50% at 60% 35%, rgba(var(--brand-shadow-rgb),0.14), transparent 72%);
+  pointer-events:none; filter:blur(6px);
+}
+.cta-copy{ position:relative; z-index:1; }
+/* white-space:nowrap is the actual one-line guarantee (clamp alone only
+   ever reduces font-size at a given breakpoint, it doesn't stop
+   wrapping) - lifted again at the 760px breakpoint below, where
+   wrapping is explicitly allowed once the card drops to a single
+   stacked column. Cap trimmed 2rem -> 1.8rem for a bit of safety margin
+   at in-between widths, not "excessively" smaller - still bold/large
+   next to the 0.96rem paragraph below it. */
+.cta-copy h2{
+  color:var(--ink); font-size:clamp(1.4rem, 2.3vw, 1.8rem); margin:0 0 12px; font-weight:800; line-height:1.22;
+  white-space:nowrap;
+}
+/* Second half of the heading picks up the brand accent, same pattern as
+   the hero's own h1 .accent (--ochre, already lime in dark / green in
+   light) - a new, separately-scoped selector, not a change to that
+   existing hero rule. */
+.cta-copy h2 .accent{ color:var(--ochre); }
+.cta-copy p{ color:var(--ink-soft); font-size:0.96rem; margin:0; max-width:46ch; line-height:1.65; }
+.cta-art{ position:relative; z-index:1; display:flex; align-items:center; justify-content:center; }
+.cta-art svg{ width:100%; max-width:175px; height:auto; filter:drop-shadow(0 16px 28px rgba(var(--brand-shadow-rgb),0.16)); }
 @media(max-width:760px){
-  .cta-card{ grid-template-columns:1fr; text-align:center; padding:28px 24px; }
+  .cta-card{ grid-template-columns:1fr; text-align:center; padding:30px 24px; }
+  .cta-copy h2{ white-space:normal; }
   .cta-copy p{ margin-left:auto; margin-right:auto; }
   .cta-art{ order:-1; }
 }
@@ -2710,27 +2938,102 @@ footer{
 
 /* ===== Professional footer (5 tool/nav columns + brand column) ===== */
 .site-footer{
-  background:var(--paper-dim); border-top:1px solid var(--line); margin-top:34px;
-  padding:32px 28px 0;
+  position:relative; background:var(--paper-dim); border-top:1px solid var(--line); margin-top:24px;
+  padding:20px 28px 0;
+  /* Reserves room for #quickDock below the footer's own visible content
+     WITHOUT inflating the footer's own box - previously this same 90px
+     lived inside .footer-bottom's padding-bottom, which made the
+     tinted footer surface itself balloon well past the copyright line
+     with visible empty tinted space (confirmed live: the footer's own
+     bounding box was ~414px tall against a ~200px-ish reference). A
+     margin sits on the plain page background instead, outside the
+     footer's own surface, so the dock still has its required clearance
+     but the footer itself now ends right after its real content. */
+  margin-bottom:88px;
 }
+/* Thin brand-accent hairline at the very top edge, in place of a plain
+   flat border - the one deliberate "glow" touch on an otherwise
+   restrained surface, per the brief's "accent, not background" rule. */
+.site-footer::before{
+  content:""; position:absolute; top:-1px; left:0; right:0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(var(--brand-shadow-rgb),0.45), transparent);
+}
+/* auto column for .footer-divider between the brand column and the 5
+   nav columns - grid-column-flow places it there automatically since
+   it's the DOM child right after .footer-col:first-child, no explicit
+   grid-column index needed. */
 .footer-grid{
-  max-width:1280px; margin:0 auto; display:grid; grid-template-columns:1.4fr repeat(5, 1fr);
-  gap:18px; padding-bottom:22px;
+  max-width:1280px; margin:0 auto; display:grid; grid-template-columns:2.1fr auto repeat(5, 1fr);
+  gap:16px; padding-bottom:20px;
 }
-@media(max-width:980px){ .footer-grid{ grid-template-columns:1fr 1fr 1fr; } }
+.footer-divider{ width:1px; background:var(--line); align-self:stretch; }
+@media(max-width:980px){
+  .footer-grid{ grid-template-columns:1fr 1fr 1fr; }
+  .footer-divider{ display:none; }
+}
 @media(max-width:600px){ .footer-grid{ grid-template-columns:1fr 1fr; } }
-.footer-col h4{ font-size:0.85rem; margin:0 0 10px; letter-spacing:0.03em; text-transform:uppercase; color:var(--ink-soft); }
-.footer-col .fbrand{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:1.1rem; margin-bottom:8px; }
-.footer-col p{ font-size:0.85rem; color:var(--ink-soft); line-height:1.55; margin:0 0 10px; max-width:32ch; }
-.footer-col ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
-.footer-col ul li button, .footer-col ul li a{
-  background:none; border:none; padding:0; font-family:inherit; font-size:0.87rem; color:var(--ink-soft);
-  cursor:pointer; text-decoration:none; text-align:left;
+.footer-col h4{ font-size:0.74rem; margin:0 0 12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink); font-weight:700; }
+.footer-col .fbrand{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.footer-col p{ font-size:0.82rem; color:var(--ink-soft); line-height:1.6; margin:0 0 10px; max-width:34ch; }
+.footer-col ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+/* Small brand-green "›" bullet before every footer link (reference
+   design) - a ::before on the <li>, not baked into each button/a's own
+   markup, so every column's link list picks it up from one rule. */
+.footer-col ul li{ display:flex; align-items:center; gap:6px; }
+.footer-col ul li::before{
+  content:"\203A"; color:var(--ochre); font-weight:700; font-size:0.95rem; line-height:1; flex:none;
 }
-.footer-col ul li button:hover, .footer-col ul li a:hover{ color:var(--red); }
-.footer-social{ display:flex; gap:10px; flex-wrap:wrap; }
+.footer-col ul li button, .footer-col ul li a{
+  background:none; border:none; padding:0; font-family:inherit; font-size:0.83rem; color:var(--ink-soft);
+  cursor:pointer; text-decoration:none; text-align:left; display:inline-block;
+  transition:color .18s ease, transform .18s ease;
+}
+.footer-col ul li button:hover, .footer-col ul li a:hover{ color:var(--red); transform:translateX(3px); }
+/* Trust badges under the brand description - bordered icon+two-line-
+   label boxes (reference design), not the earlier pill-chip treatment.
+   Only the first ("100% Secure") carries the brand-green accent - the
+   other two stay neutral, matching the reference's own restraint
+   (green as a highlight on the single most important claim, not
+   repeated on all three - "accent, not background" applied literally). */
+/* nowrap (not wrap) - the brand column is now wide enough (see
+   .footer-grid's 2.1fr) for all three badges to sit on one row like the
+   reference; flex-wrap was letting "Browser Based" drop to its own
+   second row whenever the column ran a little narrow. */
+.footer-trust{ display:flex; flex-wrap:nowrap; gap:6px; margin-top:2px; }
+.footer-trust-badge{
+  display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:10px;
+  background:var(--card-bg); border:1px solid var(--line); color:var(--ink-soft);
+}
+.footer-trust-badge svg{ width:19px; height:19px; flex:none; }
+.footer-trust-badge span{ display:flex; flex-direction:column; font-size:0.72rem; font-weight:600; line-height:1.3; color:var(--ink); }
+/* First word of every badge (100% / Privacy / Browser) is brand-green,
+   second word (Secure / Focused / Based) stays --ink - same two-tone
+   pattern on all three now, not just the first badge. */
+.footer-trust-badge span b{ font-weight:700; color:var(--ochre); }
+.footer-trust-badge.is-accent{ border-color:rgba(var(--brand-shadow-rgb),0.4); }
+.footer-trust-badge.is-accent svg{ color:var(--ochre); }
+/* Footer's own social row keeps the shared .share-btn's recognizable
+   per-platform brand fills (WhatsApp green, Facebook blue, etc, same as
+   the result screen's "spread the word" row) - only adds a footer-
+   scoped hover glow ring on top, since a plain brand-color circle with
+   no glow read as flat/basic against the rest of this redesign. */
+/* Footer-scoped size override, not a change to the shared .share-btn.sm
+   (still 38px on the result screen's own share row) - the social column
+   is one of five equal 1fr nav columns, narrower than the footer's
+   other four link columns need to be, so four 38px icons + gaps no
+   longer fit on one row here specifically; 34px does. */
+.footer-social{ display:flex; gap:6px; flex-wrap:wrap; }
+.footer-social .share-btn.sm{ width:32px; height:32px; }
+.footer-social .share-btn:hover{
+  box-shadow:0 0 0 3px rgba(var(--brand-shadow-rgb),0.25), 0 10px 20px -10px rgba(var(--brand-shadow-rgb),0.4);
+}
 .footer-bottom{
-  border-top:1px solid var(--line); max-width:1280px; margin:0 auto; padding:14px 0 20px;
+  border-top:1px solid var(--line); max-width:1280px; margin:0 auto;
+  /* Dock clearance now lives on .site-footer's own margin-bottom (see
+     its comment) instead of stacked in here as extra padding - this row
+     is back to a genuinely compact copyright bar, not one padded out
+     to double its real height. */
+  padding:14px 0 18px;
   display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
 }
 .footer-copy{ font-size:0.8rem; color:var(--ink-soft); }
@@ -2800,8 +3103,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 <a href="#tools" class="skip-link">Skip to tools</a>
 <header>
   <a href="/" class="brand" onclick="return handleLogoClick(event)" aria-label="YOYOPDF home">
-    <img class="brand-logo brand-logo-dark" src="assets/icons/newlogo.png?v=2" alt="YOYOPDF logo">
-    <img class="brand-logo brand-logo-light" src="assets/icons/yoyopdf-logo-light.png?v=2" alt="YOYOPDF logo">
+    <img class="brand-logo brand-logo-dark" src="assets/icons/yoyopdf-logo-dark-theme.png?v=1" alt="YOYOPDF logo">
+    <img class="brand-logo brand-logo-light" src="assets/icons/yoyopdf-logo-light-theme.png?v=1" alt="YOYOPDF logo">
   </a>
   <nav class="topnav">
     <button class="nav-tool" data-open="merge">Merge PDF</button>
@@ -2880,7 +3183,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
     <div class="hero-upload-device" id="heroUploadDevice">
       <div class="hero-upload-reflection" aria-hidden="true"></div>
       <div class="laptop-screen">
-        <div class="laptop-screen-brand" aria-hidden="true"><span class="mini-mark"></span>YOYOPDF</div>
+        <div class="laptop-screen-brand" aria-hidden="true">
+          <img class="brand-logo brand-logo-sm brand-logo-dark" src="assets/icons/yoyopdf-logo-dark-theme.png?v=1" alt="">
+          <img class="brand-logo brand-logo-sm brand-logo-light" src="assets/icons/yoyopdf-logo-light-theme.png?v=1" alt="">
+        </div>
         <div class="mock-dropzone" id="heroDropzone" role="button" tabindex="0" aria-label="Drop a PDF here, or activate to choose a file">
           <div class="mock-dz-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></div>
           <div class="mock-dz-title" id="heroDzTitle">Drop your PDF here</div>
@@ -2918,23 +3224,23 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
     <p>YOYOPDF provides a complete set of tools to handle all your PDF needs. Fast, easy and 100% free.</p>
   </div>
   <div class="features-grid">
-    <div class="feature-card" style="--accent-rgb:32,201,151">
-      <div class="ficon ficon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
+    <div class="feature-card">
+      <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
       <h3>Safe &amp; Secure</h3>
       <p>Your files stay on your device. Processing happens entirely in your browser — nothing is ever uploaded to a server.</p>
     </div>
-    <div class="feature-card" style="--accent-rgb:246,182,42">
-      <div class="ficon ficon-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7v8l10-12h-7z"/></svg></div>
+    <div class="feature-card">
+      <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7v8l10-12h-7z"/></svg></div>
       <h3>Blazing Fast</h3>
       <p>Our tools are optimized for speed to save your time and increase productivity.</p>
     </div>
-    <div class="feature-card" style="--accent-rgb:59,130,246">
-      <div class="ficon ficon-navy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/></svg></div>
+    <div class="feature-card">
+      <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/></svg></div>
       <h3>Works on Any Device</h3>
       <p>Use YOYOPDF on any device &mdash; desktop, tablet or mobile. No installation required.</p>
     </div>
-    <div class="feature-card" style="--accent-rgb:229,72,77">
-      <div class="ficon ficon-rose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.35-9.5-9C.5 8 2 4 6 4c2 0 3.5 1.2 4 2 .5-.8 2-2 4-2 4 0 5.5 4 3.5 8-2.5 4.65-9.5 9-9.5 9z"/></svg></div>
+    <div class="feature-card">
+      <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.35-9.5-9C.5 8 2 4 6 4c2 0 3.5 1.2 4 2 .5-.8 2-2 4-2 4 0 5.5 4 3.5 8-2.5 4.65-9.5 9-9.5 9z"/></svg></div>
       <h3>Always Free</h3>
       <p>All tools are completely free to use. No hidden charges, no sign up needed.</p>
     </div>
@@ -2944,19 +3250,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 <section class="cta-section">
   <div class="cta-card">
     <div class="cta-copy">
-      <h2>Everything You Need. All in One Place.</h2>
+      <h2>Everything You Need. <span class="accent">All in One Place.</span></h2>
       <p>YOYOPDF is your number one web app for editing PDFs with ease. Enjoy all the tools you need to work efficiently with your digital documents while keeping your data safe and secure.</p>
     </div>
     <div class="cta-art" aria-hidden="true">
       <svg viewBox="0 0 220 160" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="34" cy="26" r="3" fill="var(--ochre)" opacity="0.5"/>
+        <circle cx="190" cy="138" r="2.5" fill="var(--ochre)" opacity="0.4"/>
+        <circle cx="18" cy="128" r="2" fill="var(--ochre)" opacity="0.35"/>
         <rect x="10" y="14" width="80" height="104" rx="8" fill="#fff" stroke="var(--line)" stroke-width="2"/>
         <rect x="130" y="14" width="80" height="104" rx="8" fill="#fff" stroke="var(--line)" stroke-width="2"/>
         <rect x="66" y="4" width="88" height="132" rx="10" fill="#fff" stroke="var(--line)" stroke-width="2"/>
-        <rect x="82" y="22" width="56" height="8" rx="4" fill="#E5484D"/>
+        <rect x="82" y="22" width="56" height="8" rx="4" fill="var(--ochre)"/>
         <rect x="82" y="38" width="56" height="6" rx="3" fill="var(--line)"/>
         <rect x="82" y="50" width="40" height="6" rx="3" fill="var(--line)"/>
-        <circle cx="128" cy="112" r="16" fill="#112B5C"/>
-        <path d="M121 112l5 5 9-10" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="128" cy="112" r="16" fill="var(--ochre)"/>
+        <path d="M121 112l5 5 9-10" stroke="var(--btn-ink)" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
   </div>
@@ -3017,11 +3326,26 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   <div class="footer-grid">
     <div class="footer-col">
       <div class="fbrand">
-        <span class="mark" style="width:26px;height:26px;border-radius:7px;background:var(--brand-grad);display:inline-block;"></span>
-        YOYOPDF
+        <img class="brand-logo brand-logo-footer brand-logo-dark" src="assets/icons/yoyopdf-logo-dark-theme.png?v=1" alt="YOYOPDF">
+        <img class="brand-logo brand-logo-footer brand-logo-light" src="assets/icons/yoyopdf-logo-light-theme.png?v=1" alt="YOYOPDF">
       </div>
       <p>A free, browser-based PDF toolkit. Every file is processed locally on your device — nothing is ever uploaded to a server.</p>
+      <div class="footer-trust">
+        <div class="footer-trust-badge is-accent">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          <span><b>100%</b>Secure</span>
+        </div>
+        <div class="footer-trust-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+          <span><b>Privacy</b>Focused</span>
+        </div>
+        <div class="footer-trust-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg>
+          <span><b>Browser</b>Based</span>
+        </div>
+      </div>
     </div>
+    <div class="footer-divider" aria-hidden="true"></div>
     <div class="footer-col">
       <h4>PDF Tools</h4>
       <ul>
@@ -3097,6 +3421,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
      TOOLS.fillform had zero effect in a browser tab that had already
      loaded the old version, even after a hard reload). Bump the number
      whenever js/app.js changes. -->
-<script src="js/app.js?v=119"></script>
+<script src="js/app.js?v=128"></script>
 </body>
 </html>

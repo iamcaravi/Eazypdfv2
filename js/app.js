@@ -1402,6 +1402,39 @@ function layoutTwoColumn(){
   // too narrow for a 440px sidebar to sit comfortably beside real content
   // - widen only once a .tool-layout actually got built.
   body.classList.add("has-tool-layout");
+  pinSidebarSafeHeight(sidebar);
+}
+// .tool-sidebar's CSS max-height (calc(100vh - 106px)) assumes the box
+// starts flush at the viewport top - it doesn't, since .overlay never
+// scrolls (overflow:hidden) so the sidebar sits permanently at its
+// natural offset below the site header instead of ever actually
+// reaching position:sticky's top:0. On a common 1280x720 desktop that
+// offset alone (~127px) was enough for a content-filled sidebar to run
+// its bottom edge (and the primary CTA inside it) past the viewport
+// edge and into #quickDock's floating band - confirmed live, not
+// hypothetical. Measuring the real offset here and subtracting it (once
+// after layout, again on resize) is the actual fix; the CSS value stays
+// as a pre-JS/no-JS fallback only.
+function pinSidebarSafeHeight(sidebarEl){
+  const DOCK_RESERVE = 74; // #quickDock's own 20px bottom offset + 38px icon height + ~16px breathing room
+  function update(){
+    const top = sidebarEl.getBoundingClientRect().top;
+    if(top <= 0) return; // not laid out / off-screen yet, nothing sane to compute
+    sidebarEl.style.maxHeight = `calc(100vh - ${Math.round(top)}px - ${DOCK_RESERVE}px)`;
+  }
+  update();
+  // The call above runs synchronously inside layoutTwoColumn(), right as
+  // panel.innerHTML is being assigned - before the browser necessarily
+  // has this specific box in its final post-insert layout position, so
+  // getBoundingClientRect() can catch it mid-flight and no-op via the
+  // top<=0 guard above. One more pass on the next tick (after layout has
+  // genuinely settled) is what actually lands the real value; setTimeout
+  // rather than requestAnimationFrame specifically because rAF is
+  // throttled to a stop on a backgrounded tab (a tool opened in a new
+  // background tab would otherwise never get a correct value) - resize
+  // keeps it correct after that regardless of tab visibility.
+  setTimeout(update, 0);
+  window.addEventListener("resize", update);
 }
 const PANEL_FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 function openPanel(html){
@@ -1487,9 +1520,34 @@ function closePanel(skipRoute){
   if(!skipRoute && window.__currentToolId) syncHomeRoute();
   window.__currentToolId = null;
 }
+/* ROOT CAUSE of the "Home doesn't return to the top" bug: every tool now
+   has its own real physical page (openTool()'s whole reason for being -
+   see its comment above), which means the DOM "underneath" the overlay
+   on, say, rotate-pdf.html is NOT the actual homepage - it's Rotate
+   PDF's own generated hero + SEO content (build/generate-landing.js
+   clones index.html per tool and swaps in that tool's own copy). Before
+   this fix, goHome() always just closed the overlay and scrolled THIS
+   document to 0,0 - technically correct in isolation, but "top of this
+   document" is "top of Rotate PDF's own page" when called from
+   rotate-pdf.html, which is exactly the "previous tool's section
+   appears near the top" symptom: it's not stale scroll restoration,
+   it's genuinely the wrong document being revealed. Home only ever
+   needs the lightweight same-document close+scroll when already ON the
+   real homepage (closePanel() there reveals the actual homepage
+   content, unmodified) - from anywhere else it needs the same kind of
+   real navigation openTool() already uses, landing on a freshly loaded
+   index.html that starts at the top by construction (no scroll-position
+   bug possible on a document that just loaded). One shared check
+   (toolIdForPath) instead of a per-tool "am I home" flag, so this
+   applies identically to every TOOL_ROUTES entry with zero new
+   per-tool code. */
 function goHome(){
+  if(toolIdForPath(location.pathname)){
+    location.href = '/';
+    return;
+  }
   closePanel();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: MOTION.reduced ? "auto" : "smooth" });
 }
 /**
  * The YOYOPDF logo/brand link's click handler - a real <a href="/">, so
@@ -4552,7 +4610,7 @@ TOOLS.deletepages = function(){
             <button class="btn secondary btn-sm" id="deleteSelectAll" type="button" style="flex:1">Select all</button>
             <button class="btn secondary btn-sm" id="deleteClearSel" type="button" style="flex:1">Clear</button>
           </div>
-          <button class="btn tool-toolbar-primary" id="go" style="margin-top:10px" disabled>Delete Pages</button>
+          <button class="btn tool-toolbar-primary" id="go" disabled>Delete Pages</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -4754,7 +4812,7 @@ TOOLS.extractpages = function(){
             <button class="btn secondary btn-sm" id="extractSelectAll" type="button" style="flex:1">Select all</button>
             <button class="btn secondary btn-sm" id="extractClearSel" type="button" style="flex:1">Clear</button>
           </div>
-          <button class="btn tool-toolbar-primary" id="go" style="margin-top:10px" disabled>Extract Pages</button>
+          <button class="btn tool-toolbar-primary" id="go" disabled>Extract Pages</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -4995,7 +5053,7 @@ TOOLS.addblank = function(){
             <input type="number" id="addblankPos" value="0" min="0">
           </div>
           <button class="btn secondary" id="insertBlank" type="button" style="width:100%">+ Add Blank Page</button>
-          <button class="btn tool-toolbar-primary" id="go" style="margin-top:10px">Download PDF</button>
+          <button class="btn tool-toolbar-primary" id="go">Download PDF</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -11092,6 +11150,47 @@ TOOLS.imginvert = function(){
   }
 })();
 
+/* "Everything You Need" card + footer columns scroll reveal - same
+   fade+rise-once technique as the tool-card grid above (one shared
+   ScrollTrigger per group, `once:true`, unconditional-visibility safety
+   net if GSAP/ScrollTrigger/reduced-motion means no animation runs),
+   applied to the two sections this redesign touches rather than a new
+   animation system. */
+(function(){
+  const ctaCard = document.querySelector(".cta-card");
+  const footerCols = [...document.querySelectorAll(".footer-col")];
+  const targets = [ctaCard, ...footerCols].filter(Boolean);
+  if(!targets.length) return;
+  if(!window.gsap || MOTION.reduced){
+    if(window.gsap) gsap.set(targets, {opacity:1, visibility:"visible", y:0});
+    return;
+  }
+  gsap.set(targets, {opacity:0, visibility:"hidden", y:24});
+  const revealSafety = setTimeout(()=>{
+    const stuck = targets.filter(t=>gsap.getProperty(t,"opacity") < 0.95);
+    if(stuck.length) gsap.set(stuck, {opacity:1, visibility:"visible", y:0, clearProps:"transform"});
+  }, 2000);
+  function reveal(el, stagger){
+    gsap.to(el, {
+      opacity:1, y:0, duration:0.7, ease:"power3.out", stagger,
+      scrollTrigger: window.ScrollTrigger ? { trigger:el, start:"top 92%", once:true } : undefined,
+      onStart:()=>gsap.set(el, {visibility:"visible"})
+    });
+  }
+  if(window.ScrollTrigger){
+    gsap.registerPlugin(ScrollTrigger);
+    if(ctaCard) reveal(ctaCard);
+    if(footerCols.length) reveal(footerCols, {amount:0.35, from:"start"});
+    // revealSafety's own opacity check (above) is what makes it safe to
+    // leave running rather than clearing it here - it's a 2s-later no-op
+    // once these ScrollTrigger-driven tweens have actually fired, and a
+    // real fallback in the rare case a trigger silently never does.
+  } else {
+    gsap.set(targets, {visibility:"visible"});
+    gsap.to(targets, {opacity:1, y:0, duration:0.6, ease:"power3.out", stagger:0.05, onComplete:()=>clearTimeout(revealSafety)});
+  }
+})();
+
 /* Subtle scroll parallax on the hero's decorative art (the laptop
    mockup) - genuinely barely-noticeable per the brief, scrubbed (tied
    directly to scroll position, not an independent timed animation) so it
@@ -11428,25 +11527,103 @@ window.addEventListener("unhandledrejection", (event) => {
   document.getElementById("qdMoreBtnMobile")?.addEventListener("click", ()=>{ closeMobileMenu(); goToAllTools(); });
   homeBtnMobile?.addEventListener("click", ()=>{ closeMobileMenu(); goHome(); });
 
-  // ---- Reduce (not hide) during the fullscreen editor - its own
-  // controls live top/right, not the bottom, so the dock usually stays
-  // clear; dimming it is enough to keep it visually secondary there.
-  // Driven via GSAP (reducedOpacityTo), not a plain CSS class toggle: a
-  // CSS class's opacity would get silently beaten by GSAP's own inline
-  // opacity style left behind by the entrance tween below (inline always
-  // wins over a class) - confirmed live, the dimming never actually
-  // rendered until this was fixed to use the same quickTo-handoff pattern
-  // as hoverYTo. ----
+  // ---- Reduce (not hide) during the fullscreen editor, fully HIDE on a
+  // tool's own upload/landing state (panel open, no file loaded yet) -
+  // iLovePDF never shows its floating nav until you're actually inside a
+  // workspace, so the dock only belongs on the homepage and on a loaded
+  // .tool-workspace. One generic check (.tool-workspace present and
+  // missing .is-loaded) rather than each TOOLS.xxx calling in - every
+  // tool already toggles .is-loaded on its own panel-body for other
+  // reasons (see showWorkspace()/showEmptyState() in each TOOLS.xxx), so
+  // observing that single class from here covers all of them for free.
+  // Driven via GSAP (reducedOpacityTo) + a direct inline visibility
+  // write, not a plain CSS class toggle: a CSS class's opacity would get
+  // silently beaten by GSAP's own inline opacity style left behind by
+  // the entrance tween below (inline always wins over a class) -
+  // confirmed live, the dimming never actually rendered until this was
+  // fixed to use the same quickTo-handoff pattern as hoverYTo. Visibility
+  // is likewise only ever written here (once entrance hands it off) so
+  // there's a single owner for it, same as the transform-ownership rule
+  // documented in the file header. ----
   const overlayEl = document.getElementById("overlay");
   let reducedOpacityTo = null;
+  function isDockLandingState(){
+    if(!overlayEl || !overlayEl.classList.contains("open")) return false; // homepage: dock always shown
+    const ws = overlayEl.querySelector(".tool-workspace");
+    return !!ws && !ws.classList.contains("is-loaded");
+  }
   function syncReducedState(){
     const isFullscreen = !!(overlayEl && overlayEl.classList.contains("panel-fullscreen"));
-    dock.classList.toggle("is-reduced", isFullscreen);
-    if(reducedOpacityTo) reducedOpacityTo(isFullscreen ? 0.45 : 1);
-    else dock.style.opacity = isFullscreen ? "0.45" : "";
+    const hidden = isDockLandingState();
+    dock.classList.toggle("is-reduced", isFullscreen && !hidden);
+    dock.classList.toggle("is-hidden", hidden);
+    dock.style.visibility = hidden ? "hidden" : "visible";
+    const targetOpacity = hidden ? 0 : (isFullscreen ? 0.45 : 1);
+    if(reducedOpacityTo) reducedOpacityTo(targetOpacity);
+    else dock.style.opacity = String(targetOpacity);
+    // Mobile swaps the whole rail for the FAB+menu (see the CSS comment
+    // on #quickDockFab) rather than shrinking it - same landing-state
+    // rule has to apply there too, plain CSS since the FAB never had a
+    // GSAP tween owning its opacity to begin with. Closing the menu on
+    // hide covers the "upload finishes while the tool list is still
+    // open" edge case rather than leaving an orphaned open menu behind
+    // an invisible launcher.
+    if(fab){
+      fab.classList.toggle("is-hidden", hidden);
+      if(hidden) closeMobileMenu();
+    }
+  }
+  // The .tool-side-panel family (Split/Organize/Rotate/Delete/etc, see
+  // showWorkspace() in each TOOLS.xxx) has no equivalent of
+  // pinSidebarSafeHeight() - .tool-app-workspace's row (main pane +
+  // side panel) is pure content-driven height (align-items:stretch just
+  // makes the two match EACH OTHER, nothing ties either to the
+  // viewport). With a short page-grid (few pages/files), that leaves
+  // the side panel - CTA included - stranded near the top of a mostly
+  // empty page instead of reaching down toward the dock the way a
+  // taller tool's panel naturally does. Giving the row a min-height
+  // (measured the same way pinSidebarSafeHeight measures the other
+  // system: real top offset, viewport height, dock reserve) is the fix -
+  // tall content still grows it further as before, this only raises the
+  // floor for short content.
+  function syncWorkspaceMinHeight(){
+    if(!overlayEl || !overlayEl.classList.contains("open")){ return; }
+    const ws = overlayEl.querySelector(".tool-app-workspace");
+    if(!ws) return;
+    if(getComputedStyle(ws).display === "none"){ ws.style.minHeight = ""; return; }
+    const DOCK_RESERVE = 74; // same #quickDock footprint reserve as pinSidebarSafeHeight
+    const BOTTOM_BREATHING = 20;
+    const top = ws.getBoundingClientRect().top;
+    if(top > 0) ws.style.minHeight = `calc(100vh - ${Math.round(top)}px - ${DOCK_RESERVE + BOTTOM_BREATHING}px)`;
+    // .tool-side-panel itself has no cap at all (unlike .tool-sidebar,
+    // which already gets one from pinSidebarSafeHeight) - a tool with
+    // enough fields (Page Numbers: position/format/start-number/preview)
+    // can naturally grow taller than the safe area and run its own CTA
+    // into the dock, confirmed live on a 1280x720 desktop. Same fix,
+    // applied to the other panel type: cap + scroll internally instead
+    // of overflowing past the reserved band.
+    const panel = ws.querySelector(".tool-side-panel");
+    if(panel){
+      const panelTop = panel.getBoundingClientRect().top;
+      if(panelTop > 0){
+        panel.style.maxHeight = `calc(100vh - ${Math.round(panelTop)}px - ${DOCK_RESERVE}px)`;
+        panel.style.overflowY = "auto";
+      }
+    }
   }
   syncReducedState();
-  if(overlayEl) new MutationObserver(syncReducedState).observe(overlayEl, {attributes:true, attributeFilter:["class"]});
+  syncWorkspaceMinHeight();
+  setTimeout(syncWorkspaceMinHeight, 0); // same first-paint timing gap pinSidebarSafeHeight has to work around
+  window.addEventListener("resize", syncWorkspaceMinHeight);
+  // subtree+childList: .is-loaded lives on the panel-body deep inside
+  // #panel, which openPanel() replaces wholesale (innerHTML) on every
+  // tool switch - a shallow attribute-only observer on #overlay itself
+  // would miss both that swap and the later is-loaded toggle within it.
+  // .tool-app-workspace's own display:flex/none toggle (showWorkspace()/
+  // showEmptyState() in each TOOLS.xxx) rides along on the SAME class
+  // mutation (body.classList.add("is-loaded") fires in the same call),
+  // so this one observer is enough to re-trigger both syncs together.
+  if(overlayEl) new MutationObserver(()=>{ syncReducedState(); syncWorkspaceMinHeight(); }).observe(overlayEl, {subtree:true, childList:true, attributes:true, attributeFilter:["class"]});
 
   dock.classList.add("is-ready");
   // xPercent:-50 is the dock's horizontal-centering half of its
@@ -11459,7 +11636,7 @@ window.addEventListener("unhandledrejection", (event) => {
   // are also kept off each other's properties the same way.
   if(!window.gsap || MOTION.reduced){
     if(window.gsap){
-      gsap.set(dock, {xPercent:-50, x:0, scale:1, autoAlpha:1});
+      gsap.set(dock, {xPercent:-50, x:0, scale:1, autoAlpha: isDockLandingState() ? 0 : 1});
       reducedOpacityTo = gsap.quickTo(dock, "opacity", {duration:0.3, ease:"power2.out"});
       syncReducedState();
     }
@@ -11469,11 +11646,16 @@ window.addEventListener("unhandledrejection", (event) => {
   // Entrance: owns x/scale/autoAlpha, then hands opacity off entirely
   // (see file header) once it completes. Hover-lift takes `y` instead,
   // never `x`, so the two can't fight even though both run soon after.
+  // Reveal target respects the landing-state check up front (not just in
+  // syncReducedState() afterward) so a tool page loaded straight into its
+  // empty upload state never flashes the dock visible before hiding it
+  // again - autoAlpha only animates toward 1 when there's actually
+  // something to reveal.
   gsap.set(dock, {xPercent:-50, x:-20, scale:0.96, autoAlpha:0});
   gsap.set(icons, {autoAlpha:0, scale:0.9});
   let hoverYTo = null;
   gsap.to(dock, {
-    x:0, scale:1, autoAlpha:1, duration:0.6, ease:"power3.out",
+    x:0, scale:1, autoAlpha: isDockLandingState() ? 0 : 1, duration:0.6, ease:"power3.out",
     onComplete:()=>{
       hoverYTo = gsap.quickTo(dock, "y", {duration:0.3, ease:"power2.out"});
       reducedOpacityTo = gsap.quickTo(dock, "opacity", {duration:0.3, ease:"power2.out"});

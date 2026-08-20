@@ -94,7 +94,7 @@ const MARKERS = {
   ogDescription: '<meta property="og:description" content="Merge, split, compress, convert and edit PDF files online — 100% free, no sign-up, no file limits. Every tool runs locally in your browser, so your files never leave your device.">',
   twitterTitle: '<meta name="twitter:title" content="YOYOPDF — Free Online PDF Tools: Merge, Split, Compress & Convert">',
   twitterDescription: '<meta name="twitter:description" content="Merge, split, compress, convert and edit PDF files online — 100% free, no sign-up, no file limits. Every tool runs locally in your browser.">',
-  hero: '<h1><span class="hero-line1">All-in-One <span class="accent">PDF</span></span><span class="hero-line2">Tools. Simple. Fast. Secure.</span></h1>',
+  hero: '<h1><span class="hero-line1">All-in-One <span class="accent">PDF</span> Tools.</span><span class="hero-line2">Simple. Fast. Secure.</span></h1>',
   tagline: '<p class="tagline">YOYOPDF makes it easy to edit, convert, compress, merge, split and manage your PDF files online. All tools are free, secure and easy to use.</p>',
   footer: '<footer class="site-footer">',
 };
