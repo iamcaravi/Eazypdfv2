@@ -34,6 +34,12 @@
                    window.EditorExport.exportCurrentDocument() -> Promise
    ========================================================================== */
 (function () {
+  // Only ever used by the window.downloadBlob-missing fallback below (a
+  // defensive path for a dependency index.html always actually loads) -
+  // tracked and revoked on the next export the same way pdf-processing-
+  // utils.js's own downloadBlob() tracks __activeResultUrl, so repeated
+  // exports through this fallback don't leak one object URL each.
+  let __fallbackExportUrl = null;
   let currentFileName = '';
 
   function init() {
@@ -43,6 +49,15 @@
   }
 
   function outputFileName() {
+    // Defers to pdf-processing-utils.js's suffixedName() when it's loaded
+    // (same index.html-only-dependency fallback convention as
+    // downloadBlob() above) so this export path strips any prior
+    // _compressed/_rotated/etc suffix and caps length exactly like every
+    // other tool's download, instead of maintaining a second, weaker
+    // copy of that logic.
+    if (typeof window.suffixedName === 'function') {
+      return window.suffixedName(currentFileName ? { name: currentFileName } : null, 'edited', 'pdf');
+    }
     const base = currentFileName ? currentFileName.replace(/\.pdf$/i, '') : 'document';
     return `${base}_edited.pdf`;
   }
@@ -250,7 +265,9 @@
       const a = document.createElement('a');
       a.href = url; a.download = fileName; a.click();
     } else {
+      if (__fallbackExportUrl) URL.revokeObjectURL(__fallbackExportUrl);
       const url = URL.createObjectURL(blob);
+      __fallbackExportUrl = url;
       const a = document.createElement('a');
       a.href = url; a.download = fileName; a.click();
     }
