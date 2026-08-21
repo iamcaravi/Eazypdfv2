@@ -62,60 +62,110 @@
   const pageInfoCache = new Map(); // pageNumber -> {width, height, ratio}
   const textContentCache = new Map(); // pageNumber -> Promise<TextContent>, Priority 6A
   let originalBytes = null; // Priority 5B — retained clone for Export, see file header
+  let loadingTask = null;
+  let loadGeneration = 0;
 
   function ensureWorker() {
     if (!window.pdfjsLib) throw new Error('pdf.js is not loaded — the host page must load it before RenderEngine is used.');
-    // Most host pages (including the live SPA) already set workerSrc
-    // themselves before this ever runs. This fallback only matters for a
-    // standalone test harness that loaded pdf.js without configuring a
-    // worker — points at the same cdnjs build the live SPA uses, so the
-    // version always matches whatever pdfjsLib build is actually loaded.
+    // The live app configures workerSrc before the editor loads.
+    // This fallback only matters for a standalone test harness that loaded
+    // pdf.js without configuring a worker. It uses the same exact-version
+    // local worker as the live app, avoiding worker CDN/CORS dependencies.
+
     if (!window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('assets/vendor/pdfjs/3.11.174/pdf.worker.min.js', document.baseURI).href;
     }
+  }
+
+  function staleLoadError() {
+    const error = new Error('A newer document replaced this load.');
+    error.name = 'AbortError';
+    return error;
+  }
+
+  function releaseCurrentDocument() {
+    if (loadingTask) {
+      try { loadingTask.destroy(); } catch (_) { /* best effort */ }
+      loadingTask = null;
+    }
+    if (pdfDoc) {
+      try { pdfDoc.destroy(); } catch (_) { /* best effort */ }
+      pdfDoc = null;
+    }
+    pageInfoCache.clear();
+    textContentCache.clear();
+    originalBytes = null;
   }
 
   async function loadDocument(input) {
     ensureWorker();
-    destroy(); // release any previously loaded document first — avoids leaking it
+    const generation = ++loadGeneration;
+    releaseCurrentDocument();
 
     let data;
-    if (input instanceof File) {
-      fileName = input.name;
-      fileSize = input.size;
-      data = await input.arrayBuffer();
-    } else {
-      fileName = '';
-      fileSize = 0;
-      data = input;
-    }
-
+    let nextFileName = '';
+    let nextFileSize = 0;
+    let candidateDoc = null;
     try {
-      // Priority 5B: clone *before* this data reaches pdf.js — see file
-      // header for why the same reference can't be shared with it.
-      originalBytes = (data && typeof data.slice === 'function') ? data.slice(0) : null;
-      const task = window.pdfjsLib.getDocument({ data });
-      pdfDoc = await task.promise;
-      pageInfoCache.clear();
+      if (input instanceof File) {
+        if (typeof window.validateFileSelection === 'function') {
+          await window.validateFileSelection([input], { accept: 'application/pdf', multiple: false });
+        }
+        if (generation !== loadGeneration) throw staleLoadError();
+        nextFileName = input.name;
+        nextFileSize = input.size;
+        data = await input.arrayBuffer();
+      } else {
+        data = input;
+        nextFileSize = data?.byteLength || 0;
+      }
 
-      // Best-effort only — the Inspector's Document section (Priority 3E)
-      // shows "Not available" if this fails or the producer omitted it.
-      // Not worth failing the whole document load over.
+      if (generation !== loadGeneration) throw staleLoadError();
+      const maxBytes = window.YOYO_RUNTIME?.limits?.maxBytes?.pdf || (200 * 1024 * 1024);
+      if (!nextFileSize) throw new Error('This PDF is empty. Choose a non-empty PDF file.');
+      if (nextFileSize > maxBytes) throw new Error('This PDF is too large for reliable in-browser editing (maximum 200 MB).');
+
+      // Retain a separate copy before pdf.js can transfer/detach its input.
+      const retainedBytes = (data && typeof data.slice === 'function') ? data.slice(0) : null;
+      const task = window.pdfjsLib.getDocument({ data });
+      loadingTask = task;
+      candidateDoc = await task.promise;
+      if (loadingTask === task) loadingTask = null;
+      if (generation !== loadGeneration) throw staleLoadError();
+
+      const maxPages = window.YOYO_RUNTIME?.limits?.maxPdfPages || 1500;
+      if (!candidateDoc.numPages) throw new Error('This PDF does not contain any readable pages.');
+      if (candidateDoc.numPages > maxPages) {
+        throw new Error(`This PDF has ${candidateDoc.numPages} pages; the browser editor supports up to ${maxPages}.`);
+      }
+
+      pdfDoc = candidateDoc;
+      candidateDoc = null;
+      fileName = nextFileName;
+      fileSize = nextFileSize;
+      originalBytes = retainedBytes;
+
+      // Best-effort metadata: a missing or malformed metadata dictionary
+      // must not prevent otherwise valid pages from opening.
       let pdfVersion = '';
       try {
         const meta = await pdfDoc.getMetadata();
         pdfVersion = (meta && meta.info && meta.info.PDFFormatVersion) || '';
       } catch (_) { /* non-fatal — leave pdfVersion empty */ }
+      if (generation !== loadGeneration) throw staleLoadError();
 
       const result = { numPages: pdfDoc.numPages, fileName, fileSize, pdfVersion };
       window.dispatchEvent(new CustomEvent('editor:documentLoaded', { detail: result }));
       return result;
     } catch (err) {
-      window.dispatchEvent(new CustomEvent('editor:documentError', { detail: { message: err.message || String(err) } }));
+      if (candidateDoc) { try { await candidateDoc.destroy(); } catch (_) { /* best effort */ } }
+      if (generation === loadGeneration && err?.name !== 'AbortError') {
+        releaseCurrentDocument();
+        window.dispatchEvent(new CustomEvent('editor:documentError', { detail: { message: err.message || String(err) } }));
+      }
       throw err;
     }
   }
-
   async function getPageInfo(pageNumber) {
     if (pageInfoCache.has(pageNumber)) return pageInfoCache.get(pageNumber);
     if (!pdfDoc) throw new Error('No document loaded');
@@ -188,13 +238,10 @@
   }
 
   function destroy() {
-    if (pdfDoc) {
-      pdfDoc.destroy();
-      pdfDoc = null;
-    }
-    pageInfoCache.clear();
-    textContentCache.clear(); // Priority 6A
-    originalBytes = null; // Priority 5B
+    loadGeneration += 1;
+    releaseCurrentDocument();
+    fileName = '';
+    fileSize = 0;
   }
 
   window.RenderEngine = { loadDocument, getPageInfo, getPageTextContent, renderPage, getNumPages, getOriginalBytes, destroy };

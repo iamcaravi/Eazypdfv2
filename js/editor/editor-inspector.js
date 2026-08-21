@@ -210,7 +210,21 @@
       if (selected && selected.type === 'text') { renderTextProperties(selected); return; }
       if (selected && selected.type === 'image') { renderImageProperties(selected); return; }
       if (selected && (selected.type === 'rectangle' || selected.type === 'ellipse' || selected.type === 'line')) { renderShapeProperties(selected); return; }
+      if (selected && selected.type === 'whiteout') { renderWhiteoutProperties(selected); return; }
       body.innerHTML = `<div class="editor-inspector-placeholder">${PROPERTIES_PLACEHOLDER}</div>`;
+    }
+
+    // Phase 12: Whiteout has no adjustable data (editor-objects.js's
+    // whiteout box is just an opaque rect, no fill/stroke controls like
+    // rectangle/ellipse/line get) - this section exists purely to state,
+    // at the moment a user is actively using it, that it visually covers
+    // content rather than removing it. Matches the honest-disclosure
+    // pattern already used for Sign PDF and Protect PDF's RC4 status.
+    function renderWhiteoutProperties(selected) {
+      body.innerHTML = `
+        <div class="editor-inspector-doc-info">
+          <div class="status" role="note">This covers the content beneath it with an opaque box — it does not remove or redact the underlying text or image. Exporting does not delete what's underneath; a PDF text/content extraction of the exported file could still recover it.</div>
+        </div>`;
     }
 
     function renderTextProperties(selected) {
@@ -218,35 +232,35 @@
       body.innerHTML = `
         <div class="editor-inspector-doc-info">
           <div class="editor-inspector-row"><span class="editor-inspector-row-label">Text</span></div>
-          <textarea data-prop="text" rows="2" style="width:100%;">${escapeHtml(d.text || 'Text')}</textarea>
+          <textarea aria-label="Text" data-prop="text" rows="2" style="width:100%;">${escapeHtml(d.text || 'Text')}</textarea>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Font Family</span>
-            <select data-prop="fontFamily">${FONT_FAMILIES.map((f) =>
+            <select aria-label="Font family" data-prop="fontFamily">${FONT_FAMILIES.map((f) =>
               `<option value="${f}"${(d.fontFamily || 'Arial') === f ? ' selected' : ''}>${f}</option>`).join('')}</select>
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Font Size</span>
-            <input data-prop="fontSize" type="number" min="6" max="200" value="${d.fontSize || 16}">
+            <input aria-label="Font size" data-prop="fontSize" type="number" min="6" max="200" value="${d.fontSize || 16}">
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Bold</span>
-            <input data-prop="bold" type="checkbox" ${d.bold ? 'checked' : ''}>
+            <input aria-label="Bold" data-prop="bold" type="checkbox" ${d.bold ? 'checked' : ''}>
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Italic</span>
-            <input data-prop="italic" type="checkbox" ${d.italic ? 'checked' : ''}>
+            <input aria-label="Italic" data-prop="italic" type="checkbox" ${d.italic ? 'checked' : ''}>
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Underline</span>
-            <input data-prop="underline" type="checkbox" ${d.underline ? 'checked' : ''}>
+            <input aria-label="Underline" data-prop="underline" type="checkbox" ${d.underline ? 'checked' : ''}>
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Text Color</span>
-            <input data-prop="color" type="color" value="${d.color || '#000000'}">
+            <input aria-label="Text color" data-prop="color" type="color" value="${d.color || '#000000'}">
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Alignment</span>
-            <select data-prop="align">${['left', 'center', 'right'].map((a) =>
+            <select aria-label="Text alignment" data-prop="align">${['left', 'center', 'right'].map((a) =>
               `<option value="${a}"${(d.align || 'left') === a ? ' selected' : ''}>${capitalize(a)}</option>`).join('')}</select>
           </div>
         </div>`;
@@ -278,15 +292,15 @@
         <div class="editor-inspector-doc-info">
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Width</span>
-            <input data-prop="naturalWidth" type="number" min="1" value="${d.naturalWidth || ''}">
+            <input aria-label="Image width" data-prop="naturalWidth" type="number" min="1" value="${d.naturalWidth || ''}">
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Height</span>
-            <input data-prop="naturalHeight" type="number" min="1" value="${d.naturalHeight || ''}">
+            <input aria-label="Image height" data-prop="naturalHeight" type="number" min="1" value="${d.naturalHeight || ''}">
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Keep Aspect Ratio</span>
-            <input data-prop="keepAspectRatio" type="checkbox" ${d.keepAspectRatio !== false ? 'checked' : ''}>
+            <input aria-label="Keep aspect ratio" data-prop="keepAspectRatio" type="checkbox" ${d.keepAspectRatio !== false ? 'checked' : ''}>
           </div>
         </div>`;
 
@@ -316,19 +330,19 @@
         <div class="editor-inspector-doc-info">
           ${showFill ? `<div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Fill Color</span>
-            <input data-prop="fill" type="color" value="${d.fill || '#ffffff'}">
+            <input aria-label="Fill color" data-prop="fill" type="color" value="${d.fill || '#ffffff'}">
           </div>` : ''}
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Stroke Color</span>
-            <input data-prop="stroke" type="color" value="${d.stroke || '#000000'}">
+            <input aria-label="Stroke color" data-prop="stroke" type="color" value="${d.stroke || '#000000'}">
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Stroke Width</span>
-            <input data-prop="strokeWidth" type="number" min="0" max="50" value="${d.strokeWidth != null ? d.strokeWidth : 2}">
+            <input aria-label="Stroke width" data-prop="strokeWidth" type="number" min="0" max="50" value="${d.strokeWidth != null ? d.strokeWidth : 2}">
           </div>
           ${showRadius ? `<div class="editor-inspector-row">
             <span class="editor-inspector-row-label">Radius</span>
-            <input data-prop="radius" type="number" min="0" max="50" value="${d.radius || 0}">
+            <input aria-label="Corner radius" data-prop="radius" type="number" min="0" max="50" value="${d.radius || 0}">
           </div>` : ''}
         </div>`;
 
@@ -348,7 +362,17 @@
     return section;
   }
 
+  // Phase 12: was a standalone duplicate of pdf-processing-utils.js's
+  // escapeAttr() (same 4 characters, same entities - only the replace()
+  // call order differed, which doesn't change the output since each
+  // function escapes '&' first, before any entity text containing '&'
+  // exists to be re-escaped). Delegates to the global now that one exists
+  // instead of maintaining two copies; the inline fallback keeps this file
+  // safe on its own (e.g. editor-preview.html) if pdf-processing-utils.js
+  // isn't loaded, same convention as this file's other index.html-only-
+  // dependency fallbacks.
   function escapeHtml(s) {
+    if (typeof window.escapeAttr === 'function') return window.escapeAttr(s);
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 

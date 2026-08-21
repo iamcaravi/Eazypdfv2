@@ -4,289 +4,1121 @@
       "slug": "word-to-pdf",
       "file": "word-to-pdf.html",
       "toolId": "word2pdf",
+      "status": "live",
+      "category": "convert",
       "name": "Word to PDF",
       "title": "Word to PDF Converter Free Online | YOYOPDF",
       "description": "Convert a .docx file into a PDF, free and browser-based. No upload, no sign-up, no watermark.",
       "h1": "Word to PDF",
       "heroValueProp": "Turn a Word document into a PDF that looks the same everywhere it's opened — done locally in your browser, nothing uploaded.",
       "faqs": [
-        {"q": "Is my document uploaded to convert it?", "a": "No. The conversion reads your .docx file and builds the PDF entirely in your browser using mammoth.js and pdf-lib — nothing is sent to a server."},
-        {"q": "Will formatting be preserved exactly?", "a": "This is a basic, text-focused converter: it lays out the extracted text as a PDF. Complex formatting, images, and page layout from the original .docx are not preserved."},
-        {"q": "Do I need Microsoft Word installed?", "a": "No. Everything runs in the browser tab — no Word, no other software required."}
+        {
+          "q": "Is my document uploaded to convert it?",
+          "a": "No. The conversion reads your .docx file and builds the PDF entirely in your browser using mammoth.js and pdf-lib — nothing is sent to a server."
+        },
+        {
+          "q": "Will formatting be preserved exactly?",
+          "a": "This is a basic, text-focused converter: it lays out the extracted text as a PDF. Complex formatting, images, and page layout from the original .docx are not preserved."
+        },
+        {
+          "q": "Do I need Microsoft Word installed?",
+          "a": "No. Everything runs in the browser tab — no Word, no other software required."
+        }
       ],
-      "relatedSlugs": ["pdf-to-word", "merge-pdf", "compress-pdf"]
+      "relatedSlugs": [
+        "pdf-to-word",
+        "merge-pdf",
+        "compress-pdf"
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "A Word file assumes the reader has Word — a PDF removes that assumption and looks the same whether it's opened on a phone, a work laptop, or a printer's queue.",
+          "points": [
+            {
+              "title": "A document needs to be shared outside Word",
+              "desc": "Not everyone receiving a file has Microsoft Word installed. A PDF opens in any browser or PDF reader without extra software."
+            },
+            {
+              "title": "A submitted document shouldn't be editable",
+              "desc": "Applications, assignments, and proposals are often expected as a PDF specifically so the content can't be casually changed after submission."
+            },
+            {
+              "title": "The text just needs to travel, not the original layout",
+              "desc": "When the goal is getting the written content into a PDF quickly, a lightweight text-based conversion is often all that's needed."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the .docx file you want to convert. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Read",
+            "desc": "mammoth.js extracts the text content from the Word document in your browser."
+          },
+          {
+            "title": "Build",
+            "desc": "pdf-lib lays that text out into a new PDF, entirely on your device."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the resulting PDF. Your original .docx file is untouched."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "No software required",
+            "desc": "Convert straight from the browser tab — no Word installation needed on your device."
+          },
+          {
+            "title": "Text-focused conversion",
+            "desc": "Extracts and lays out the document's text content as a clean, readable PDF."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Conversion happens locally using mammoth.js and pdf-lib — your document is never uploaded."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and convert immediately — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Convert as many documents as you need, with no watermark added to the result."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Job seekers",
+            "desc": "Turn a resume drafted in Word into a PDF before submitting it to an application portal."
+          },
+          {
+            "title": "Students",
+            "desc": "Convert a written assignment into a PDF for submission when that's the required format."
+          },
+          {
+            "title": "Freelancers",
+            "desc": "Send a proposal or draft as a PDF so the client sees fixed, non-editable text."
+          },
+          {
+            "title": "Small business",
+            "desc": "Turn an internal Word memo into a PDF before distributing it more broadly."
+          }
+        ]
+      }
     },
     {
       "slug": "pdf-to-jpg",
       "file": "pdf-to-jpg.html",
       "toolId": "pdf2jpg",
+      "status": "live",
+      "category": "convert",
       "name": "PDF to JPG",
       "title": "PDF to JPG Converter Free Online | YOYOPDF",
       "description": "Convert every page of a PDF into a JPG image, free and browser-based. Download all pages as a ZIP.",
       "h1": "PDF to JPG",
       "heroValueProp": "Turn every page of a PDF into its own JPG image — useful for sharing a page as a picture, or pulling a document into a slide deck.",
       "faqs": [
-        {"q": "Do I get one image per page?", "a": "Yes. Every page is rendered as a separate JPG image, bundled together into a ZIP file for download."},
-        {"q": "Is the PDF uploaded to convert it?", "a": "No. Pages are rendered to images locally in your browser using pdf.js — nothing leaves your device."},
-        {"q": "What resolution are the JPGs?", "a": "Pages render at a resolution suited for on-screen viewing and sharing — not designed for large-format printing."}
+        {
+          "q": "Do I get one image per page?",
+          "a": "Yes. Every page is rendered as a separate JPG image, bundled together into a ZIP file for download."
+        },
+        {
+          "q": "Is the PDF uploaded to convert it?",
+          "a": "No. Pages are rendered to images locally in your browser using pdf.js — nothing leaves your device."
+        },
+        {
+          "q": "What resolution are the JPGs?",
+          "a": "Pages render at a resolution suited for on-screen viewing and sharing — not designed for large-format printing."
+        }
       ],
-      "relatedSlugs": ["jpg-to-pdf", "compress-pdf"]
+      "relatedSlugs": [
+        "jpg-to-pdf",
+        "compress-pdf"
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "A PDF page and an image serve different purposes — sometimes what's needed isn't the document itself, but a picture of one of its pages.",
+          "points": [
+            {
+              "title": "A page needs to drop into a slide or design tool",
+              "desc": "Presentation software and design tools work with images, not PDF pages — converting first makes a page insertable anywhere."
+            },
+            {
+              "title": "Sharing a page as a quick preview",
+              "desc": "Sending a JPG of one page is often faster for a recipient to glance at than asking them to open and scroll through a whole PDF."
+            },
+            {
+              "title": "A viewer or platform doesn't support PDFs",
+              "desc": "Some chat apps, forms, and older systems accept image uploads but not PDF attachments — converting sidesteps that limitation."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you want to convert. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Render",
+            "desc": "pdf.js renders each page to an image locally in your browser."
+          },
+          {
+            "title": "Convert",
+            "desc": "Every rendered page is saved as its own JPG file."
+          },
+          {
+            "title": "Download",
+            "desc": "Get all pages bundled into a ZIP, ready to use individually."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "One JPG per page",
+            "desc": "Every page becomes its own separate image file, not one combined image."
+          },
+          {
+            "title": "ZIP output",
+            "desc": "All converted pages are bundled into a single ZIP download automatically."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Rendering happens locally with pdf.js — your document is never uploaded to a server."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start converting — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Convert as many pages as you need, with no watermark added to the images."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Marketers",
+            "desc": "Pull a single page out of a report to drop into a slide deck or social post."
+          },
+          {
+            "title": "Students",
+            "desc": "Share one page of a worksheet as an image in a group chat without sending the whole PDF."
+          },
+          {
+            "title": "Small business",
+            "desc": "Turn a page of a catalog or menu into an image for a website or listing."
+          },
+          {
+            "title": "Admin teams",
+            "desc": "Convert a form page into an image for a system that only accepts image uploads."
+          }
+        ]
+      }
     },
     {
       "slug": "jpg-to-pdf",
       "file": "jpg-to-pdf.html",
       "toolId": "jpg2pdf",
+      "status": "live",
+      "category": "convert",
       "name": "JPG to PDF",
       "title": "JPG to PDF Converter Free Online | YOYOPDF",
       "description": "Combine one or more images into a single PDF file, free and browser-based. No upload, no sign-up.",
       "h1": "JPG to PDF",
       "heroValueProp": "Turn one or more photos or scans into a single PDF — the order you add them is the order they appear in the document.",
       "faqs": [
-        {"q": "Can I combine multiple images into one PDF?", "a": "Yes. Add as many images as you like and they're combined into one PDF, one image per page, in the order you added them."},
-        {"q": "Which image formats are supported?", "a": "JPG and PNG images can be converted into a PDF."},
-        {"q": "Are my images uploaded anywhere?", "a": "No. The PDF is built locally in your browser using pdf-lib — your images never leave your device."}
+        {
+          "q": "Can I combine multiple images into one PDF?",
+          "a": "Yes. Add as many images as you like and they're combined into one PDF, one image per page, in the order you added them."
+        },
+        {
+          "q": "Which image formats are supported?",
+          "a": "JPG and PNG images can be converted into a PDF."
+        },
+        {
+          "q": "Are my images uploaded anywhere?",
+          "a": "No. The PDF is built locally in your browser using pdf-lib — your images never leave your device."
+        }
       ],
-      "relatedSlugs": ["pdf-to-jpg", "merge-pdf", "compress-pdf"]
+      "relatedSlugs": [
+        "pdf-to-jpg",
+        "merge-pdf",
+        "compress-pdf"
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "Photos and scans pile up as separate image files fast, and a PDF is usually the format that's actually expected when it's time to submit or send them as one document.",
+          "points": [
+            {
+              "title": "Multiple scans need to become one document",
+              "desc": "A phone camera or scanning app often saves each page as its own image. JPG to PDF combines them into a single ordered file."
+            },
+            {
+              "title": "A form or portal requires a PDF specifically",
+              "desc": "Many applications, uploads, and submission forms accept PDFs but reject standalone image files — converting first solves that."
+            },
+            {
+              "title": "Photos need a fixed, shareable page order",
+              "desc": "Turning a set of images into a PDF locks in the order they'll be viewed in, unlike a folder of loose files."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add one or more JPG or PNG images from your device."
+          },
+          {
+            "title": "Order",
+            "desc": "Arrange the images in the sequence you want them to appear as pages."
+          },
+          {
+            "title": "Build",
+            "desc": "pdf-lib places each image onto its own page, locally in your browser."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the combined PDF. Your original image files are untouched."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Multiple images, one PDF",
+            "desc": "Combine any number of images into a single document, one image per page."
+          },
+          {
+            "title": "JPG and PNG support",
+            "desc": "Mix JPG and PNG images in the same conversion."
+          },
+          {
+            "title": "Order you control",
+            "desc": "The order images are added is the order they appear as pages in the final PDF."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "The PDF is built locally with pdf-lib — your images are never uploaded."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start converting — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Convert as many images as you need, with no watermark added to the result."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Students",
+            "desc": "Combine phone photos of handwritten homework pages into one PDF for submission."
+          },
+          {
+            "title": "Job seekers",
+            "desc": "Turn scanned ID or certificate photos into a single PDF for an application form."
+          },
+          {
+            "title": "Small business",
+            "desc": "Combine product photos or receipts into one PDF for recordkeeping."
+          },
+          {
+            "title": "Admin teams",
+            "desc": "Convert a stack of scanned paper forms, photographed page by page, into one document."
+          }
+        ]
+      }
     },
     {
       "slug": "pdf-to-excel",
       "file": "pdf-to-excel.html",
       "toolId": "pdf2excel",
+      "status": "live",
+      "category": "convert",
       "name": "PDF to Excel",
       "title": "PDF to Excel Converter Free Online | YOYOPDF",
       "description": "Extract text from a PDF into rows and columns in a spreadsheet, free and browser-based. No upload, no sign-up.",
       "h1": "PDF to Excel",
       "heroValueProp": "Pull tabular data out of a PDF and into a spreadsheet you can actually sort, filter, and calculate with.",
       "faqs": [
-        {"q": "Will tables convert perfectly?", "a": "The converter approximates table structure from text spacing and position — it works well for simple tables but won't perfectly reconstruct complex, merged-cell layouts."},
-        {"q": "What happens to pages with charts or scanned images?", "a": "Pages with little extractable text are embedded as images in the spreadsheet instead, so nothing is lost."},
-        {"q": "Is my PDF uploaded to a server?", "a": "No. Extraction and spreadsheet-building both happen locally in your browser."}
+        {
+          "q": "Will tables convert perfectly?",
+          "a": "The converter approximates table structure from text spacing and position — it works well for simple tables but won't perfectly reconstruct complex, merged-cell layouts."
+        },
+        {
+          "q": "What happens to pages with charts or scanned images?",
+          "a": "Pages with little extractable text are embedded as images in the spreadsheet instead, so nothing is lost."
+        },
+        {
+          "q": "Is my PDF uploaded to a server?",
+          "a": "No. Extraction and spreadsheet-building both happen locally in your browser."
+        }
       ],
-      "relatedSlugs": ["excel-to-pdf", "pdf-to-word", "merge-pdf"]
+      "relatedSlugs": [
+        "excel-to-pdf",
+        "pdf-to-word",
+        "merge-pdf"
+      ]
     },
     {
       "slug": "excel-to-pdf",
       "file": "excel-to-pdf.html",
       "toolId": "excel2pdf",
+      "status": "live",
+      "category": "convert",
       "name": "Excel to PDF",
       "title": "Excel to PDF Converter Free Online | YOYOPDF",
       "description": "Convert a spreadsheet's first sheet into a table PDF, free and browser-based. No upload, no sign-up.",
       "h1": "Excel to PDF",
       "heroValueProp": "Turn a spreadsheet into a PDF you can send to anyone, whether or not they have Excel installed.",
       "faqs": [
-        {"q": "Which file types can I convert?", "a": "XLSX, XLS, and CSV files can all be converted into a table-layout PDF."},
-        {"q": "Are multiple sheets and cell formatting preserved?", "a": "This is a basic converter: only the first sheet is converted, laid out as a simple table. Cell colors, fonts, and multi-sheet workbooks are not preserved."},
-        {"q": "Is my spreadsheet uploaded anywhere?", "a": "No. It's read and converted entirely in your browser."}
+        {
+          "q": "Which file types can I convert?",
+          "a": "XLSX, XLS, and CSV files can all be converted into a table-layout PDF."
+        },
+        {
+          "q": "Are multiple sheets and cell formatting preserved?",
+          "a": "This is a basic converter: only the first sheet is converted, laid out as a simple table. Cell colors, fonts, and multi-sheet workbooks are not preserved."
+        },
+        {
+          "q": "Is my spreadsheet uploaded anywhere?",
+          "a": "No. It's read and converted entirely in your browser."
+        }
       ],
-      "relatedSlugs": ["pdf-to-excel", "merge-pdf", "compress-pdf"]
+      "relatedSlugs": [
+        "pdf-to-excel",
+        "merge-pdf",
+        "compress-pdf"
+      ]
     },
     {
       "slug": "sign-pdf",
       "file": "sign-pdf.html",
       "toolId": "sign",
+      "status": "live",
+      "category": "security",
       "name": "Sign PDF",
       "title": "Sign PDF Online Free — Add Your Signature | YOYOPDF",
       "description": "Draw a signature and place it anywhere on a PDF page, free and browser-based. No upload, no account.",
       "h1": "Sign PDF",
       "heroValueProp": "Draw your signature with your mouse, finger, or stylus and drop it exactly where it needs to go on the document.",
       "faqs": [
-        {"q": "Is this a legally binding e-signature service?", "a": "No — this is a simple visual signature tool for adding a drawn signature to a document, not a certified e-signature platform with identity verification or audit trails."},
-        {"q": "Can I use a touchscreen or trackpad to sign?", "a": "Yes, the signature pad works with mouse, touchscreen, and stylus input."},
-        {"q": "Is my document uploaded to sign it?", "a": "No. The signature is drawn and placed onto the PDF entirely in your browser."}
+        {
+          "q": "Is this a legally binding e-signature service?",
+          "a": "No — this is a simple visual signature tool for adding a drawn signature to a document, not a certified e-signature platform with identity verification or audit trails."
+        },
+        {
+          "q": "Can I use a touchscreen or trackpad to sign?",
+          "a": "Yes, the signature pad works with mouse, touchscreen, and stylus input."
+        },
+        {
+          "q": "Is my document uploaded to sign it?",
+          "a": "No. The signature is drawn and placed onto the PDF entirely in your browser."
+        }
       ],
-      "relatedSlugs": ["fill-pdf-form", "edit-pdf", "flatten-pdf"]
+      "relatedSlugs": [
+        "fill-pdf-form",
+        "edit-pdf",
+        "flatten-pdf"
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "Printing a document just to sign it and scan it back in is a step most paperwork doesn't actually require anymore — a signature placed directly on the PDF gets the same visual result without leaving your screen.",
+          "points": [
+            {
+              "title": "A form or agreement needs a signature today",
+              "desc": "Skip the print-sign-scan loop entirely by drawing or typing a signature straight onto the PDF."
+            },
+            {
+              "title": "The same signature is needed across multiple pages",
+              "desc": "A signature created once can be placed on every page of a multi-page document without redrawing it each time."
+            },
+            {
+              "title": "A quick visual signature is all that's needed",
+              "desc": "For everyday internal sign-offs and casual agreements, a drawn or typed signature on the page is often enough — it isn't a certified e-signature."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you need to sign. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Create a signature",
+            "desc": "Draw it with your mouse, finger, or stylus, type it, or upload an image of it."
+          },
+          {
+            "title": "Place",
+            "desc": "Drag and resize the signature on any page, scrolling through the document to reposition it as needed."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the signed PDF with the signature placed directly on the page."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Draw, type, or upload",
+            "desc": "Create a signature the way that suits you — freehand, typed text, or an uploaded image."
+          },
+          {
+            "title": "Reusable across pages",
+            "desc": "Place the same signature on multiple pages without recreating it each time."
+          },
+          {
+            "title": "Drag and resize",
+            "desc": "Position and size the signature freely on the page rather than being locked to a fixed spot."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "The signature is applied to the PDF locally — your document never leaves your device."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start signing — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Sign as many documents as you need, with no watermark added to the result."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Freelancers",
+            "desc": "Sign off on a client agreement without printing and scanning it back in."
+          },
+          {
+            "title": "Small business",
+            "desc": "Add a signature to a quote or internal approval form before sending it along."
+          },
+          {
+            "title": "Remote workers",
+            "desc": "Sign a form quickly from a laptop while away from a printer or scanner."
+          },
+          {
+            "title": "Students",
+            "desc": "Add a signature to a permission slip or acknowledgment form before submitting it."
+          }
+        ]
+      }
     },
     {
       "slug": "reorder-pages",
       "file": "reorder-pages.html",
       "toolId": "reorder",
+      "status": "live",
+      "category": "organize",
       "name": "Reorder Pages",
       "title": "Reorder PDF Pages Free Online | YOYOPDF",
       "description": "Rearrange the pages of a PDF into any order you like, free and browser-based. Drag to reorder.",
       "h1": "Reorder Pages",
       "heroValueProp": "Drag pages into the exact order you need — no need to delete and re-merge, just rearrange what's already there.",
       "faqs": [
-        {"q": "How do I change the page order?", "a": "Drag each page's thumbnail into the position you want before saving the reordered file."},
-        {"q": "Can I remove pages while reordering?", "a": "Reorder Pages keeps every page — use Delete Pages or Organize PDF if you also need to drop some pages while rearranging."},
-        {"q": "Is my file uploaded anywhere?", "a": "No. Reordering happens locally using pdf-lib."}
+        {
+          "q": "How do I change the page order?",
+          "a": "Drag each page's thumbnail into the position you want before saving the reordered file."
+        },
+        {
+          "q": "Can I remove pages while reordering?",
+          "a": "Reorder Pages keeps every page — use Delete Pages or Organize PDF if you also need to drop some pages while rearranging."
+        },
+        {
+          "q": "Is my file uploaded anywhere?",
+          "a": "No. Reordering happens locally using pdf-lib."
+        }
       ],
-      "relatedSlugs": ["organize-pdf", "delete-pages", "extract-pages"]
+      "relatedSlugs": [
+        "organize-pdf",
+        "delete-pages",
+        "extract-pages"
+      ]
     },
     {
       "slug": "add-blank-page",
       "file": "add-blank-page.html",
       "toolId": "addblank",
+      "status": "live",
+      "category": "organize",
       "name": "Add Blank Page",
       "title": "Add Blank Page to PDF Free Online | YOYOPDF",
       "description": "Insert a blank page anywhere in a PDF document, free and browser-based.",
       "h1": "Add Blank Page",
       "heroValueProp": "Insert a blank page exactly where you need one — a separator, a spot for a printed signature, or just extra room.",
       "faqs": [
-        {"q": "Can I choose where the blank page goes?", "a": "Yes, you choose the exact position in the document where the new blank page is inserted."},
-        {"q": "Does the blank page match the size of the original pages?", "a": "Yes, the inserted page matches the surrounding page dimensions."},
-        {"q": "Is my file uploaded anywhere?", "a": "No, this runs entirely in your browser using pdf-lib."}
+        {
+          "q": "Can I choose where the blank page goes?",
+          "a": "Yes, you choose the exact position in the document where the new blank page is inserted."
+        },
+        {
+          "q": "Does the blank page match the size of the original pages?",
+          "a": "Yes, the inserted page matches the surrounding page dimensions."
+        },
+        {
+          "q": "Is my file uploaded anywhere?",
+          "a": "No, this runs entirely in your browser using pdf-lib."
+        }
       ],
-      "relatedSlugs": ["organize-pdf", "delete-pages", "merge-pdf"]
+      "relatedSlugs": [
+        "organize-pdf",
+        "delete-pages",
+        "merge-pdf"
+      ]
     },
     {
       "slug": "header-footer",
       "file": "header-footer.html",
       "toolId": "headerfooter",
+      "status": "live",
+      "category": "edit",
       "name": "Add Header & Footer",
       "title": "Add Header and Footer to PDF Free Online | YOYOPDF",
       "description": "Add a running header and footer to every page of a PDF, free and browser-based.",
       "h1": "Add Header & Footer",
       "heroValueProp": "Stamp the same header and footer text across every page — a title, a date, a company name — without touching each page individually.",
       "faqs": [
-        {"q": "Can I set different text for the header and footer?", "a": "Yes, header and footer text are set independently."},
-        {"q": "Does it apply to every page automatically?", "a": "Yes, the same header/footer text is stamped onto every page of the document in one step."},
-        {"q": "Is my file uploaded to a server?", "a": "No, this runs locally using pdf-lib."}
+        {
+          "q": "Can I set different text for the header and footer?",
+          "a": "Yes, header and footer text are set independently."
+        },
+        {
+          "q": "Does it apply to every page automatically?",
+          "a": "Yes, the same header/footer text is stamped onto every page of the document in one step."
+        },
+        {
+          "q": "Is my file uploaded to a server?",
+          "a": "No, this runs locally using pdf-lib."
+        }
       ],
-      "relatedSlugs": ["add-page-numbers", "watermark-pdf", "edit-pdf"]
+      "relatedSlugs": [
+        "add-page-numbers",
+        "watermark-pdf",
+        "edit-pdf"
+      ]
     },
     {
       "slug": "invert-pdf-colors",
       "file": "invert-pdf-colors.html",
       "toolId": "invertpdf",
+      "status": "live",
+      "category": "edit",
       "name": "Invert PDF Colors",
       "title": "Invert PDF Colors Free Online — Dark Mode PDF | YOYOPDF",
       "description": "Flip every page of a PDF to a negative / dark-mode style palette, free and browser-based.",
       "h1": "Invert PDF Colors",
       "heroValueProp": "Flip a bright white PDF into a dark-background version that's easier on the eyes for night reading.",
       "faqs": [
-        {"q": "Will this make my PDF look like dark mode?", "a": "It inverts every page's colors into a negative palette, which gives a dark-background effect similar to dark mode, though results vary by document."},
-        {"q": "Does this work well on text-heavy documents?", "a": "It works best on simple text documents. Documents with photos or colored graphics will also have those colors inverted, which may look unusual."},
-        {"q": "Is my file uploaded anywhere?", "a": "No, color inversion happens locally in your browser."}
+        {
+          "q": "Will this make my PDF look like dark mode?",
+          "a": "It inverts every page's colors into a negative palette, which gives a dark-background effect similar to dark mode, though results vary by document."
+        },
+        {
+          "q": "Does this work well on text-heavy documents?",
+          "a": "It works best on simple text documents. Documents with photos or colored graphics will also have those colors inverted, which may look unusual."
+        },
+        {
+          "q": "Is my file uploaded anywhere?",
+          "a": "No, color inversion happens locally in your browser."
+        }
       ],
-      "relatedSlugs": ["crop-pdf", "rotate-pdf", "edit-pdf"]
+      "relatedSlugs": [
+        "crop-pdf",
+        "rotate-pdf",
+        "edit-pdf"
+      ]
     },
     {
       "slug": "flatten-pdf",
       "file": "flatten-pdf.html",
       "toolId": "flatten",
+      "status": "live",
+      "category": "security",
       "name": "Flatten PDF",
       "title": "Flatten PDF Form Fields Free Online | YOYOPDF",
       "description": "Lock PDF form fields permanently into the page content, free and browser-based.",
       "h1": "Flatten PDF",
       "heroValueProp": "Lock a filled-in form so the answers become part of the page itself and can no longer be edited or accidentally changed.",
       "faqs": [
-        {"q": "What does flattening actually do?", "a": "It converts any fillable form fields into permanent, non-editable page content — the visible values stay, but they can no longer be typed into or changed."},
-        {"q": "Should I flatten before or after filling a form?", "a": "Flatten after filling the form (see Fill PDF Form) once you're ready to lock the answers in."},
-        {"q": "Is my file uploaded anywhere?", "a": "No, flattening happens locally using pdf-lib."}
+        {
+          "q": "What does flattening actually do?",
+          "a": "It converts any fillable form fields into permanent, non-editable page content — the visible values stay, but they can no longer be typed into or changed."
+        },
+        {
+          "q": "Should I flatten before or after filling a form?",
+          "a": "Flatten after filling the form (see Fill PDF Form) once you're ready to lock the answers in."
+        },
+        {
+          "q": "Is my file uploaded anywhere?",
+          "a": "No, flattening happens locally using pdf-lib."
+        }
       ],
-      "relatedSlugs": ["fill-pdf-form", "sign-pdf", "protect-pdf"]
+      "relatedSlugs": [
+        "fill-pdf-form",
+        "sign-pdf",
+        "protect-pdf"
+      ]
     },
     {
       "slug": "fill-pdf-form",
       "file": "fill-pdf-form.html",
       "toolId": "fillform",
+      "status": "live",
+      "category": "edit",
       "name": "Fill PDF Form",
       "title": "Fill PDF Form Online Free | YOYOPDF",
       "description": "Fill out fillable form fields in a PDF and save the result, free and browser-based.",
       "h1": "Fill PDF Form",
       "heroValueProp": "Type directly into a PDF's existing form fields and save a completed copy — no printing, filling by hand, and rescanning.",
       "faqs": [
-        {"q": "Does this work on any PDF?", "a": "It works on PDFs that already contain fillable AcroForm fields. A plain scanned document with no form fields can't be filled this way."},
-        {"q": "Can I lock the answers in afterward?", "a": "Yes, use Flatten PDF after filling to make the entered values permanent and non-editable."},
-        {"q": "Is my file uploaded anywhere?", "a": "No, the form is filled entirely in your browser."}
+        {
+          "q": "Does this work on any PDF?",
+          "a": "It works on PDFs that already contain fillable AcroForm fields. A plain scanned document with no form fields can't be filled this way."
+        },
+        {
+          "q": "Can I lock the answers in afterward?",
+          "a": "Yes, use Flatten PDF after filling to make the entered values permanent and non-editable."
+        },
+        {
+          "q": "Is my file uploaded anywhere?",
+          "a": "No, the form is filled entirely in your browser."
+        }
       ],
-      "relatedSlugs": ["flatten-pdf", "sign-pdf", "edit-pdf"]
+      "relatedSlugs": [
+        "flatten-pdf",
+        "sign-pdf",
+        "edit-pdf"
+      ]
     },
     {
       "slug": "image-compressor",
       "file": "image-compressor.html",
       "toolId": "imgcompress",
+      "status": "live",
+      "category": "optimize",
       "name": "Image Compressor",
       "title": "Image Compressor Free Online — Shrink to Exact KB | YOYOPDF",
       "description": "Shrink an image down to an exact KB target, free and browser-based.",
       "h1": "Image Compressor",
       "heroValueProp": "Shrink a photo down to a specific file size — useful when a form or upload has a strict size limit.",
       "faqs": [
-        {"q": "Can I set an exact target file size?", "a": "Yes, enter a target size in KB and the tool compresses toward that target."},
-        {"q": "Which image formats are supported?", "a": "Common formats like JPG and PNG are supported."},
-        {"q": "Is my image uploaded anywhere?", "a": "No, compression happens locally in your browser."}
+        {
+          "q": "Can I set an exact target file size?",
+          "a": "Yes, enter a target size in KB and the tool compresses toward that target."
+        },
+        {
+          "q": "What happens if the target size cannot be reached?",
+          "a": "The compressor keeps the smallest result it managed to produce and tells you the actual size reached, rather than silently failing."
+        },
+        {
+          "q": "Is my image uploaded anywhere?",
+          "a": "No. The whole compression loop runs on-device — nothing is sent to a server."
+        }
       ],
-      "relatedSlugs": ["resize-image", "crop-image", "convert-image-format"]
+      "relatedSlugs": [
+        "resize-image",
+        "crop-image",
+        "convert-image-format"
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "Upload limits are usually stated in kilobytes, not quality settings, so a compressor that works toward a KB target is more directly useful than one that only offers a vague quality slider.",
+          "points": [
+            {
+              "title": "A form or portal enforces a strict size cap",
+              "desc": "Government forms, job applications, and photo ID uploads often reject anything over a set KB limit — compressing to that target gets it accepted."
+            },
+            {
+              "title": "A photo needs to load faster on a website",
+              "desc": "Smaller image files mean quicker page loads, which matters for anyone publishing images online."
+            },
+            {
+              "title": "Storage or attachment limits are tight",
+              "desc": "Email attachment caps and limited cloud storage both benefit from images that take up less space without extra software."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the image you want to shrink. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Set a target",
+            "desc": "Enter the target size in KB you need the final image to be under."
+          },
+          {
+            "title": "Compress",
+            "desc": "The image is processed locally in your browser toward that target size."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the compressed image. Your original file is untouched."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Exact KB target",
+            "desc": "Enter a specific size in KB rather than guessing at a quality percentage."
+          },
+          {
+            "title": "JPG and PNG support",
+            "desc": "Compress common image formats without needing to convert them first."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Compression happens locally on your device — the image is never uploaded to a server."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start compressing — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Compress as many images as you need, with no watermark added to the result."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Job seekers",
+            "desc": "Shrink a photo ID or headshot to fit an application portal's strict upload limit."
+          },
+          {
+            "title": "Students",
+            "desc": "Compress a scanned document photo to meet a portal's file size requirement."
+          },
+          {
+            "title": "Bloggers",
+            "desc": "Shrink images before publishing so pages load faster for readers."
+          },
+          {
+            "title": "Small business",
+            "desc": "Reduce product photo sizes to stay under a marketplace listing's upload cap."
+          }
+        ]
+      }
     },
     {
       "slug": "resize-image",
       "file": "resize-image.html",
       "toolId": "imgresize",
+      "status": "live",
+      "category": "images",
       "name": "Resize Image",
       "title": "Resize Image Free Online — Exact Width & Height | YOYOPDF",
       "description": "Resize an image to exact width and height, free and browser-based.",
       "h1": "Resize Image",
       "heroValueProp": "Resize a photo to exact pixel dimensions — for a profile picture, a form upload, or a specific layout requirement.",
       "faqs": [
-        {"q": "Can I set exact pixel dimensions?", "a": "Yes, enter the exact width and height you need in pixels."},
-        {"q": "Will the image be stretched if the aspect ratio changes?", "a": "If your target dimensions don't match the original aspect ratio, the image will stretch to fill them."},
-        {"q": "Is my image uploaded anywhere?", "a": "No, resizing happens locally in your browser."}
+        {
+          "q": "Can I set exact pixel dimensions?",
+          "a": "Yes, enter the exact width and height you need in pixels."
+        },
+        {
+          "q": "Will the image get stretched or distorted?",
+          "a": "Aspect ratio is locked by default (a checkbox you can turn off), so entering only a width automatically scales the height to match — stretching only happens if you deliberately uncheck that lock and enter mismatched dimensions."
+        },
+        {
+          "q": "Does resizing reduce file size too?",
+          "a": "Usually yes, since fewer pixels means less data — but this tool targets exact dimensions, not a target file size. Use Image Compressor if file size is what you actually need to control."
+        }
       ],
-      "relatedSlugs": ["image-compressor", "crop-image", "convert-image-format"]
+      "relatedSlugs": [
+        "image-compressor",
+        "crop-image",
+        "convert-image-format"
+      ]
     },
     {
       "slug": "crop-image",
       "file": "crop-image.html",
       "toolId": "imgcrop",
+      "status": "live",
+      "category": "images",
       "name": "Crop Image",
       "title": "Crop Image Free Online | YOYOPDF",
       "description": "Crop an image to a precise pixel region, free and browser-based.",
       "h1": "Crop Image",
       "heroValueProp": "Trim an image down to just the part you need, with precise control over the crop area.",
       "faqs": [
-        {"q": "How precise is the crop selection?", "a": "You can draw and adjust the crop box directly on the image before applying it."},
-        {"q": "Which image formats are supported?", "a": "Common formats like JPG and PNG are supported."},
-        {"q": "Is my image uploaded anywhere?", "a": "No, cropping happens locally in your browser."}
+        {
+          "q": "How precise is the crop selection?",
+          "a": "You can draw and adjust the crop box directly on the image before applying it."
+        },
+        {
+          "q": "Can I crop to a specific aspect ratio?",
+          "a": "Yes, lock the crop box to a fixed ratio, or drag it freely for an arbitrary region."
+        },
+        {
+          "q": "Is my image uploaded anywhere?",
+          "a": "No, the crop preview and the final cut both happen on your device."
+        }
       ],
-      "relatedSlugs": ["resize-image", "image-compressor", "convert-image-format"]
+      "relatedSlugs": [
+        "resize-image",
+        "image-compressor",
+        "convert-image-format"
+      ]
     },
     {
       "slug": "convert-image-format",
       "file": "convert-image-format.html",
       "toolId": "imgconvert",
+      "status": "live",
+      "category": "images",
       "name": "Convert Image Format",
       "title": "Convert Image Format Free Online — PNG, JPG, WebP | YOYOPDF",
       "description": "Convert an image between PNG, JPG, and WebP formats, free and browser-based.",
       "h1": "Convert Image Format",
       "heroValueProp": "Convert between PNG, JPG, and WebP — for compatibility, smaller file size, or whatever format a site or app requires.",
       "faqs": [
-        {"q": "Which formats can I convert between?", "a": "PNG, JPG, and WebP are all supported as both source and target formats."},
-        {"q": "Does converting to JPG lose transparency?", "a": "Yes, JPG doesn't support transparency — converting a transparent PNG to JPG will fill the transparent areas with a solid background."},
-        {"q": "Is my image uploaded anywhere?", "a": "No, conversion happens locally in your browser."}
+        {
+          "q": "Which formats can I convert between?",
+          "a": "PNG, JPG, and WebP are all supported as both source and target formats."
+        },
+        {
+          "q": "Does converting to JPG lose transparency?",
+          "a": "Yes, JPG doesn't support transparency — converting a transparent PNG to JPG will fill the transparent areas with a solid background."
+        },
+        {
+          "q": "Why would I convert to WebP instead of JPG or PNG?",
+          "a": "WebP typically produces a smaller file than JPG at similar visual quality, and unlike JPG it still supports transparency — a useful middle ground when file size matters but you also need an alpha channel."
+        }
       ],
-      "relatedSlugs": ["image-compressor", "resize-image", "crop-image"]
+      "relatedSlugs": [
+        "image-compressor",
+        "resize-image",
+        "crop-image"
+      ]
     },
     {
       "slug": "watermark-image",
       "file": "watermark-image.html",
       "toolId": "imgwatermark",
+      "status": "live",
+      "category": "images",
       "name": "Add Watermark to Image",
       "title": "Add Watermark to Image Free Online | YOYOPDF",
       "description": "Overlay custom watermark text on an image, free and browser-based.",
       "h1": "Add Watermark to Image",
       "heroValueProp": "Stamp your own text watermark across a photo — useful for marking ownership before sharing it publicly.",
       "faqs": [
-        {"q": "Can I customize the watermark text?", "a": "Yes, you set the exact text used for the watermark."},
-        {"q": "Which image formats are supported?", "a": "Common formats like JPG and PNG are supported."},
-        {"q": "Is my image uploaded anywhere?", "a": "No, the watermark is applied locally in your browser."}
+        {
+          "q": "Can I customize the watermark text?",
+          "a": "Yes, you set the exact text used for the watermark."
+        },
+        {
+          "q": "Can I control how visible the watermark is?",
+          "a": "Yes, opacity and font size are both adjustable, so the mark can be a subtle overlay or a bold, hard-to-remove stamp."
+        },
+        {
+          "q": "Is my image uploaded anywhere?",
+          "a": "No, the watermark is drawn onto the image locally, in your browser."
+        }
       ],
-      "relatedSlugs": ["watermark-pdf", "image-compressor", "convert-image-format"]
+      "relatedSlugs": [
+        "watermark-pdf",
+        "image-compressor",
+        "convert-image-format"
+      ]
     },
     {
       "slug": "invert-image-colors",
       "file": "invert-image-colors.html",
       "toolId": "imginvert",
+      "status": "live",
+      "category": "images",
       "name": "Invert Image Colors",
       "title": "Invert Image Colors Free Online | YOYOPDF",
       "description": "Flip an image's colors to a negative palette, free and browser-based.",
       "h1": "Invert Image Colors",
       "heroValueProp": "Flip a photo's colors into a negative palette — a quick creative effect or a way to check contrast.",
       "faqs": [
-        {"q": "What does color inversion do exactly?", "a": "It flips every pixel's color to its negative — light areas become dark and colors shift to their opposites."},
-        {"q": "Which image formats are supported?", "a": "Common formats like JPG and PNG are supported."},
-        {"q": "Is my image uploaded anywhere?", "a": "No, inversion happens locally in your browser."}
+        {
+          "q": "What does color inversion do exactly?",
+          "a": "It flips every pixel's color to its negative — light areas become dark and colors shift to their opposites."
+        },
+        {
+          "q": "What is this actually useful for?",
+          "a": "Common uses include creating a quick negative-style effect, checking a light-on-dark version of a graphic for a dark-mode UI, or reversing a scanned negative image back toward its original colors."
+        },
+        {
+          "q": "Is my image uploaded anywhere?",
+          "a": "No, the pixel inversion happens locally on your device."
+        }
       ],
-      "relatedSlugs": ["invert-pdf-colors", "convert-image-format", "image-compressor"]
+      "relatedSlugs": [
+        "invert-pdf-colors",
+        "convert-image-format",
+        "image-compressor"
+      ]
+    },
+    {
+      "slug": "unlock-pdf",
+      "file": "unlock-pdf.html",
+      "toolId": "unlock",
+      "status": "live",
+      "category": "security",
+      "name": "Unlock PDF",
+      "title": "Unlock PDF — Remove PDF Password Free Online | YOYOPDF",
+      "description": "Remove a password from a PDF you already know the password to. Free, browser-based, no uploads.",
+      "h1": "Unlock PDF",
+      "heroValueProp": "Already know the password? Remove it so the file opens freely for everyone you share it with.",
+      "faqs": [
+        {
+          "q": "Do I need to know the password to unlock a PDF?",
+          "a": "Yes. This removes a password from a file you can already open — it doesn't crack or guess an unknown password."
+        },
+        {
+          "q": "Will the unlocked file still look and read the same?",
+          "a": "In most cases, yes — the page content is decrypted in place. For a small number of less common encryption types, the file is rebuilt from page images instead, and text on those pages is no longer selectable or searchable."
+        },
+        {
+          "q": "Is my file or password uploaded anywhere?",
+          "a": "No. Everything happens locally in your browser — your file and password are never sent to a server."
+        }
+      ],
+      "relatedSlugs": [
+        "protect-pdf",
+        "compress-pdf",
+        "merge-pdf"
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "A password that made sense when a file was first protected can become friction later — once you no longer need the gate, typing the password every time a file opens gets old fast.",
+          "points": [
+            {
+              "title": "The file will be shared with people who don't need the password step",
+              "desc": "If a document's audience has changed since it was protected, removing the password makes it open freely for everyone going forward."
+            },
+            {
+              "title": "Retyping the password on every open is unnecessary",
+              "desc": "For a file you own and reopen often, removing the password once is faster than entering it every single time."
+            },
+            {
+              "title": "A password was set temporarily and is no longer needed",
+              "desc": "Once a document has passed the stage where it needed restricted access, the password can be lifted so it behaves like a normal PDF again."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the password-protected PDF. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Enter the password",
+            "desc": "Type the password you already use to open the file."
+          },
+          {
+            "title": "Decrypt",
+            "desc": "The file is decrypted locally in your browser using that password."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the unlocked PDF, which now opens without a password."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "In-place decryption",
+            "desc": "For standard encryption, page content is decrypted directly, keeping text selectable and searchable."
+          },
+          {
+            "title": "Broad format fallback",
+            "desc": "For less common encryption types, the file is rebuilt from rendered page images so it still opens without a password."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Both the file and the password stay local — nothing is sent to a server to unlock it."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and unlock immediately — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Unlock as many files as you need, with no watermark added to the result."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Finance",
+            "desc": "Remove the password from a statement once it's been filed away and no longer needs restricted access."
+          },
+          {
+            "title": "Admin teams",
+            "desc": "Unlock a batch of internally protected files before archiving them somewhere already access-controlled."
+          },
+          {
+            "title": "Personal use",
+            "desc": "Drop the password from a document you protected temporarily and no longer need locked."
+          },
+          {
+            "title": "Small business",
+            "desc": "Remove a password before combining a protected file with others in a merge."
+          }
+        ]
+      }
+    },
+    {
+      "slug": "repair-pdf",
+      "file": "repair-pdf.html",
+      "toolId": "repair",
+      "status": "live",
+      "category": "optimize",
+      "name": "Repair PDF",
+      "title": "Repair PDF Free Online | YOYOPDF",
+      "description": "Recover a PDF that won't open properly or has a broken internal structure. Free, browser-based, no uploads.",
+      "h1": "Repair PDF",
+      "heroValueProp": "Rebuild a PDF whose internal structure is broken, so it opens normally again instead of failing or showing errors.",
+      "faqs": [
+        {
+          "q": "What kinds of problems can this fix?",
+          "a": "Structural issues — a broken or stale internal index, dangling references, and similar damage that stops some readers from opening the file cleanly."
+        },
+        {
+          "q": "Can every broken PDF be repaired?",
+          "a": "No. A file that's badly truncated or isn't a real PDF at all can't be recovered. When the internal structure can't be rebuilt but the pages can still be displayed, they're recovered as page images instead so you don't lose the content, though the text is no longer selectable."
+        },
+        {
+          "q": "Is my file uploaded anywhere?",
+          "a": "No. Every recovery attempt happens locally in your browser."
+        }
+      ],
+      "relatedSlugs": [
+        "compress-pdf",
+        "merge-pdf",
+        "organize-pdf"
+      ]
+    },
+    {
+      "slug": "pdf-to-powerpoint",
+      "file": "pdf-to-powerpoint.html",
+      "toolId": "pdf2pptx",
+      "status": "live",
+      "category": "convert",
+      "name": "PDF to PowerPoint",
+      "title": "PDF to PowerPoint Converter Free Online | YOYOPDF",
+      "description": "Turn every page of a PDF into its own PowerPoint slide, free and browser-based. No upload, no sign-up.",
+      "h1": "PDF to PowerPoint",
+      "heroValueProp": "Turn a PDF into a slide deck in seconds — each page becomes its own full-slide image, laid out exactly as it looked in the PDF.",
+      "faqs": [
+        {
+          "q": "Can I edit the text on each slide afterward?",
+          "a": "Not directly — each slide is a full-page image of that PDF page, so layout and formatting are preserved exactly, but the text itself isn't a separate editable text box in PowerPoint."
+        },
+        {
+          "q": "Does it work with any PDF?",
+          "a": "PDFs that the browser can open within the published size and page limits can be converted. Password-protected or badly malformed files may need to be unlocked or repaired first."
+        },
+        {
+          "q": "Is my PDF uploaded to convert it?",
+          "a": "No. Pages are rendered and packaged into the presentation entirely in your browser — nothing leaves your device."
+        }
+      ],
+      "relatedSlugs": [
+        "pdf-to-jpg",
+        "pdf-to-word",
+        "merge-pdf"
+      ]
     }
   ]
 }

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page Not Found | YOYOPDF</title>
+<meta name="description" content="The requested YOYOPDF page could not be found. Return to the homepage to choose a PDF or image tool.">
+<meta name="robots" content="noindex,follow">
+<meta name="theme-color" content="#050505">
+<link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+<style>
+:root{color-scheme:dark;--bg:#050505;--panel:#10130d;--ink:#f4f7ef;--muted:#a6ad9d;--accent:#9cff00;--line:rgba(156,255,0,.22)}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0}
+body{display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 10%,rgba(156,255,0,.12),transparent 38%),var(--bg);color:var(--ink);font-family:Arial,sans-serif}
+main{width:min(620px,100%);padding:clamp(30px,7vw,64px);border:1px solid var(--line);border-radius:24px;background:var(--panel);text-align:center;box-shadow:0 28px 80px rgba(0,0,0,.35)}
+.brand{display:inline-flex;align-items:center;gap:10px;margin-bottom:30px;color:var(--ink);font-weight:800;letter-spacing:-.04em;text-decoration:none}
+.brand-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--accent);color:#101800;font-size:18px}
+.error-code{margin:0 0 8px;color:var(--accent);font-size:.78rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+h1{margin:0;font-size:clamp(2rem,7vw,4rem);line-height:1;letter-spacing:-.05em}
+p{max-width:480px;margin:18px auto 28px;color:var(--muted);font-size:1rem;line-height:1.65}
+.actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 20px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-weight:700;text-decoration:none}
+.button.primary{border-color:var(--accent);background:var(--accent);color:#101800}
+.button:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+@media(prefers-color-scheme:light){:root{color-scheme:light;--bg:#f5fbf0;--panel:#fff;--ink:#17200f;--muted:#5c6853;--accent:#6fbd00;--line:rgba(65,112,0,.24)}body{box-shadow:none}}
+@media(prefers-reduced-motion:no-preference){main{animation:enter .24s ease-out both}@keyframes enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}}
+</style>
+</head>
+<body>
+<main aria-labelledby="not-found-title">
+  <a class="brand" href="/" aria-label="YOYOPDF home"><span class="brand-mark" aria-hidden="true">Y</span>YOYOPDF</a>
+  <p class="error-code">Error 404</p>
+  <h1 id="not-found-title">Page not found</h1>
+  <p>The address may be outdated or mistyped. Your files have not been accessed—choose a tool from the homepage to continue.</p>
+  <div class="actions">
+    <a class="button primary" href="/">Go to homepage</a>
+    <a class="button" href="/#tools">Browse all tools</a>
+  </div>
+</main>
+</body>
+</html>

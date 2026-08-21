@@ -86,6 +86,20 @@
     handle.setAttribute('role', 'separator');
     handle.setAttribute('aria-orientation', 'vertical');
     handle.setAttribute('aria-label', invert ? 'Resize inspector panel' : 'Resize sidebar panel');
+    // Phase 12: a focusable (tabindex=0), interactively-resizable
+    // role="separator" is an ARIA "window splitter," which the spec
+    // requires aria-valuenow on (axe: aria-required-attr, critical) - a
+    // static, non-interactive separator wouldn't need it, but this one
+    // IS interactive (mousedown/touchstart/keydown below). min/max are
+    // set once (they come from a fixed CSS custom property, not user
+    // action); valuenow is refreshed on every resize so it always
+    // reflects the panel's real current width, not a stale one.
+    handle.setAttribute('aria-valuemin', String(min));
+    handle.setAttribute('aria-valuemax', String(max));
+    function syncValueNow() {
+      handle.setAttribute('aria-valuenow', String(Math.round(panel.getBoundingClientRect().width)));
+    }
+    syncValueNow();
 
     function onDown(e) {
       dragging = true;
@@ -100,6 +114,7 @@
       const delta = invert ? startX - x : x - startX;
       const next = Math.min(max, Math.max(min, startW + delta));
       root.style.setProperty(cssVar, next + 'px');
+      syncValueNow();
     }
     function onUp() {
       if (!dragging) return;
@@ -125,6 +140,7 @@
       if (next !== current) {
         e.preventDefault();
         root.style.setProperty(cssVar, Math.min(max, Math.max(min, next)) + 'px');
+        syncValueNow();
       }
     });
   }

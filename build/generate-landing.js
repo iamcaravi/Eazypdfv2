@@ -1,259 +1,474 @@
 const fs = require("fs");
 const path = require("path");
+const { homepageRuntime, runtimeForTool } = require("./runtime-manifest.js");
 
 const ROOT = path.join(__dirname, "..");
-const registry = JSON.parse(fs.readFileSync(
-  path.join(ROOT, "seo", "tools-registry.json"),
-  "utf8"
-));
-const additional = JSON.parse(fs.readFileSync(
-  path.join(ROOT, "seo", "additional-tools.json"),
-  "utf8"
-));
+const CHECK_ONLY = process.argv.includes("--check");
 
-// Maps registry slug -> this app's actual TOOLS.xxx id (used for ?tool=).
-// protect-pdf is intentionally excluded: the registry describes a
-// password-protect feature that doesn't exist as a TOOLS.xxx in this
-// build (no TOOLS.protect) - generating a page for it would expose a
-// route with nothing behind it.
-const SLUG_TO_TOOLID = {
-  "merge-pdf": "merge",
-  "split-pdf": "split",
-  "compress-pdf": "compress",
-  "edit-pdf": "edit",
-  "pdf-to-word": "pdf2word",
-  "rotate-pdf": "rotate",
-  "delete-pages": "deletepages",
-  "extract-pages": "extractpages",
-  "organize-pdf": "organize",
-  "crop-pdf": "crop",
-  "watermark-pdf": "watermark",
-  "add-page-numbers": "pagenumbers",
-};
-for (const t of additional.tools) SLUG_TO_TOOLID[t.slug] = t.toolId;
+function readJson(relativePath) {
+  return JSON.parse(fs.readFileSync(path.join(ROOT, relativePath), "utf8"));
+}
 
-// additional-tools.json uses a flatter shape (heroValueProp instead of
-// landing.hero.valueProp, no whyUse/keyFeatures/useCases) since that
-// content is fresh-written for tools with no existing rich copy - reshape
-// it to match the registry's structure so renderTool() can treat both
-// sources identically.
-const additionalNormalized = additional.tools.map(t => ({
-  ...t,
-  landing: { hero: { valueProp: t.heroValueProp } }
+const registry = readJson("seo/tools-registry.json");
+const additional = readJson("seo/additional-tools.json");
+const site = registry.site;
+
+const additionalNormalized = additional.tools.map((tool) => ({
+  ...tool,
+  landing: {
+    ...(tool.landing || {}),
+    hero: {
+      ...(tool.landing?.hero || {}),
+      valueProp: tool.landing?.hero?.valueProp || tool.heroValueProp
+    }
+  }
 }));
 
-// Combined lookup across both content sources, so relatedSlugs links
-// resolve correctly regardless of which file a tool's content lives in.
 const ALL_TOOLS = [...registry.tools, ...additionalNormalized];
-function findTool(slug){ return ALL_TOOLS.find(t => t.slug === slug); }
+const TOOL_BY_SLUG = new Map(ALL_TOOLS.map((tool) => [tool.slug, tool]));
+const INDEXABLE_TOOLS = ALL_TOOLS.filter((tool) =>
+  tool.indexable !== false && (tool.status === "live" || tool.status === "landing-only")
+);
+const GENERATED_TOOLS = ALL_TOOLS.filter((tool) => tool.status !== "planned");
 
-// Maps ANY slug appearing in relatedSlugs -> this build's landing filename,
-// so "related tools" links only point at pages that actually exist here.
-// Derived from each entry's own `file` field rather than assumed
-// slug-to-filename patterns - add-page-numbers's own file is actually
-// page-numbers.html, not add-page-numbers.html, which a hand-written map
-// got wrong once already.
-const SLUG_TO_FILE = {};
-for (const slug of Object.keys(SLUG_TO_TOOLID)) {
-  const t = findTool(slug);
-  if (t) SLUG_TO_FILE[slug] = t.file;
+function routeFor(tool) {
+  return "/" + tool.file.replace(/\.html$/i, "");
 }
 
-const DOMAIN = "https://yoyopdf.in";
-
-function esc(s){
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function canonicalFor(tool) {
+  return site.domain.replace(/\/$/, "") + routeFor(tool);
 }
 
-/* ---------------------------------------------------------------------
- * Architecture: each tool's canonical clean URL (e.g. /merge-pdf) must be
- * BOTH the actual interactive app AND its own SEO landing content on one
- * page - not the interactive app at one URL and a separate marketing page
- * shadowing it at the same URL (the old two-system setup this replaces).
- *
- * Rather than hand-duplicating the app's markup/CSS/JS per tool (which
- * would make index.html and 37 near-copies drift out of sync), this
- * generator takes index.html itself - the single source of truth for the
- * app shell - and, per tool, swaps its homepage-specific <head> metadata/
- * JSON-LD and hero copy for that tool's own, then appends a dedicated
- * SEO content section (why-use/how-it-works/features/use-cases/FAQ/
- * related-tools, built from this same registry data) right before the
- * footer. Everything else - header, tool workspace overlay, the actual
- * TOOLS.xxx implementations in js/app.js, styling - stays byte-identical
- * to index.html, so there is exactly one place tool logic/markup lives.
- * ------------------------------------------------------------------- */
-
-const TEMPLATE = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
-
-const MARKERS = {
-  title: '<title>YOYOPDF — Free Online PDF Tools: Merge, Split, Compress & Convert</title>',
-  description: '<meta name="description" content="Merge, split, compress, convert and edit PDF files online — 100% free, no sign-up, no file limits. Every tool runs locally in your browser, so your files never leave your device.">',
-  canonical: '<link rel="canonical" href="https://yoyopdf.in/">',
-  ogUrl: '<meta property="og:url" content="https://yoyopdf.in/">',
-  ogTitle: '<meta property="og:title" content="YOYOPDF — Free Online PDF Tools: Merge, Split, Compress & Convert">',
-  ogDescription: '<meta property="og:description" content="Merge, split, compress, convert and edit PDF files online — 100% free, no sign-up, no file limits. Every tool runs locally in your browser, so your files never leave your device.">',
-  twitterTitle: '<meta name="twitter:title" content="YOYOPDF — Free Online PDF Tools: Merge, Split, Compress & Convert">',
-  twitterDescription: '<meta name="twitter:description" content="Merge, split, compress, convert and edit PDF files online — 100% free, no sign-up, no file limits. Every tool runs locally in your browser.">',
-  hero: '<h1><span class="hero-line1">All-in-One <span class="accent">PDF</span> Tools.</span><span class="hero-line2">Simple. Fast. Secure.</span></h1>',
-  tagline: '<p class="tagline">YOYOPDF makes it easy to edit, convert, compress, merge, split and manage your PDF files online. All tools are free, secure and easy to use.</p>',
-  footer: '<footer class="site-footer">',
-};
-
-// The homepage's own generic JSON-LD (SoftwareApplication + FAQPage) -
-// swapped out per tool page for that tool's BreadcrumbList (+ FAQPage
-// only where the tool actually has genuine FAQ content), so each
-// canonical page provides exactly one set of structured data that
-// matches what's actually on it, instead of two competing/duplicate
-// blocks.
-const SOFTWAREAPP_JSONLD_RE = /<script type="application\/ld\+json">[\s\S]*?"@type":\s*"SoftwareApplication"[\s\S]*?<\/script>\s*/;
-const FAQPAGE_JSONLD_RE = /<script type="application\/ld\+json">[\s\S]*?"@type":\s*"FAQPage"[\s\S]*?<\/script>\s*/;
-
-for (const [key, marker] of Object.entries(MARKERS)) {
-  if (!TEMPLATE.includes(marker)) {
-    throw new Error(`index.html marker not found (page content changed?): ${key}`);
-  }
-}
-if (!SOFTWAREAPP_JSONLD_RE.test(TEMPLATE)) throw new Error("index.html: SoftwareApplication JSON-LD block not found");
-if (!FAQPAGE_JSONLD_RE.test(TEMPLATE)) throw new Error("index.html: homepage FAQPage JSON-LD block not found");
-
-function renderSeoSection(tool){
-  const l = tool.landing || {};
-
-  const whyBlock = (l.whyUse && l.whyUse.points && l.whyUse.points.length) ? `
-  <div class="tool-seo-block">
-    <h2>Why use ${esc(tool.name)}?</h2>
-    <p class="tool-seo-intro">${esc(l.whyUse.intro || "")}</p>
-    <div class="tool-seo-grid">${l.whyUse.points.map(p => `
-      <div class="tool-seo-card"><h3>${esc(p.title)}</h3><p>${esc(p.desc)}</p></div>`).join("")}
-    </div>
-  </div>` : "";
-
-  const howBlock = (l.howItWorks && l.howItWorks.length) ? `
-  <div class="tool-seo-block">
-    <h2>How it works</h2>
-    <div class="tool-seo-steps">${l.howItWorks.map(s => `
-      <div class="tool-seo-step"><h3>${esc(s.title)}</h3><p>${esc(s.desc)}</p></div>`).join("")}
-    </div>
-  </div>` : "";
-
-  const featuresBlock = (l.keyFeatures && l.keyFeatures.length) ? `
-  <div class="tool-seo-block">
-    <h2>Key features</h2>
-    <div class="tool-seo-grid">${l.keyFeatures.map(f => `
-      <div class="tool-seo-card"><h3>${esc(f.title)}</h3><p>${esc(f.desc)}</p></div>`).join("")}
-    </div>
-  </div>` : "";
-
-  const useCasesBlock = (l.useCases && l.useCases.length) ? `
-  <div class="tool-seo-block">
-    <h2>Who uses ${esc(tool.name)}?</h2>
-    <div class="tool-seo-grid">${l.useCases.map(u => `
-      <div class="tool-seo-card"><h3>${esc(u.title)}</h3><p>${esc(u.desc)}</p></div>`).join("")}
-    </div>
-  </div>` : "";
-
-  const faqBlock = (tool.faqs && tool.faqs.length) ? `
-  <div class="tool-seo-block">
-    <h2>Frequently asked questions</h2>
-    ${tool.faqs.map(f => `
-    <details class="tool-seo-faq"><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join("")}
-  </div>` : "";
-
-  const relatedSlugs = (tool.relatedSlugs || []).filter(s => SLUG_TO_FILE[s] && s !== tool.slug);
-  const relatedBlock = relatedSlugs.length ? `
-  <div class="tool-seo-block">
-    <h2>Related tools</h2>
-    <div class="tool-seo-related">${relatedSlugs.map(s => `
-      <a href="/${SLUG_TO_FILE[s].replace(/\.html$/, "")}">${esc(findTool(s)?.name || s)}</a>`).join("")}
-    </div>
-  </div>` : "";
-
-  const body = [whyBlock, howBlock, featuresBlock, useCasesBlock, faqBlock, relatedBlock].join("");
-  if (!body.trim()) return "";
-  return `\n<section class="tool-seo-content">${body}\n</section>\n\n`;
+function esc(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-function renderTool(tool){
-  const l = tool.landing || {};
-  const urlPath = tool.file.replace(/\.html$/, "");
-  const canonical = `${DOMAIN}/${urlPath}`;
-  const h1 = tool.h1 || tool.name;
-  const valueProp = l.hero?.valueProp || tool.description;
-
-  const jsonLdBlocks = [];
-  jsonLdBlocks.push(`<script type="application/ld+json">${JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN + "/" },
-      { "@type": "ListItem", "position": 2, "name": tool.name, "item": canonical }
-    ]
-  }, null, 2)}</script>\n`);
-  if (tool.faqs && tool.faqs.length){
-    jsonLdBlocks.push(`<script type="application/ld+json">${JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": tool.faqs.map(f => ({
-        "@type": "Question",
-        "name": f.q,
-        "acceptedAnswer": { "@type": "Answer", "text": f.a }
-      }))
-    }, null, 2)}</script>\n`);
+function validateRegistry() {
+  const requiredSiteFields = ["name", "domain", "language", "locale", "robots", "defaultTitle", "defaultDescription", "ogImage"];
+  for (const field of requiredSiteFields) {
+    if (!site[field]) throw new Error("Missing site metadata: " + field);
   }
 
-  let out = TEMPLATE;
-  out = out.replace(MARKERS.title, `<title>${esc(tool.title)}</title>`);
-  out = out.replace(MARKERS.description, `<meta name="description" content="${esc(tool.description)}">`);
-  out = out.replace(MARKERS.canonical, `<link rel="canonical" href="${canonical}">`);
-  out = out.replace(MARKERS.ogUrl, `<meta property="og:url" content="${canonical}">`);
-  out = out.replace(MARKERS.ogTitle, `<meta property="og:title" content="${esc(tool.title)}">`);
-  out = out.replace(MARKERS.ogDescription, `<meta property="og:description" content="${esc(tool.description)}">`);
-  out = out.replace(MARKERS.twitterTitle, `<meta name="twitter:title" content="${esc(tool.title)}">`);
-  out = out.replace(MARKERS.twitterDescription, `<meta name="twitter:description" content="${esc(tool.description)}">`);
-  out = out.replace(MARKERS.hero, `<h1>${esc(h1)}</h1>`);
-  out = out.replace(MARKERS.tagline, `<p class="tagline">${esc(valueProp)}</p>`);
-  out = out.replace(SOFTWAREAPP_JSONLD_RE, "");
-  out = out.replace(FAQPAGE_JSONLD_RE, jsonLdBlocks.join(""));
-  out = out.replace(MARKERS.footer, renderSeoSection(tool) + MARKERS.footer);
+  const seen = {
+    slug: new Set(),
+    file: new Set(),
+    route: new Set(),
+    toolId: new Set(),
+    title: new Set(),
+    description: new Set()
+  };
+  for (const tool of ALL_TOOLS) {
+    for (const field of ["slug", "file", "toolId", "status", "category", "name", "title", "description", "h1"]) {
+      if (!tool[field]) throw new Error("Tool " + (tool.slug || "(unknown)") + " is missing " + field);
+    }
+    if (!registry.categories[tool.category]) {
+      throw new Error("Tool " + tool.slug + " has unknown category " + tool.category);
+    }
+    if (!/^[a-z0-9-]+\.html$/.test(tool.file)) {
+      throw new Error("Tool " + tool.slug + " has an unsafe or unsupported file path: " + tool.file);
+    }
+    if (!["live", "landing-only", "planned"].includes(tool.status)) {
+      throw new Error("Tool " + tool.slug + " has unsupported status " + tool.status);
+    }
+
+    const values = {
+      slug: tool.slug,
+      file: tool.file,
+      route: routeFor(tool),
+      toolId: tool.toolId,
+      title: tool.title,
+      description: tool.description
+    };
+    for (const [kind, value] of Object.entries(values)) {
+      if (seen[kind].has(value)) throw new Error("Duplicate tool " + kind + ": " + value);
+      seen[kind].add(value);
+    }
+
+    for (const relatedSlug of tool.relatedSlugs || []) {
+      if (!TOOL_BY_SLUG.has(relatedSlug)) {
+        throw new Error("Tool " + tool.slug + " references unknown related tool " + relatedSlug);
+      }
+    }
+  }
+}
+
+validateRegistry();
+
+const RAW_TEMPLATE = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+const ROUTING_TEMPLATE = fs.readFileSync(path.join(ROOT, "js/core/routing.js"), "utf8");
+const SOFTWAREAPP_JSONLD_RE = /<script type="application\/ld\+json">\s*\{[\s\S]*?"@type":\s*"SoftwareApplication"[\s\S]*?<\/script>\s*/;
+const FAQPAGE_JSONLD_RE = /<script type="application\/ld\+json">\s*\{[\s\S]*?"@type":\s*"FAQPage"[\s\S]*?<\/script>\s*/;
+const DIRECTORY_RE = /<!-- SEO_TOOL_DIRECTORY_START -->[\s\S]*?<!-- SEO_TOOL_DIRECTORY_END -->/;
+const TOOL_ROUTES_RE = /\/\* SEO_TOOL_ROUTES_START \*\/[\s\S]*?\/\* SEO_TOOL_ROUTES_END \*\//;
+const RUNTIME_LIBRARIES_RE = /<!-- RUNTIME_LIBRARIES_START -->[\s\S]*?<!-- RUNTIME_LIBRARIES_END -->/;
+const RUNTIME_SCRIPTS_RE = /<!-- RUNTIME_SCRIPTS_START -->[\s\S]*?<!-- RUNTIME_SCRIPTS_END -->/;
+
+function replaceRequired(input, pattern, replacement, label) {
+  let count = 0;
+  const out = input.replace(pattern, (...args) => {
+    count += 1;
+    return typeof replacement === "function" ? replacement(...args) : replacement;
+  });
+  if (count !== 1) throw new Error(label + " replacement count was " + count + ", expected 1");
   return out;
 }
 
-const slugs = Object.keys(SLUG_TO_TOOLID);
-const generated = [];
-for (const slug of slugs) {
-  let tool = findTool(slug);
-  if (!tool || !tool.faqs || !tool.title) { console.log("SKIP (no usable data):", slug); continue; }
-  // This registry entry is from before Edit PDF's editor workspace was
-  // built - it's "landing-only, coming soon" content for a tool that is
-  // now actually fully functional in this build. Correct the parts that
-  // claim it isn't live yet; the descriptive content about what editing
-  // does is otherwise still accurate.
-  if (slug === "edit-pdf") {
-    tool = JSON.parse(JSON.stringify(tool));
-    tool.title = "Edit PDF Online Free — Add Text & Annotate | YOYOPDF";
-    tool.description = "Edit PDF documents directly in your browser — add text, images, shapes, and annotations. Free, no upload, no sign-up.";
-    tool.faqs[0] = {
-      q: "Is Edit PDF available now?",
-      a: "Yes. Edit PDF runs entirely in your browser — no upload, no sign-up, no waiting."
-    };
-    tool.landing.hero.valueProp = "Edit PDF documents directly in your browser — correct mistakes, add text, images and shapes, without installing anything.";
-  }
-  // Same fix as edit-pdf above - this tool is also actually live now.
-  if (slug === "pdf-to-word") {
-    tool = JSON.parse(JSON.stringify(tool));
-    tool.title = "PDF to Word Converter Free Online | YOYOPDF";
-    tool.description = "Convert PDF into an editable Word document, free and browser-based. No upload, no sign-up.";
-    tool.faqs[0] = {
-      q: "Is PDF to Word available now?",
-      a: "Yes. PDF to Word runs entirely in your browser — no upload, no sign-up, no waiting."
-    };
-    tool.landing.hero.valueProp = "Convert PDF into an editable Word document directly in your browser — no upload, no sign-up.";
-  }
-
-  const html = renderTool(tool);
-  fs.writeFileSync(path.join(ROOT, tool.file), html);
-  generated.push(tool.file);
-  console.log("Generated:", tool.file);
+function jsonLd(data) {
+  return '<script type="application/ld+json">\n' + JSON.stringify(data, null, 2) + "\n</script>\n";
 }
 
-console.log(`\nDone. Generated files: ${generated.join(", ")}`);
+function renderToolDirectory() {
+  const categories = Object.entries(registry.categories)
+    .sort((a, b) => a[1].order - b[1].order);
+
+  const groups = categories.map(([category, details]) => {
+    const tools = INDEXABLE_TOOLS
+      .filter((tool) => tool.category === category)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (!tools.length) return "";
+    return [
+      '      <div class="seo-tool-directory-group">',
+      "        <h3>" + esc(details.label) + "</h3>",
+      "        <ul>",
+      tools.map((tool) =>
+        '          <li><a href="' + esc(routeFor(tool)) + '">' + esc(tool.name) + "</a></li>"
+      ).join("\n"),
+      "        </ul>",
+      "      </div>"
+    ].join("\n");
+  }).filter(Boolean).join("\n");
+
+  return [
+    "<!-- SEO_TOOL_DIRECTORY_START -->",
+    '<section class="seo-tool-directory" aria-labelledby="seo-tool-directory-title">',
+    '  <div class="seo-tool-directory-inner">',
+    '    <h2 id="seo-tool-directory-title">Explore all YOYOPDF tools</h2>',
+    '    <p class="seo-tool-directory-intro">Open any free PDF or image tool directly. Processing stays in your browser.</p>',
+    '    <nav class="seo-tool-directory-groups" aria-label="All YOYOPDF tools">',
+    groups,
+    "    </nav>",
+    "  </div>",
+    "</section>",
+    "<!-- SEO_TOOL_DIRECTORY_END -->"
+  ].join("\n");
+}
+
+function homepageSoftwareSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: site.name,
+    url: site.domain.replace(/\/$/, "") + "/",
+    applicationCategory: "UtilitiesApplication",
+    operatingSystem: "Any (Web Browser)",
+    description: site.defaultDescription,
+    isAccessibleForFree: true,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD"
+    },
+    featureList: INDEXABLE_TOOLS.map((tool) => tool.name)
+  };
+}
+
+function renderRuntime(template, runtime, label) {
+  const libraryBlock = [
+    "<!-- RUNTIME_LIBRARIES_START -->",
+    ...runtime.libraries.map((library) => `<script src="${library.src}" integrity="${library.integrity}" crossorigin="anonymous"></script>`),
+    "<!-- RUNTIME_LIBRARIES_END -->"
+  ].join("\n");
+  const scriptBlock = [
+    "<!-- RUNTIME_SCRIPTS_START -->",
+    ...runtime.scripts.map((src) => `<script src="${src}"></script>`),
+    "<!-- RUNTIME_SCRIPTS_END -->"
+  ].join("\n");
+  let out = replaceRequired(template, RUNTIME_LIBRARIES_RE, libraryBlock, label + " runtime libraries");
+  out = replaceRequired(out, RUNTIME_SCRIPTS_RE, scriptBlock, label + " runtime scripts");
+  return out;
+}
+function renderHomepage(template) {
+  const homeUrl = site.domain.replace(/\/$/, "") + "/";
+  let out = template;
+  out = replaceRequired(out, /<html lang="[^"]+">/, '<html lang="' + esc(site.language) + '">', "html lang");
+  out = replaceRequired(out, /<title>[^<]*<\/title>/, "<title>" + esc(site.defaultTitle) + "</title>", "homepage title");
+  out = replaceRequired(out, /<meta name="description" content="[^"]*">/, '<meta name="description" content="' + esc(site.defaultDescription) + '">', "homepage description");
+  out = replaceRequired(out, /<meta name="robots" content="[^"]*">/, '<meta name="robots" content="' + esc(site.robots) + '">', "homepage robots");
+  out = replaceRequired(out, /<link rel="canonical" href="[^"]*">/, '<link rel="canonical" href="' + esc(homeUrl) + '">', "homepage canonical");
+  out = replaceRequired(out, /<meta property="og:url" content="[^"]*">/, '<meta property="og:url" content="' + esc(homeUrl) + '">', "homepage og:url");
+  out = replaceRequired(out, /<meta property="og:title" content="[^"]*">/, '<meta property="og:title" content="' + esc(site.defaultTitle) + '">', "homepage og:title");
+  out = replaceRequired(out, /<meta property="og:description" content="[^"]*">/, '<meta property="og:description" content="' + esc(site.defaultDescription) + '">', "homepage og:description");
+  out = replaceRequired(out, /<meta property="og:image" content="[^"]*">/, '<meta property="og:image" content="' + esc(site.ogImage) + '">', "homepage og:image");
+  out = replaceRequired(out, /<meta property="og:locale" content="[^"]*">/, '<meta property="og:locale" content="' + esc(site.locale) + '">', "homepage og:locale");
+  out = replaceRequired(out, /<meta name="twitter:title" content="[^"]*">/, '<meta name="twitter:title" content="' + esc(site.defaultTitle) + '">', "homepage twitter:title");
+  out = replaceRequired(out, /<meta name="twitter:description" content="[^"]*">/, '<meta name="twitter:description" content="' + esc(site.defaultDescription) + '">', "homepage twitter:description");
+  out = replaceRequired(out, /<meta name="twitter:image" content="[^"]*">/, '<meta name="twitter:image" content="' + esc(site.ogImage) + '">', "homepage twitter:image");
+  out = replaceRequired(out, SOFTWAREAPP_JSONLD_RE, jsonLd(homepageSoftwareSchema()), "homepage SoftwareApplication schema");
+  out = replaceRequired(out, DIRECTORY_RE, renderToolDirectory(), "tool directory");
+  out = renderRuntime(out, homepageRuntime(), "homepage");
+  return out;
+}
+
+const HOMEPAGE = renderHomepage(RAW_TEMPLATE);
+
+function renderSeoSection(tool) {
+  const landing = tool.landing || {};
+  const blocks = [];
+
+  if (landing.whyUse?.points?.length) {
+    blocks.push([
+      '  <div class="tool-seo-block">',
+      "    <h2>Why use " + esc(tool.name) + "?</h2>",
+      '    <p class="tool-seo-intro">' + esc(landing.whyUse.intro || "") + "</p>",
+      '    <div class="tool-seo-grid">' + landing.whyUse.points.map((point) =>
+        '\n      <div class="tool-seo-card"><h3>' + esc(point.title) + "</h3><p>" + esc(point.desc) + "</p></div>"
+      ).join("") + "\n    </div>",
+      "  </div>"
+    ].join("\n"));
+  }
+
+  if (landing.howItWorks?.length) {
+    blocks.push([
+      '  <div class="tool-seo-block">',
+      "    <h2>How it works</h2>",
+      '    <div class="tool-seo-steps">' + landing.howItWorks.map((step) =>
+        '\n      <div class="tool-seo-step"><h3>' + esc(step.title) + "</h3><p>" + esc(step.desc) + "</p></div>"
+      ).join("") + "\n    </div>",
+      "  </div>"
+    ].join("\n"));
+  }
+
+  if (landing.keyFeatures?.length) {
+    blocks.push([
+      '  <div class="tool-seo-block">',
+      "    <h2>Key features</h2>",
+      '    <div class="tool-seo-grid">' + landing.keyFeatures.map((feature) =>
+        '\n      <div class="tool-seo-card"><h3>' + esc(feature.title) + "</h3><p>" + esc(feature.desc) + "</p></div>"
+      ).join("") + "\n    </div>",
+      "  </div>"
+    ].join("\n"));
+  }
+
+  if (landing.useCases?.length) {
+    blocks.push([
+      '  <div class="tool-seo-block">',
+      "    <h2>Who uses " + esc(tool.name) + "?</h2>",
+      '    <div class="tool-seo-grid">' + landing.useCases.map((useCase) =>
+        '\n      <div class="tool-seo-card"><h3>' + esc(useCase.title) + "</h3><p>" + esc(useCase.desc) + "</p></div>"
+      ).join("") + "\n    </div>",
+      "  </div>"
+    ].join("\n"));
+  }
+
+  if (tool.faqs?.length) {
+    blocks.push([
+      '  <div class="tool-seo-block">',
+      "    <h2>Frequently asked questions</h2>",
+      tool.faqs.map((faq) =>
+        '    <details class="tool-seo-faq"><summary>' + esc(faq.q) + "</summary><p>" + esc(faq.a) + "</p></details>"
+      ).join("\n"),
+      "  </div>"
+    ].join("\n"));
+  }
+
+  const related = (tool.relatedSlugs || [])
+    .map((slug) => TOOL_BY_SLUG.get(slug))
+    .filter((item) => item && INDEXABLE_TOOLS.includes(item) && item.slug !== tool.slug);
+  if (related.length) {
+    blocks.push([
+      '  <div class="tool-seo-block">',
+      "    <h2>Related tools</h2>",
+      '    <div class="tool-seo-related">' + related.map((item) =>
+        '\n      <a href="' + esc(routeFor(item)) + '">' + esc(item.name) + "</a>"
+      ).join("") + "\n    </div>",
+      "  </div>"
+    ].join("\n"));
+  }
+
+  return blocks.length ? '\n<section class="tool-seo-content">\n' + blocks.join("\n\n") + "\n</section>\n\n" : "";
+}
+
+function toolSchemas(tool) {
+  const canonical = canonicalFor(tool);
+  const blocks = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      name: tool.name,
+      url: canonical,
+      description: tool.description,
+      applicationCategory: "UtilitiesApplication",
+      operatingSystem: "Any",
+      browserRequirements: "Requires JavaScript and a modern web browser",
+      isAccessibleForFree: true,
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD"
+      }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: site.domain.replace(/\/$/, "") + "/" },
+        { "@type": "ListItem", position: 2, name: tool.name, item: canonical }
+      ]
+    }
+  ];
+  if (tool.faqs?.length) {
+    blocks.push({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: tool.faqs.map((faq) => ({
+        "@type": "Question",
+        name: faq.q,
+        acceptedAnswer: { "@type": "Answer", text: faq.a }
+      }))
+    });
+  }
+  // Phase 12: only emitted when tool.landing.howItWorks genuinely exists,
+  // because renderSeoSection() below only renders a "How it works" section
+  // (the .tool-seo-step blocks) when that same data is present - this
+  // schema must never describe steps the visible page doesn't actually
+  // show, so it reuses that exact data rather than a separate copy.
+  if (tool.landing?.howItWorks?.length) {
+    blocks.push({
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      name: "How to use " + tool.name,
+      step: tool.landing.howItWorks.map((step, index) => ({
+        "@type": "HowToStep",
+        position: index + 1,
+        name: step.title,
+        text: step.desc
+      }))
+    });
+  }
+  return blocks.map(jsonLd).join("");
+}
+
+function renderTool(tool) {
+  const canonical = canonicalFor(tool);
+  const h1 = tool.h1 || tool.name;
+  const valueProp = tool.landing?.hero?.valueProp || tool.description;
+  let out = HOMEPAGE;
+
+  out = replaceRequired(out, /<title>[^<]*<\/title>/, "<title>" + esc(tool.title) + "</title>", tool.slug + " title");
+  out = replaceRequired(out, /<meta name="description" content="[^"]*">/, '<meta name="description" content="' + esc(tool.description) + '">', tool.slug + " description");
+  out = replaceRequired(out, /<link rel="canonical" href="[^"]*">/, '<link rel="canonical" href="' + esc(canonical) + '">', tool.slug + " canonical");
+  out = replaceRequired(out, /<meta property="og:url" content="[^"]*">/, '<meta property="og:url" content="' + esc(canonical) + '">', tool.slug + " og:url");
+  out = replaceRequired(out, /<meta property="og:title" content="[^"]*">/, '<meta property="og:title" content="' + esc(tool.title) + '">', tool.slug + " og:title");
+  out = replaceRequired(out, /<meta property="og:description" content="[^"]*">/, '<meta property="og:description" content="' + esc(tool.description) + '">', tool.slug + " og:description");
+  out = replaceRequired(out, /<meta name="twitter:title" content="[^"]*">/, '<meta name="twitter:title" content="' + esc(tool.title) + '">', tool.slug + " twitter:title");
+  out = replaceRequired(out, /<meta name="twitter:description" content="[^"]*">/, '<meta name="twitter:description" content="' + esc(tool.description) + '">', tool.slug + " twitter:description");
+  out = replaceRequired(out, /<h1><span class="hero-line1">[\s\S]*?<\/h1>/, "<h1>" + esc(h1) + "</h1>", tool.slug + " h1");
+  out = replaceRequired(out, /<p class="tagline">[\s\S]*?<\/p>/, '<p class="tagline">' + esc(valueProp) + "</p>", tool.slug + " tagline");
+
+  out = replaceRequired(out, SOFTWAREAPP_JSONLD_RE, "<!-- TOOL_SCHEMA_INSERT -->\n", tool.slug + " homepage schema removal");
+  out = replaceRequired(out, FAQPAGE_JSONLD_RE, "", tool.slug + " homepage FAQ schema removal");
+  out = replaceRequired(out, "<!-- TOOL_SCHEMA_INSERT -->\n", toolSchemas(tool), tool.slug + " tool schema");
+  // Inserted before </main>, not before <footer>: the homepage template's
+  // </main> sits directly above <footer> with nothing but whitespace
+  // between them, so this content previously landed outside every
+  // landmark - failing axe's "region" rule (every tool-seo-block and its
+  // FAQ heading were unreachable via landmark navigation). It genuinely
+  // is main content, so keeping it inside <main> is also the more
+  // accurate landmark, not just an axe workaround.
+  out = replaceRequired(out, "</main>", renderSeoSection(tool) + "</main>", tool.slug + " SEO section");
+  out = renderRuntime(out, runtimeForTool(tool.toolId), tool.slug);
+  return out;
+}
+
+function renderRuntimeRouting() {
+  const routes = {};
+  for (const tool of GENERATED_TOOLS) {
+    routes[tool.toolId] = {
+      path: routeFor(tool),
+      title: tool.title,
+      description: tool.description
+    };
+  }
+  const block = [
+    "/* SEO_TOOL_ROUTES_START */",
+    "const TOOL_ROUTES = " + JSON.stringify(routes) + ";",
+    "/* SEO_TOOL_ROUTES_END */"
+  ].join("\n");
+  return replaceRequired(ROUTING_TEMPLATE, TOOL_ROUTES_RE, block, "runtime tool routes");
+}
+
+function renderSitemap() {
+  const urls = [site.domain.replace(/\/$/, "") + "/"]
+    .concat(INDEXABLE_TOOLS.map(canonicalFor));
+  // Phase 12: lastmod is the actual date this file was generated (real
+  // `new Date()`, not a fabricated/backdated value) - every URL shares it
+  // rather than claiming a fake per-page edit history the registry has no
+  // real record of. This is honest: it truthfully answers "when was this
+  // sitemap entry last confirmed accurate," which is what a build-time
+  // regenerated static site actually knows, not a lie in either direction.
+  const lastmod = new Date().toISOString().slice(0, 10);
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    urls.map((url) => "  <url><loc>" + esc(url) + "</loc><lastmod>" + lastmod + "</lastmod></url>").join("\n"),
+    "</urlset>",
+    ""
+  ].join("\n");
+}
+
+function renderRobots() {
+  return [
+    "User-agent: *",
+    "Allow: /",
+    "",
+    "Sitemap: " + site.domain.replace(/\/$/, "") + "/sitemap.xml",
+    ""
+  ].join("\n");
+}
+
+function renderRedirects() {
+  return [
+    "# Generated from the Phase 9 tool registries. Do not edit route rules by hand.",
+    "# Explicit rewrites keep every clean URL stable on any Netlify configuration.",
+    ...INDEXABLE_TOOLS.map((tool) => routeFor(tool) + "  /" + tool.file + "  200"),
+    "",
+    "# Unknown routes must return a real 404 instead of a soft-200 copy of the homepage.",
+    "/*  /404.html  404",
+    ""
+  ].join("\n");
+}
+
+const outputs = new Map([
+  ["index.html", HOMEPAGE],
+  ["sitemap.xml", renderSitemap()],
+  ["robots.txt", renderRobots()],
+  ["_redirects", renderRedirects()],
+  ["js/core/routing.js", renderRuntimeRouting()]
+]);
+for (const tool of GENERATED_TOOLS) outputs.set(tool.file, renderTool(tool));
+
+const drift = [];
+for (const [relativePath, content] of outputs) {
+  const absolutePath = path.join(ROOT, relativePath);
+  if (CHECK_ONLY) {
+    const current = fs.existsSync(absolutePath) ? fs.readFileSync(absolutePath, "utf8") : null;
+    if (current !== content) drift.push(relativePath);
+  } else {
+    fs.writeFileSync(absolutePath, content);
+    console.log("Generated: " + relativePath);
+  }
+}
+
+if (CHECK_ONLY && drift.length) {
+  console.error("SEO output is out of date: " + drift.join(", "));
+  console.error("Run: npm run generate");
+  process.exitCode = 1;
+} else if (CHECK_ONLY) {
+  console.log("SEO output is current (" + outputs.size + " files checked).");
+} else {
+  console.log("\nDone. Generated " + outputs.size + " SEO-managed files.");
+}

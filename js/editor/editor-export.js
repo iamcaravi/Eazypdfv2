@@ -26,9 +26,12 @@
      - Text does not word-wrap; only explicit newlines in the box break
        lines. Long single lines can overflow the box, same as most simple
        PDF text tools.
-     - Rectangle corner radius (data.radius) is not applied — pdf-lib's
-       drawRectangle has no radius parameter; exported rectangles are
-       always sharp-cornered regardless of the on-screen preview.
+     - Rectangle corner radius (data.radius) IS applied on export (Phase
+       12) via drawSvgPath() with a hand-built rounded-rect path, since
+       pdf-lib's drawRectangle has no radius parameter of its own — see
+       roundedRectSvgPath()/drawShapeObject() below. Sharp-cornered (r=0)
+       rectangles are unaffected, still drawn via the original drawRectangle
+       call.
    ---------------------------------------------------------------------------
    Public surface: window.EditorExport.init()
                    window.EditorExport.exportCurrentDocument() -> Promise
@@ -41,9 +44,18 @@
   // exports through this fallback don't leak one object URL each.
   let __fallbackExportUrl = null;
   let currentFileName = '';
+  let documentGeneration = 0;
+  let exportController = null;
+  let fallbackExportPromise = null;
 
   function init() {
+    const exportButton = document.querySelector('[data-action="export"]');
+    if(typeof window.createOperationController === 'function') {
+      exportController = window.createOperationController(exportButton, {busyLabel:'Saving...', timeoutMs:120000});
+    }
     window.addEventListener('editor:documentLoaded', (e) => {
+      documentGeneration += 1;
+      exportController?.cancel();
       currentFileName = (e.detail && e.detail.fileName) || '';
     });
   }
@@ -139,26 +151,49 @@
 
   async function drawImageObject(page, obj, pdfDoc) {
     const d = obj.data || {};
-    if (!d.src) return;
+    if (!d.src) throw new Error('An image object has no source data.');
     const res = await fetch(d.src);
     const buf = new Uint8Array(await res.arrayBuffer());
     const kind = sniffImageType(buf);
     let embedded;
     if (kind === 'png') embedded = await pdfDoc.embedPng(buf);
     else if (kind === 'jpg') embedded = await pdfDoc.embedJpg(buf);
-    else return; // unrecognized format — skip rather than throw and abort the whole export
+    else throw new Error('An image object uses an unsupported format.');
     const { x, y, w, h } = toPdfBox(obj, ...pageSize(page));
     page.drawImage(embedded, { x, y, width: w, height: h });
   }
 
+  /** SVG path for a rounded rectangle, top-left-anchored, y increasing
+   *  downward (the convention page.drawSvgPath() expects - it flips the
+   *  path into PDF's y-up space itself via its own anchor+scale, the same
+   *  way toPdfBox()'s yTopPdf already anchors drawTextObject() above). r is
+   *  pre-clamped by the caller so it can never exceed half of w or h. */
+  function roundedRectSvgPath(w, h, r) {
+    return `M ${r},0 L ${w - r},0 A ${r},${r} 0 0 1 ${w},${r} L ${w},${h - r} A ${r},${r} 0 0 1 ${w - r},${h} L ${r},${h} A ${r},${r} 0 0 1 0,${h - r} L 0,${r} A ${r},${r} 0 0 1 ${r},0 Z`;
+  }
+
   function drawShapeObject(page, obj, rgb) {
     const d = obj.data || {};
-    const { x, y, w, h } = toPdfBox(obj, ...pageSize(page));
+    const { x, y, w, h, yTopPdf } = toPdfBox(obj, ...pageSize(page));
     const stroke = hexToRgb01(d.stroke);
     const strokeWidth = d.strokeWidth != null ? d.strokeWidth : 2;
     if (obj.type === 'rectangle') {
       const fill = hexToRgb01(d.fill);
-      page.drawRectangle({ x, y, width: w, height: h, color: rgb(fill.r, fill.g, fill.b), borderColor: rgb(stroke.r, stroke.g, stroke.b), borderWidth: strokeWidth });
+      const radius = Math.max(0, Math.min(d.radius || 0, w / 2, h / 2));
+      if (radius > 0) {
+        // Sharp corners still go through drawRectangle (unchanged, zero
+        // regression risk for the common no-radius case) - only a real
+        // radius takes the SVG-path route pdf-lib needs for rounding,
+        // since drawRectangle has no radius parameter of its own.
+        page.drawSvgPath(roundedRectSvgPath(w, h, radius), {
+          x, y: yTopPdf,
+          color: rgb(fill.r, fill.g, fill.b),
+          borderColor: rgb(stroke.r, stroke.g, stroke.b),
+          borderWidth: strokeWidth,
+        });
+      } else {
+        page.drawRectangle({ x, y, width: w, height: h, color: rgb(fill.r, fill.g, fill.b), borderColor: rgb(stroke.r, stroke.g, stroke.b), borderWidth: strokeWidth });
+      }
     } else if (obj.type === 'ellipse') {
       const fill = hexToRgb01(d.fill);
       page.drawEllipse({ x: x + w / 2, y: y + h / 2, xScale: w / 2, yScale: h / 2, color: rgb(fill.r, fill.g, fill.b), borderColor: rgb(stroke.r, stroke.g, stroke.b), borderWidth: strokeWidth });
@@ -213,64 +248,95 @@
     return [width, height];
   }
 
-  async function exportCurrentDocument() {
-    if (!window.RenderEngine) return;
+  function exportStatus(text) {
+    window.dispatchEvent(new CustomEvent('editor:progressText', { detail: { text } }));
+  }
+
+  function triggerDownload(url, fileName) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  async function performExport(operation) {
+    if (!window.RenderEngine) throw new Error('The PDF editor is not ready.');
     const original = window.RenderEngine.getOriginalBytes();
-    if (!original) return;
+    if (!original) throw new Error('Open a PDF before exporting.');
     const PDFLibNS = window.PDFLib;
-    if (!PDFLibNS) { console.error('EditorExport: pdf-lib is not loaded'); return; }
+    if (!PDFLibNS) throw new Error('The PDF export library is unavailable.');
     const { rgb } = PDFLibNS;
+    const exportGeneration = documentGeneration;
+    exportStatus('Saving PDF...');
 
-    let pdfDoc;
-    try {
-      pdfDoc = typeof window.loadPdfSafe === 'function' ? await window.loadPdfSafe(original) : await PDFLibNS.PDFDocument.load(original);
-    } catch (err) {
-      console.error('EditorExport: failed to load document for export:', err);
-      return;
-    }
-
-    const objectList = window.EditorObjects ? window.EditorObjects.getAllObjects() : [];
+    const pdfDoc = typeof window.loadPdfSafe === 'function'
+      ? await window.loadPdfSafe(original)
+      : await PDFLibNS.PDFDocument.load(original);
+    const objectList = window.EditorObjects ? window.EditorObjects.getState() : [];
     const pages = pdfDoc.getPages();
     const fontCache = {};
 
     for (const obj of objectList) {
+      operation.throwIfStale();
       const page = pages[obj.page - 1];
-      if (!page) continue;
-      try {
-        if (obj.type === 'text') await drawTextObject(page, obj, pdfDoc, fontCache, rgb);
-        else if (obj.type === 'image') await drawImageObject(page, obj, pdfDoc);
-        else if (obj.type === 'rectangle' || obj.type === 'ellipse' || obj.type === 'line') drawShapeObject(page, obj, rgb);
-        else if (obj.type === 'draw') drawDrawObject(page, obj, rgb);
-        else if (obj.type === 'highlight') drawHighlightObject(page, obj, rgb);
-        else if (obj.type === 'whiteout') drawWhiteoutObject(page, obj, rgb);
-      } catch (err) {
-        console.error(`EditorExport: failed to draw object ${obj.id} (${obj.type}):`, err);
-        // Skip this one object rather than aborting the whole export —
-        // every other object still makes it into the output.
-      }
+      if (!page) throw new Error(`Object ${obj.id} points to a page that no longer exists.`);
+
+      if (obj.type === 'text') await drawTextObject(page, obj, pdfDoc, fontCache, rgb);
+      else if (obj.type === 'image') await drawImageObject(page, obj, pdfDoc);
+      else if (obj.type === 'rectangle' || obj.type === 'ellipse' || obj.type === 'line') drawShapeObject(page, obj, rgb);
+      else if (obj.type === 'draw') drawDrawObject(page, obj, rgb);
+      else if (obj.type === 'highlight') drawHighlightObject(page, obj, rgb);
+      else if (obj.type === 'whiteout') drawWhiteoutObject(page, obj, rgb);
+      else throw new Error(`Object ${obj.id} has an unsupported type: ${obj.type}.`);
     }
 
+    operation.throwIfStale();
+    if(exportGeneration !== documentGeneration) {
+      const error = new Error('The document changed while it was being exported. Please save the current document again.');
+      error.name = 'AbortError';
+      throw error;
+    }
     const outBytes = await pdfDoc.save();
+    operation.throwIfStale();
     const blob = new Blob([outBytes], { type: 'application/pdf' });
     const fileName = outputFileName();
+
     if (typeof window.downloadBlob === 'function') {
-      // downloadBlob() only creates the object URL and returns {url,
-      // filename} - every other caller in index.html hands that off to
-      // resultBox() to render a real <a href download> link. This export
-      // path has no resultBox() of its own, so it must trigger the
-      // download itself, the same way the fallback branch below already
-      // does - otherwise the object URL is created and immediately
-      // discarded with nothing ever downloaded.
       const { url } = window.downloadBlob(blob, fileName);
-      const a = document.createElement('a');
-      a.href = url; a.download = fileName; a.click();
+      triggerDownload(url, fileName);
     } else {
       if (__fallbackExportUrl) URL.revokeObjectURL(__fallbackExportUrl);
-      const url = URL.createObjectURL(blob);
-      __fallbackExportUrl = url;
-      const a = document.createElement('a');
-      a.href = url; a.download = fileName; a.click();
+      __fallbackExportUrl = URL.createObjectURL(blob);
+      triggerDownload(__fallbackExportUrl, fileName);
     }
+    exportStatus('Saved ' + fileName);
+    return { fileName, byteLength: outBytes.length };
+  }
+
+  function reportExportFailure(error) {
+    const message = error?.message || 'The edited PDF could not be exported.';
+    console.error('EditorExport:', error);
+    exportStatus('Export failed: ' + message);
+    if(typeof window.toast === 'function') window.toast(message);
+  }
+
+  function exportCurrentDocument() {
+    if(exportController){
+      return exportController.run(performExport, {busyLabel:'Saving...', timeoutMs:120000})
+        .catch(reportExportFailure);
+    }
+    if(fallbackExportPromise) return fallbackExportPromise;
+    const context = {
+      isCurrent: () => true,
+      throwIfStale: () => {},
+    };
+    fallbackExportPromise = performExport(context)
+      .catch(reportExportFailure)
+      .finally(() => { fallbackExportPromise = null; });
+    return fallbackExportPromise;
   }
 
   window.EditorExport = { init, exportCurrentDocument };

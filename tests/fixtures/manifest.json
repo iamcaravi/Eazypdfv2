@@ -1,0 +1,46 @@
+{
+  "empty.bin": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "form.pdf": {
+    "bytes": 1836,
+    "sha256": "1a1edfb8a62188d009b16534dd954e5db1cd6ec8dbf8e6b10d0981dfcb8a7edc"
+  },
+  "large.pdf": {
+    "bytes": 125484,
+    "sha256": "6ad83ef63ecd38afd78aceb27082bb9c280615a98d64a148ddda6c68331678b4"
+  },
+  "malformed.pdf": {
+    "bytes": 41,
+    "sha256": "a5276830059cc66cc1cc9f0e4b56102271e6b00dc990dd501c8dd79c8c2b4f05"
+  },
+  "minimal.docx": {
+    "bytes": 927,
+    "sha256": "516999e358054bbb9f31462145a4023dcd0bdd397eca3822a368073042aa8dab"
+  },
+  "minimal.pptx": {
+    "bytes": 1615,
+    "sha256": "ae4ae1ddbe5b7f76cb06dba165f33b1f89785f6d93763abffb64e2e4fbcf559c"
+  },
+  "minimal.xlsx": {
+    "bytes": 1579,
+    "sha256": "310d18ed1946ea42da6e68cb1cce407d91f5ae917bd583e9aa9ac3779f188633"
+  },
+  "multipage.pdf": {
+    "bytes": 2355,
+    "sha256": "1b97da689671ee0eaec46a460eedde50a7f7537a2859248cfd88567e2f52c266"
+  },
+  "simple.png": {
+    "bytes": 77,
+    "sha256": "497b084be5553f2d59e6239b808a692bdfe7e5fcbecef3df85762749a55fffc8"
+  },
+  "sizable.png": {
+    "bytes": 465,
+    "sha256": "6cdf937428f0b2940a4a57d2e8c6ca7b7040eead1b8708b049d2cd37af130ddb"
+  },
+  "valid.pdf": {
+    "bytes": 1351,
+    "sha256": "b834750ea3eb89190e60690eb43905c433a64cf0b9e5aa9798e79e5bc807cc1c"
+  }
+}

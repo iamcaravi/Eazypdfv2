@@ -1,38 +1,83 @@
-"""Local dev server with the same clean-URL behavior the production host's
-_redirects file provides: an extensionless path (e.g. /merge-pdf) resolves
-to its matching .html file when one exists (build/generate-landing.js
-generates one per tool - each is now the full app shell plus that tool's
-own SEO content, not a separate marketing page, so this IS the interactive
-tool); anything with no matching file falls back to index.html for the
-homepage/any other in-app route. Plain `python -m http.server` 404s on a
-path like /merge-pdf, which made it impossible to test direct-URL-entry/
-refresh locally.
+"""Local static server with production-like clean URLs and 404 behavior.
+
+An extensionless tool path (for example /merge-pdf) resolves to its matching
+generated HTML file. Unknown paths return the project's branded 404 page with
+an actual HTTP 404 status instead of serving a soft-200 homepage response.
 """
+
 import http.server
 import os
 import socketserver
+from urllib.parse import unquote, urlsplit
 
 PORT = 5173
-# Always serve from this script's own directory, regardless of the cwd it
-# was launched from (the harness's launch.json runs it from the repo
-# root, one level up).
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.abspath(__file__))
+os.chdir(ROOT)
 
 
-class SpaFallbackHandler(http.server.SimpleHTTPRequestHandler):
+class CleanRouteHandler(http.server.SimpleHTTPRequestHandler):
+    def _resolve_local_file(self):
+        request_path = unquote(urlsplit(self.path).path)
+        local_path = request_path.lstrip("/") or "index.html"
+        candidates = (local_path, local_path + ".html", os.path.join(local_path, "index.html"))
+
+        for candidate in candidates:
+            absolute_candidate = os.path.abspath(os.path.join(ROOT, candidate))
+            try:
+                stays_in_root = os.path.commonpath((ROOT, absolute_candidate)) == ROOT
+            except ValueError:
+                stays_in_root = False
+            if stays_in_root and os.path.isfile(absolute_candidate):
+                return os.path.relpath(absolute_candidate, ROOT).replace(os.sep, "/")
+        return None
+
+    def _send_not_found(self, include_body):
+        not_found_path = os.path.join(ROOT, "404.html")
+        try:
+            with open(not_found_path, "rb") as handle:
+                body = handle.read()
+        except OSError:
+            body = b"404 - Page not found"
+
+        self.send_response(404)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if include_body:
+            self.wfile.write(body)
+
     def do_GET(self):
-        path = self.path.split("?", 1)[0].split("#", 1)[0]
-        local = path.lstrip("/")
-        if local:
-            for candidate in (local, local + ".html", os.path.join(local, "index.html")):
-                if os.path.isfile(candidate):
-                    self.path = "/" + candidate.replace(os.sep, "/")
-                    return super().do_GET()
-        self.path = "/index.html"
-        return super().do_GET()
+        resolved = self._resolve_local_file()
+        if resolved:
+            self.path = "/" + resolved
+            return super().do_GET()
+        return self._send_not_found(include_body=True)
+
+    def do_HEAD(self):
+        resolved = self._resolve_local_file()
+        if resolved:
+            self.path = "/" + resolved
+            return super().do_HEAD()
+        return self._send_not_found(include_body=False)
+
+
+class ThreadingCleanRouteServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    # Phase 12: plain TCPServer handles one connection at a time. A modern
+    # page here loads a dozen-plus resources (CSS, several classic
+    # <script> files, images) over HTTP/1.1 keep-alive connections a
+    # browser holds open and reuses - under a long sequential Playwright
+    # run (many page loads back to back), that single-threaded accept loop
+    # increasingly serialized behind those held-open connections, and was
+    # observed to eventually stop accepting new ones entirely (connection
+    # refused) partway through a long test run. ThreadingMixIn serves each
+    # connection on its own thread, which is what this was actually
+    # missing - daemon_threads=True keeps a straggling thread from ever
+    # blocking process exit.
+    daemon_threads = True
+    allow_reuse_address = True
 
 
 if __name__ == "__main__":
-    with socketserver.TCPServer(("", PORT), SpaFallbackHandler) as httpd:
-        print(f"Serving with SPA fallback on http://localhost:{PORT}")
+    with ThreadingCleanRouteServer(("", PORT), CleanRouteHandler) as httpd:
+        print(f"Serving YOYOPDF on http://localhost:{PORT}")
         httpd.serve_forever()

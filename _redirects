@@ -1,11 +1,39 @@
-# Every tool's clean URL (e.g. /merge-pdf) is served directly by its own
-# generated static file (merge-pdf.html - see build/generate-landing.js),
-# which Netlify resolves automatically via pretty-URL matching before this
-# file is even consulted. That generated file IS the interactive tool: the
-# app shell/JS is identical to index.html, just with that tool's own
-# title/meta/canonical/JSON-LD and SEO content section swapped in. No
-# per-route redirect entries are needed for tool paths.
-#
-# This catch-all only matters for paths with no matching static file at
-# all - the homepage, and any other in-app route.
-/*    /index.html   200
+# Generated from the Phase 9 tool registries. Do not edit route rules by hand.
+# Explicit rewrites keep every clean URL stable on any Netlify configuration.
+/merge-pdf  /merge-pdf.html  200
+/split-pdf  /split-pdf.html  200
+/rotate-pdf  /rotate-pdf.html  200
+/delete-pages  /delete-pages.html  200
+/extract-pages  /extract-pages.html  200
+/organize-pdf  /organize-pdf.html  200
+/crop-pdf  /crop-pdf.html  200
+/watermark-pdf  /watermark-pdf.html  200
+/page-numbers  /page-numbers.html  200
+/protect-pdf  /protect-pdf.html  200
+/compress-pdf  /compress-pdf.html  200
+/edit-pdf  /edit-pdf.html  200
+/pdf-to-word  /pdf-to-word.html  200
+/word-to-pdf  /word-to-pdf.html  200
+/pdf-to-jpg  /pdf-to-jpg.html  200
+/jpg-to-pdf  /jpg-to-pdf.html  200
+/pdf-to-excel  /pdf-to-excel.html  200
+/excel-to-pdf  /excel-to-pdf.html  200
+/sign-pdf  /sign-pdf.html  200
+/reorder-pages  /reorder-pages.html  200
+/add-blank-page  /add-blank-page.html  200
+/header-footer  /header-footer.html  200
+/invert-pdf-colors  /invert-pdf-colors.html  200
+/flatten-pdf  /flatten-pdf.html  200
+/fill-pdf-form  /fill-pdf-form.html  200
+/image-compressor  /image-compressor.html  200
+/resize-image  /resize-image.html  200
+/crop-image  /crop-image.html  200
+/convert-image-format  /convert-image-format.html  200
+/watermark-image  /watermark-image.html  200
+/invert-image-colors  /invert-image-colors.html  200
+/unlock-pdf  /unlock-pdf.html  200
+/repair-pdf  /repair-pdf.html  200
+/pdf-to-powerpoint  /pdf-to-powerpoint.html  200
+
+# Unknown routes must return a real 404 instead of a soft-200 copy of the homepage.
+/*  /404.html  404

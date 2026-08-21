@@ -2,8 +2,11 @@
   "site": {
     "name": "YOYOPDF",
     "domain": "https://yoyopdf.in",
-    "defaultTitle": "YOYOPDF — Free Online PDF Tools, No Upload Required",
-    "defaultDescription": "Edit, merge, split, compress and convert PDFs free, right in your browser. No sign-up, no file size limits, no files ever leave your device.",
+    "language": "en",
+    "locale": "en_IN",
+    "robots": "index,follow,max-image-preview:large",
+    "defaultTitle": "YOYOPDF — Free Online PDF Tools: Merge, Split, Compress & Convert",
+    "defaultDescription": "Merge, split, compress, convert and edit files free in your browser, with no sign-up. Document contents stay on your device; practical browser safety limits apply.",
     "ogImage": "https://yoyopdf.in/assets/og/yoyopdf-default-og.png",
     "logo": "https://yoyopdf.in/assets/icons/yoyopdf-logo.png",
     "sameAs": []
@@ -28,6 +31,10 @@
     "convert": {
       "label": "Convert PDF",
       "order": 5
+    },
+    "images": {
+      "label": "Image Tools",
+      "order": 6
     }
   },
   "trustCards": [
@@ -114,7 +121,7 @@
       "name": "Merge PDF",
       "category": "organize",
       "title": "Merge PDF Files Free Online — Combine PDFs | YOYOPDF",
-      "description": "Combine multiple PDF files into one document in your browser. Drag to reorder, no upload to any server, no file limits, completely free.",
+      "description": "Combine multiple PDF files into one document in your browser. Drag to reorder, free, with no document upload and practical browser safety limits.",
       "keywords": [
         "merge pdf",
         "combine pdf",
@@ -130,7 +137,7 @@
         },
         {
           "q": "Is there a limit on how many PDFs I can merge?",
-          "a": "No artificial limit. The only constraint is your browser's available memory for very large batches."
+          "a": "You can select up to 40 files (400 MB total). Each PDF can be up to 200 MB and 1,500 pages so one batch cannot exhaust the browser."
         },
         {
           "q": "Can I reorder pages before merging?",
@@ -151,7 +158,7 @@
           "trustBadges": [
             "Browser Based",
             "Free",
-            "Secure",
+            "Local Processing",
             "No Registration"
           ],
           "ctaLabel": "Use Merge PDF",
@@ -215,7 +222,7 @@
           },
           {
             "title": "Free",
-            "desc": "Combine as many PDFs as you like — no watermark, no per-merge fee."
+            "desc": "Combine PDFs without a watermark or per-merge fee, within the published browser safety limits."
           }
         ],
         "useCases": [
@@ -275,7 +282,8 @@
           "targetSlug": "compress-pdf",
           "label": "Compress PDF"
         }
-      }
+      },
+      "toolId": "merge"
     },
     {
       "slug": "split-pdf",
@@ -317,11 +325,11 @@
       ],
       "landing": {
         "hero": {
-          "valueProp": "Extract pages from any PDF in seconds — pull a range into one file, or break every page out on its own.",
+          "valueProp": "Extract pages from a compatible PDF in seconds — pull a range into one file, or break every page out on its own.",
           "trustBadges": [
             "Browser Based",
             "Free",
-            "Secure",
+            "Local Processing",
             "No Registration"
           ],
           "ctaLabel": "Use Split PDF",
@@ -419,7 +427,8 @@
           "targetSlug": "organize-pdf",
           "label": "Organize PDF"
         }
-      }
+      },
+      "toolId": "split"
     },
     {
       "slug": "rotate-pdf",
@@ -458,7 +467,93 @@
         "crop-pdf",
         "merge-pdf",
         "compress-pdf"
-      ]
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "Pages end up sideways or upside down more often than you'd expect — a scanner feeding paper the wrong way, a phone held in landscape, a page that was upside down in the original stack.",
+          "points": [
+            {
+              "title": "Scanned documents load in the wrong orientation",
+              "desc": "Multi-page scans commonly mix portrait and landscape sheets. Rotate PDF fixes each page independently without re-scanning anything."
+            },
+            {
+              "title": "A shared PDF is awkward to read on screen",
+              "desc": "A document that forces constant neck-tilting or manual zoom rotation in a viewer is easy to fix once, permanently, before sharing it."
+            },
+            {
+              "title": "Printing needs the correct orientation set in the file",
+              "desc": "Some printers and print shops expect pages to already be right-side up rather than relying on a viewer's rotate setting."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you need to fix. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Pick pages",
+            "desc": "Hover any page to rotate it on its own, or select several pages to rotate together."
+          },
+          {
+            "title": "Rotate",
+            "desc": "Choose 90°, 180°, or 270° — pdf-lib updates each page's orientation locally in your browser."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the corrected PDF. The underlying page content is untouched, only its orientation changes."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Per-page or bulk rotation",
+            "desc": "Rotate one page independently, or apply the same rotation to a selection or the whole document."
+          },
+          {
+            "title": "Visual page grid",
+            "desc": "See every page as a thumbnail so you know exactly what you're rotating before you commit."
+          },
+          {
+            "title": "No quality loss",
+            "desc": "Only the page's orientation metadata changes — the content itself is never re-rendered or recompressed."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Rotation happens locally with pdf-lib — your file is never uploaded to a server."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start rotating — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Fix as many pages as you need, with no watermark added to the result."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Office admins",
+            "desc": "Correct sideways pages from a shared scanner before filing or forwarding a document."
+          },
+          {
+            "title": "Students",
+            "desc": "Fix a phone-scanned assignment or reading that came out landscape by mistake."
+          },
+          {
+            "title": "Legal teams",
+            "desc": "Straighten mixed-orientation exhibits so a bundle reads consistently from start to finish."
+          },
+          {
+            "title": "Print shops",
+            "desc": "Set every page to the correct orientation before a job goes to the printer."
+          },
+          {
+            "title": "Remote workers",
+            "desc": "Clean up a contract or form scanned at an odd angle before sending it back."
+          }
+        ]
+      },
+      "toolId": "rotate"
     },
     {
       "slug": "delete-pages",
@@ -496,7 +591,93 @@
         "rotate-pdf",
         "merge-pdf",
         "compress-pdf"
-      ]
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "A document rarely stays exactly as long as it should be — blank scans slip in, outdated cover sheets linger, and pages meant for internal use only end up in the version you're about to share.",
+          "points": [
+            {
+              "title": "Blank or duplicate pages from scanning",
+              "desc": "Feed scanners routinely add a blank page between sheets. Delete Pages clears them out before the file goes anywhere."
+            },
+            {
+              "title": "Sensitive or irrelevant pages before sharing",
+              "desc": "An internal note, a draft watermark page, or a section that doesn't apply to the recipient can be removed in seconds."
+            },
+            {
+              "title": "A large PDF only needs trimming, not splitting",
+              "desc": "When most of the document is worth keeping and only a handful of pages need to go, deleting is faster than rebuilding the file from a range."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you want to trim. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Preview",
+            "desc": "Every page renders as a thumbnail so you can see exactly what you're about to remove."
+          },
+          {
+            "title": "Select",
+            "desc": "Click any combination of pages — consecutive or not — to mark them for deletion."
+          },
+          {
+            "title": "Download",
+            "desc": "A new PDF is generated locally with those pages removed. Your original file stays untouched."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Visual thumbnail preview",
+            "desc": "Confirm exactly which page you're deleting before committing, rather than guessing from page numbers."
+          },
+          {
+            "title": "Multi-select, non-consecutive",
+            "desc": "Remove scattered pages throughout a document in a single pass, not one download at a time."
+          },
+          {
+            "title": "Original file untouched",
+            "desc": "A new PDF is generated for download — the source file you uploaded is never modified."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Deletion happens locally the moment you confirm — no upload, no server processing."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start selecting pages — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Trim as many pages as you need, with no watermark added to the result."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Admin teams",
+            "desc": "Strip blank pages and cover sheets out of a batch of scanned paperwork before filing."
+          },
+          {
+            "title": "Students",
+            "desc": "Remove a syllabus page or table of contents you don't need before printing a reading."
+          },
+          {
+            "title": "Business",
+            "desc": "Take an internal-only appendix out of a proposal before sending it to a client."
+          },
+          {
+            "title": "Legal",
+            "desc": "Remove a superseded page from a contract draft before circulating the next version."
+          },
+          {
+            "title": "HR",
+            "desc": "Drop irrelevant sections out of a bundled policy document before distributing it."
+          }
+        ]
+      },
+      "toolId": "deletepages"
     },
     {
       "slug": "extract-pages",
@@ -534,7 +715,8 @@
         "merge-pdf",
         "rotate-pdf",
         "compress-pdf"
-      ]
+      ],
+      "toolId": "extractpages"
     },
     {
       "slug": "organize-pdf",
@@ -572,7 +754,8 @@
         "split-pdf",
         "extract-pages",
         "compress-pdf"
-      ]
+      ],
+      "toolId": "organize"
     },
     {
       "slug": "crop-pdf",
@@ -607,10 +790,92 @@
         "rotate-pdf",
         "organize-pdf",
         "watermark-pdf",
-        "page-numbers",
+        "add-page-numbers",
         "compress-pdf",
         "merge-pdf"
-      ]
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "Margins and edges pile up dead space that a reader has to scroll or zoom past to reach the actual content, and cropping removes that dead space permanently.",
+          "points": [
+            {
+              "title": "Scanned pages carry oversized margins",
+              "desc": "A flatbed or phone scan often includes far more white space around the text than the original printed page had — cropping tightens it back up."
+            },
+            {
+              "title": "Only part of a page is worth keeping",
+              "desc": "A single figure, table, or paragraph pulled from a larger page reads better once everything else around it is trimmed away."
+            },
+            {
+              "title": "A document needs to fit a specific layout",
+              "desc": "Slides, printed handouts, and embedded previews often need a tighter aspect ratio than the source PDF was built with."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you want to crop. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Draw a crop box",
+            "desc": "Click and drag directly on the page to mark the area you want to keep, zooming in as needed for precision."
+          },
+          {
+            "title": "Apply",
+            "desc": "Use the same crop on every page, or adjust it individually per page before applying."
+          },
+          {
+            "title": "Download",
+            "desc": "Get the cropped PDF with the new visible area baked in. Keep your original if you might need the untrimmed version later."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Visual crop box",
+            "desc": "Draw the exact area to keep directly on the page instead of entering coordinates by hand."
+          },
+          {
+            "title": "Apply to one page or all",
+            "desc": "Use one crop across the whole document, or set a different crop per page."
+          },
+          {
+            "title": "Zoom for precision",
+            "desc": "Zoom in on a page before drawing the crop box to line it up exactly where you want."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Cropping happens locally the moment you apply it — no upload, no server round-trip."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and start cropping — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Crop as many pages as you need, with no watermark added to the result."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "Students",
+            "desc": "Trim oversized scan margins off a reading before printing it double-sided."
+          },
+          {
+            "title": "Designers",
+            "desc": "Pull a single chart or diagram out of a larger page for use elsewhere."
+          },
+          {
+            "title": "Educators",
+            "desc": "Tighten a worksheet PDF's margins before turning it into a handout."
+          },
+          {
+            "title": "Admin teams",
+            "desc": "Clean up inconsistent margins across a batch of scanned forms before filing them."
+          }
+        ]
+      },
+      "toolId": "crop"
     },
     {
       "slug": "watermark-pdf",
@@ -642,13 +907,14 @@
         }
       ],
       "relatedSlugs": [
-        "page-numbers",
+        "add-page-numbers",
         "protect-pdf",
         "crop-pdf",
         "organize-pdf",
         "compress-pdf",
         "merge-pdf"
-      ]
+      ],
+      "toolId": "watermark"
     },
     {
       "slug": "add-page-numbers",
@@ -686,7 +952,8 @@
         "organize-pdf",
         "compress-pdf",
         "merge-pdf"
-      ]
+      ],
+      "toolId": "pagenumbers"
     },
     {
       "slug": "protect-pdf",
@@ -718,13 +985,92 @@
         }
       ],
       "relatedSlugs": [
+        "unlock-pdf",
         "compress-pdf",
         "edit-pdf",
         "watermark-pdf",
-        "page-numbers",
+        "add-page-numbers",
         "organize-pdf",
         "merge-pdf"
-      ]
+      ],
+      "landing": {
+        "whyUse": {
+          "intro": "A password on a PDF is a simple gate against casual access — the file only opens for someone who has the password you gave them, not for anyone who happens to receive the attachment.",
+          "points": [
+            {
+              "title": "A file is going somewhere less controlled than a private inbox",
+              "desc": "Cloud storage links, shared drives, and forwarded emails all widen who might end up with a copy — a password limits who can actually open it."
+            },
+            {
+              "title": "Printing or editing needs to stay restricted",
+              "desc": "Permission flags can lock down printing or editing even for readers who have the open password, in readers that respect those flags."
+            },
+            {
+              "title": "Basic access control is the actual requirement",
+              "desc": "For everyday documents that just need a gate — not vault-grade confidentiality — a standard PDF password is a fast, no-install way to add one."
+            }
+          ]
+        },
+        "howItWorks": [
+          {
+            "title": "Upload",
+            "desc": "Add the PDF you want to protect. Nothing is sent anywhere at this step."
+          },
+          {
+            "title": "Set a password",
+            "desc": "Choose an open password, and optionally set permission restrictions like printing or editing."
+          },
+          {
+            "title": "Encrypt",
+            "desc": "The file is encrypted locally in your browser using the PDF format's Standard Security Handler."
+          },
+          {
+            "title": "Download",
+            "desc": "Save the password-protected PDF. Share the password separately from the file itself."
+          }
+        ],
+        "keyFeatures": [
+          {
+            "title": "Open password",
+            "desc": "Require a password before the document will open at all in a compliant PDF reader."
+          },
+          {
+            "title": "Permission flags",
+            "desc": "Restrict printing or editing independently of the open password, for readers that honor those flags."
+          },
+          {
+            "title": "Runs in your browser",
+            "desc": "Encryption happens locally — your file and password are never uploaded to a server."
+          },
+          {
+            "title": "No sign-up",
+            "desc": "Open the tool and set a password immediately — no account, no email, no waiting."
+          },
+          {
+            "title": "Free",
+            "desc": "Protect as many files as you need, with no watermark added to the result."
+          }
+        ],
+        "useCases": [
+          {
+            "title": "HR",
+            "desc": "Add a password to an offer letter or personnel file before emailing it."
+          },
+          {
+            "title": "Finance",
+            "desc": "Gate a statement or invoice sent over email so only the intended recipient can open it."
+          },
+          {
+            "title": "Small business",
+            "desc": "Restrict editing on a quote or contract while still letting the client view and print it."
+          },
+          {
+            "title": "Freelancers",
+            "desc": "Password-protect a draft deliverable before sharing it for client review."
+          }
+        ]
+      },
+      "toolId": "protect"
     },
     {
       "slug": "compress-pdf",
@@ -770,7 +1116,7 @@
           "trustBadges": [
             "Browser Based",
             "Free",
-            "Secure",
+            "Local Processing",
             "No Registration"
           ],
           "ctaLabel": "Use Compress PDF",
@@ -868,16 +1214,17 @@
           "targetSlug": "edit-pdf",
           "label": "Edit PDF"
         }
-      }
+      },
+      "toolId": "compress"
     },
     {
       "slug": "edit-pdf",
       "file": "edit-pdf.html",
-      "status": "landing-only",
+      "status": "live",
       "name": "Edit PDF",
       "category": "edit",
-      "title": "Edit PDF Online Free — Coming Soon | YOYOPDF",
-      "description": "Edit PDF documents directly in your browser — add text, fill forms, and annotate. In active development, launching soon on YOYOPDF.",
+      "title": "Edit PDF Online Free — Add Text, Images & Shapes | YOYOPDF",
+      "description": "Edit PDF documents directly in your browser — add text, images, shapes, and annotations. Free, no upload, no sign-up.",
       "keywords": [
         "edit pdf",
         "edit pdf online",
@@ -887,16 +1234,16 @@
       "shortDesc": "Edit PDF documents directly in your browser.",
       "faqs": [
         {
-          "q": "Is Edit PDF available yet?",
-          "a": "Edit PDF is in active development. This page describes what's coming — the interactive tool isn't live yet."
+          "q": "Is Edit PDF available now?",
+          "a": "Yes. Edit PDF runs entirely in your browser — no upload, no sign-up, no waiting."
         },
         {
-          "q": "Will editing require an upload to a server?",
-          "a": "No. Like every YOYOPDF tool, Edit PDF is being built to run entirely in your browser, with no file upload."
+          "q": "What can I add to a PDF?",
+          "a": "You can place and style text, images, rectangles, ellipses, and lines, then move or resize them before exporting."
         },
         {
-          "q": "Will it be free?",
-          "a": "Yes. Edit PDF will follow the same free, no-registration model as every other YOYOPDF tool."
+          "q": "Is my PDF uploaded while I edit it?",
+          "a": "No. The document is opened, edited, and exported locally in your browser."
         }
       ],
       "relatedSlugs": [
@@ -904,106 +1251,106 @@
         "protect-pdf",
         "pdf-to-word",
         "watermark-pdf",
-        "page-numbers",
+        "add-page-numbers",
         "crop-pdf"
       ],
       "landing": {
         "hero": {
-          "valueProp": "Edit PDF documents directly in your browser — correct mistakes, fill forms, add text, and annotate, without installing anything.",
+          "valueProp": "Edit PDF documents directly in your browser — add text, images, and shapes without installing anything.",
           "trustBadges": [
             "Browser Based",
             "Free",
-            "Secure",
+            "Local Processing",
             "No Registration"
           ],
-          "ctaLabel": "Coming Soon",
-          "ctaTarget": null
+          "ctaLabel": "Use Edit PDF",
+          "ctaTarget": "edit"
         },
         "whyUse": {
-          "intro": "Editing is what's needed whenever a PDF's actual content — not just its pages — has to change.",
+          "intro": "Editing is useful whenever a finished PDF needs extra information or a visual correction without returning to the original source file.",
           "points": [
             {
-              "title": "Fixing a typo doesn't need the original file",
-              "desc": "A small correction in a scanned or finalized PDF shouldn't require going back to source software you may not have anymore."
+              "title": "Add information without the source file",
+              "desc": "Place a date, label, note, or replacement text directly on a finished PDF when the original document is unavailable."
             },
             {
-              "title": "Forms need filling, not printing and scanning",
-              "desc": "Typing directly into a PDF form is faster and cleaner than the print-sign-scan cycle."
+              "title": "Add images and visual elements",
+              "desc": "Place an image, rectangle, ellipse, or line on a page and adjust its position and size."
             },
             {
-              "title": "Feedback belongs on the document itself",
-              "desc": "Annotating a PDF directly keeps comments attached to the exact page and line they refer to."
+              "title": "Keep feedback on the document",
+              "desc": "Add clear text notes and visual callouts to the exact page they refer to."
             }
           ]
         },
         "howItWorks": [
           {
-            "title": "Upload",
-            "desc": "Add the PDF you want to edit — planned to run locally, with no file upload."
+            "title": "Open",
+            "desc": "Choose the PDF you want to edit. It opens locally in your browser."
           },
           {
             "title": "Edit",
-            "desc": "Add or correct text, fill form fields, or place annotations directly on the page."
+            "desc": "Add text, images, rectangles, ellipses, or lines and position them on the page."
           },
           {
             "title": "Review",
-            "desc": "Check every change in place before saving."
+            "desc": "Move, resize, style, undo, or redo changes before saving."
           },
           {
             "title": "Download",
-            "desc": "Save the edited PDF to your device."
+            "desc": "Export the edited PDF to your device while the original remains untouched."
           }
         ],
         "keyFeatures": [
           {
-            "title": "Text editing",
-            "desc": "Correct or add text directly on the page, in place."
+            "title": "Text overlays",
+            "desc": "Add and style text anywhere on a PDF page."
           },
           {
-            "title": "Form filling",
-            "desc": "Type directly into fillable PDF form fields."
+            "title": "Image placement",
+            "desc": "Insert images and resize or reposition them visually."
           },
           {
-            "title": "Annotations",
-            "desc": "Add comments, highlights, and markup tied to an exact location on the page."
+            "title": "Shape tools",
+            "desc": "Add rectangles, ellipses, and lines for labels and callouts."
           },
           {
-            "title": "Planned: runs in your browser",
-            "desc": "Planned to edit locally the moment you open a file — no server upload, matching how every YOYOPDF tool works."
+            "title": "Undo and redo",
+            "desc": "Step backward or forward through editing changes before export."
           },
           {
-            "title": "No sign-up",
-            "desc": "Won't require signing up — open it and start editing, like every other YOYOPDF tool."
+            "title": "Runs in your browser",
+            "desc": "The PDF is processed locally on your device instead of being uploaded."
           },
           {
             "title": "Free",
-            "desc": "No paywall or per-edit charge planned."
+            "desc": "Use the editor without an account, watermark, or per-edit charge."
           }
         ],
         "useCases": [
           {
-            "title": "Correcting mistakes",
-            "desc": "Fix a typo or wrong figure in a PDF without needing the original source file."
+            "title": "Text corrections",
+            "desc": "Overlay corrected text or a missing detail on a finished PDF."
           },
           {
-            "title": "Filling forms",
-            "desc": "Complete a fillable PDF form by typing directly into its fields."
+            "title": "Adding labels",
+            "desc": "Place dates, names, references, or short notes directly on a page."
           },
           {
-            "title": "Adding text",
-            "desc": "Insert a note, date, or missing detail directly onto a page."
+            "title": "Visual callouts",
+            "desc": "Use shapes and lines to draw attention to a specific part of a document."
           },
           {
-            "title": "Annotating",
-            "desc": "Mark up a document with comments or highlights for someone else to review."
+            "title": "Adding images",
+            "desc": "Insert a logo, stamp, diagram, or other image into a PDF."
           },
           {
             "title": "Students",
-            "desc": "Add notes directly onto a lecture PDF or reading."
+            "desc": "Add notes and visual markers to lecture PDFs or readings."
           },
           {
             "title": "Business",
-            "desc": "Make a quick correction to a contract or proposal PDF before sending it on."
+            "desc": "Add a short correction, label, or image before sharing a document."
           }
         ],
         "cta": {
@@ -1011,16 +1358,17 @@
           "targetSlug": "protect-pdf",
           "label": "Protect PDF"
         }
-      }
+      },
+      "toolId": "edit"
     },
     {
       "slug": "pdf-to-word",
       "file": "pdf-to-word.html",
-      "status": "landing-only",
+      "status": "live",
       "name": "PDF to Word",
       "category": "convert",
-      "title": "PDF to Word Converter Free — Coming Soon | YOYOPDF",
-      "description": "Convert PDF into an editable Word document. In active development, launching soon on YOYOPDF — free, browser-based, no uploads.",
+      "title": "PDF to Word Converter Free Online | YOYOPDF",
+      "description": "Convert PDF into an editable Word document, free and browser-based. No upload, no sign-up.",
       "keywords": [
         "pdf to word",
         "convert pdf to word",
@@ -1030,16 +1378,16 @@
       "shortDesc": "Convert PDF into editable Word documents.",
       "faqs": [
         {
-          "q": "Is PDF to Word available yet?",
-          "a": "PDF to Word is in active development. This page describes what's coming — the interactive converter isn't live yet."
+          "q": "Is PDF to Word available now?",
+          "a": "Yes. PDF to Word runs entirely in your browser — no upload, no sign-up, no waiting."
         },
         {
-          "q": "Will the converted file be fully editable?",
-          "a": "Yes — the goal is a .docx file with text and layout preserved as closely as possible, ready to edit in Word."
+          "q": "Will the converted file be editable?",
+          "a": "Yes. The output is a .docx file with extracted text and supported layout elements. Complex layouts and scanned pages may need some manual adjustment."
         },
         {
-          "q": "Will my file be uploaded to convert it?",
-          "a": "The plan is the same as every other YOYOPDF tool: conversion runs in your browser, with no file upload to a server."
+          "q": "Is my PDF uploaded to convert it?",
+          "a": "No. Conversion runs locally in your browser, so the file is not sent to a server."
         }
       ],
       "relatedSlugs": [
@@ -1052,15 +1400,15 @@
       ],
       "landing": {
         "hero": {
-          "valueProp": "Convert PDF into editable Word documents — get your text and layout back into a format you can actually rewrite.",
+          "valueProp": "Convert PDF into an editable Word document directly in your browser — no upload, no sign-up.",
           "trustBadges": [
             "Browser Based",
             "Free",
-            "Secure",
+            "Local Processing",
             "No Registration"
           ],
-          "ctaLabel": "Coming Soon",
-          "ctaTarget": null
+          "ctaLabel": "Use PDF to Word",
+          "ctaTarget": "pdf2word"
         },
         "whyUse": {
           "intro": "Converting to Word matters whenever a PDF needs to be rewritten, not just read.",
@@ -1081,46 +1429,46 @@
         },
         "howItWorks": [
           {
-            "title": "Upload",
-            "desc": "Add the PDF you want to convert — planned to run locally, with no file upload."
+            "title": "Open",
+            "desc": "Choose the PDF you want to convert. It is read locally in your browser."
           },
           {
             "title": "Convert",
-            "desc": "Text and layout are mapped into a Word-compatible structure."
+            "desc": "Text, images, tables, and supported layout details are mapped into a Word-compatible document."
           },
           {
             "title": "Review",
-            "desc": "Check the converted layout before saving."
+            "desc": "Open the converted file in Word or another compatible editor and check complex layouts."
           },
           {
             "title": "Download",
-            "desc": "Save the result as a .docx file, ready to edit in Word."
+            "desc": "Save the result as a .docx file ready for editing."
           }
         ],
         "keyFeatures": [
           {
             "title": "Layout-aware conversion",
-            "desc": "Aims to preserve paragraphs, headings, and basic formatting, not just raw text."
+            "desc": "Preserves paragraphs, headings, images, tables, and basic formatting where they can be detected."
           },
           {
-            "title": "Planned: runs in your browser",
-            "desc": "Planned to convert locally the moment you choose a file — no server upload, the same model every YOYOPDF tool follows."
+            "title": "Runs in your browser",
+            "desc": "Conversion happens locally on your device with no server upload."
           },
           {
             "title": ".docx output",
-            "desc": "Produces a standard Word file that opens directly in Microsoft Word or Google Docs."
+            "desc": "Produces a standard Word document for Microsoft Word, LibreOffice, or Google Docs."
           },
           {
             "title": "No sign-up",
-            "desc": "Won't require an account — open it and convert, consistent with the rest of YOYOPDF."
+            "desc": "Open the tool and convert without creating an account."
           },
           {
-            "title": "No file limit",
-            "desc": "No artificial cap on how many PDFs you can convert."
+            "title": "No artificial file limit",
+            "desc": "Available browser memory is the practical limit for large or complex PDFs."
           },
           {
             "title": "Free",
-            "desc": "No paywall or per-conversion charge planned."
+            "desc": "Convert without a watermark or per-conversion charge."
           }
         ],
         "useCases": [
@@ -1154,32 +1502,13 @@
           "targetSlug": "compress-pdf",
           "label": "Compress PDF"
         }
-      }
+      },
+      "toolId": "pdf2word"
     }
   ],
   "plannedTools": {
     "note": "Not yet built. Excluded from sitemap.xml on purpose — submitting URLs that 404 damages crawl trust and wastes crawl budget. Flip 'status' to 'live' (or 'landing-only' for a content-first page ahead of the interactive tool), add a file + full metadata/faqs/landing entry above, then re-run the generator to include one in the sitemap.",
     "items": [
-      {
-        "slug": "word-to-pdf",
-        "name": "Word to PDF",
-        "category": "convert"
-      },
-      {
-        "slug": "pdf-to-jpg",
-        "name": "PDF to JPG",
-        "category": "convert"
-      },
-      {
-        "slug": "jpg-to-pdf",
-        "name": "JPG to PDF",
-        "category": "convert"
-      },
-      {
-        "slug": "excel-to-pdf",
-        "name": "Excel to PDF",
-        "category": "convert"
-      },
       {
         "slug": "ppt-to-pdf",
         "name": "PPT to PDF",

@@ -76,15 +76,16 @@
    support for all three shape types is fully functional today via direct
    beginPlacement() calls; only the button UI itself is deferred.
 
-   Priority 4E: the 'future' group's Image button is no longer just a
-   documented insertion point — it's wired up, following the exact plan
-   the 4C revision note above already laid out: a hidden
-   `<input type="file" accept="image/*">` (same pattern as File > Open),
-   read via `window.loadImage()` (index.html's existing helper, already
-   used by TOOLS.imgcompress/imgresize/etc. — not reimplemented), an
-   aspect-correct default box size derived from RenderEngine.getPageInfo()
-   of the current page, then a single `beginPlacement('image', ...)` call
-   — identical mechanism to the Text button, no new interaction system.
+   Priority 4E (superseded by a later data-URL revision — see below): the
+   'future' group's Image button is no longer just a documented insertion
+   point — it's wired up, following the exact plan the 4C revision note
+   above already laid out: a hidden `<input type="file" accept="image/*">`
+   (same pattern as File > Open), read via `window.loadImage()` (index.
+   html's existing helper, already used by TOOLS.imgcompress/imgresize/
+   etc. — not reimplemented), an aspect-correct default box size derived
+   from RenderEngine.getPageInfo() of the current page, then a single
+   `beginPlacement('image', ...)` call — identical mechanism to the Text
+   button, no new interaction system.
 
    `window.loadImage()` (and its own callers elsewhere in index.html)
    never revokes the `URL.createObjectURL()` it creates — confirmed by
@@ -113,6 +114,21 @@
    itself creates no URL at all (guarded before any decode/measure work
    even starts), so it is a true no-op — nothing created, nothing to
    clean up, no error.
+
+   SUPERSEDED: the paragraphs above describe Image's original blob-URL
+   design. `handlePickedImage()`/`loadImageFile()` below no longer call
+   `window.loadImage()` or `URL.createObjectURL()` at all — a later
+   revision switched to `FileReader.readAsDataURL()` (and, for the
+   signature pad, `canvas.toDataURL()`) specifically so a placed image's
+   `data.src` is a self-contained data: URL that survives undo/redo and
+   export without any blob to leak or revoke (see the comment at
+   `pendingImageUrl`'s declaration below). `revokePendingImageUrl()`'s
+   `.startsWith('blob:')` guard is the one remaining trace of the old
+   design: dead in practice today (every URL reaching it is a data: URL),
+   kept only as a harmless defensive no-op in case a future caller ever
+   reintroduces a blob-backed image source. Phase 12 audit: confirmed no
+   blob URL is created anywhere in this file — there is nothing left here
+   to revoke.
 
    Priority 4F: the 'future' group's shape picker is wired up — three
    separate buttons (Rectangle/Ellipse/Line), not a type-selector control,
@@ -263,27 +279,40 @@
     });
     toolbar.appendChild(imageInput);
 
-    // Tracks a blob URL created for an image that's been picked but not
-    // yet confirmed placed as an object — see file header (Priority 4E)
-    // for the full leak-prevention rationale.
+    // Tracks image data while a picked/drawn image is waiting to be placed.
+    // New image sources are data URLs, so they remain valid through undo/redo
+    // without owning a Blob URL; the blob guard preserves older state safely.
     let pendingImageUrl = null;
 
     function revokePendingImageUrl() {
-      if (pendingImageUrl) { URL.revokeObjectURL(pendingImageUrl); pendingImageUrl = null; }
+      if (pendingImageUrl && pendingImageUrl.startsWith('blob:')) URL.revokeObjectURL(pendingImageUrl);
+      pendingImageUrl = null;
     }
 
-    // Reuses index.html's existing loadImage() helper (already used by
-    // TOOLS.imgcompress/imgresize/etc.) when present; falls back to the
-    // same createObjectURL+Image() logic for editor-preview.html, which
-    // never loads index.html — same fallback convention editor-inspector.js
-    // already uses for its own formatBytes()/fmtSize() lookup.
+    // Decode through a data URL so placed objects and undo/redo snapshots do
+    // not retain Blob URLs whose ownership would be ambiguous.
     function loadImageFile(file) {
-      if (typeof window.loadImage === 'function') return window.loadImage(file);
       return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Could not read the selected image.'));
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const limits = window.YOYO_RUNTIME && window.YOYO_RUNTIME.limits;
+            const width = img.naturalWidth || img.width;
+            const height = img.naturalHeight || img.height;
+            if (limits && (width > limits.maxImageDimension ||
+                height > limits.maxImageDimension ||
+                width * height > limits.maxImagePixels)) {
+              reject(new Error('This image has dimensions too large for safe in-browser editing.'));
+              return;
+            }
+            resolve(img);
+          };
+          img.onerror = () => reject(new Error('Could not decode the selected image.'));
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
       });
     }
 
@@ -312,6 +341,13 @@
     }
 
     async function handlePickedImage(file) {
+      try {
+        if(typeof validateFileSelection === "function") await validateFileSelection([file], {accept:"image/*", multiple:false});
+      } catch (error) {
+        if(typeof window.toast === "function") window.toast(error.message);
+        else console.error("Could not use image file:", error);
+        return;
+      }
       // Superseding an image that was picked but never placed — revoke its
       // URL now rather than leaving it orphaned indefinitely.
       revokePendingImageUrl();
@@ -324,7 +360,7 @@
         return; // nothing was created — no object, no armed placement, no leak
       }
 
-      const url = img.src; // the blob URL loadImageFile() just created
+      const url = img.src; // durable data URL used by placement, history, and export
       pendingImageUrl = url;
       const naturalWidth = img.naturalWidth || img.width;
       const naturalHeight = img.naturalHeight || img.height;
@@ -421,11 +457,10 @@
       overlay.querySelector('.editor-sign-done').addEventListener('click', async () => {
         if (!hasInk) { close(); return; }
         const trimmed = trimTransparentCanvas(canvas);
-        const blob = await new Promise((resolve) => trimmed.toBlob(resolve, 'image/png'));
+        const url = trimmed.toDataURL('image/png');
         close();
-        if (!blob || !window.EditorObjects) return;
-        const url = URL.createObjectURL(blob);
-        pendingImageUrl = url; // same leak-prevention lifecycle as a picked image file
+        if (!url || !window.EditorObjects) return;
+        pendingImageUrl = url; // same pending-placement lifecycle as a picked image file
         const { wPct, hPct } = await aspectCorrectedBox(trimmed.width, trimmed.height, 30, 12);
         window.EditorObjects.beginPlacement('image', {
           data: { src: url, naturalWidth: trimmed.width, naturalHeight: trimmed.height, keepAspectRatio: true },
@@ -434,10 +469,8 @@
       });
     }
 
-    // Confirms a pending image URL was actually adopted by a placed object
-    // (ownership now belongs to that object's whole lifetime, so it's no
-    // longer this module's job to revoke it — a future export step will
-    // need to fetch() this same URL).
+    // Confirms pending image data was adopted by a placed object. Its data
+    // URL remains self-contained for history and export.
     window.addEventListener('editor:objectAdded', (e) => {
       const obj = e.detail && e.detail.object;
       if (pendingImageUrl && obj && obj.type === 'image' && obj.data && obj.data.src === pendingImageUrl) {
@@ -509,7 +542,7 @@
       } else {
         group.buttons.forEach((btn) => {
           const disabled = group.reserved || btn.reserved;
-          groupEl.appendChild(iconButton(btn.icon, btn.title, () => handleAction(btn.action), disabled));
+          groupEl.appendChild(iconButton(btn.icon, btn.title, () => handleAction(btn.action), disabled, btn.action));
         });
       }
       toolbar.appendChild(groupEl);
@@ -573,12 +606,13 @@
       }
     }
 
-    function iconButton(iconKey, title, onClick, disabled) {
+    function iconButton(iconKey, title, onClick, disabled, action) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'btn-icon';
       b.title = title;
       b.setAttribute('aria-label', title);
+      if (action) b.dataset.action = action;
       if (disabled) b.disabled = true;
       b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false">${ICONS[iconKey] || ''}</svg>`;
       // Always attach the listener, even when starting disabled: a native

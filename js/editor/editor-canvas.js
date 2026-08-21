@@ -31,6 +31,7 @@
 (function () {
   let canvasEl = null;
   let rootEl = null;
+  let loadGeneration = 0;
 
   function init(root) {
     rootEl = root;
@@ -47,15 +48,19 @@
   }
 
   async function loadFile(file) {
+    const generation = ++loadGeneration;
     clearEmptyError();
     setState('loading');
     try {
       const { numPages } = await window.RenderEngine.loadDocument(file);
+      if (generation !== loadGeneration) return;
       await window.ViewportManager.mountDocument(numPages);
+      if (generation !== loadGeneration) return;
       window.EditorSidebar.init(rootEl, { pageCount: numPages });
       window.ThumbnailEngine.init(rootEl, numPages);
       setState('page');
     } catch (err) {
+      if (generation !== loadGeneration || err?.name === 'AbortError') return;
       console.error('Failed to load PDF:', err);
       showEmptyError(err && err.message ? err.message : String(err));
       setState('empty');

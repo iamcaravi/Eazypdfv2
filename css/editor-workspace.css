@@ -48,7 +48,18 @@
   padding-right:var(--sp-3); border-right:1px solid var(--color-border);
 }
 .editor-toolbar-group:last-child{ border-right:none; }
-.editor-toolbar-group[data-reserved="true"]{ opacity:0.55; }
+/* Phase 12: was `.editor-toolbar-group[data-reserved="true"]{ opacity:
+   0.55; }` - dimming the whole group (its text label included) pushed
+   .editor-toolbar-label's already-correct contrast (--color-text-
+   secondary #6B5D5A on --color-surface #FFFFFF, ~6.3:1) down to ~2.4:1
+   (axe: color-contrast, confirmed by hand-computing the exact blended
+   color that opacity produced). Same anti-pattern as the homepage's
+   .ai-card fix earlier this phase. Every button in a reserved group
+   already carries a real `disabled` attribute (native semantics +
+   default browser disabled styling), so this extra whole-group dimming
+   wasn't the only "this is unavailable" signal - removing the rule
+   doesn't remove that signal, just the broken side effect on the label
+   text's contrast. */
 .editor-toolbar-label{
   font-size:var(--fs-caption); color:var(--color-text-secondary); text-transform:uppercase;
   letter-spacing:.04em; font-weight:var(--fw-semibold); margin-right:4px; white-space:nowrap;

@@ -1,0 +1,31 @@
+{
+  "name": "yoyopdf",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "YOYOPDF - browser-first PDF/image tools. Static multi-page site (no app bundle); Vite here only builds/serves the existing HTML/CSS/JS as-is and Vitest runs smoke tests.",
+  "scripts": {
+    "dev": "python dev-server.py",
+    "build": "npm run seo:check && vite build && npm run verify:dist",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "test:all": "npm test && npm run build && npm run test:browser",
+    "fixtures:generate": "node tests/fixtures/generate-fixtures.mjs",
+    "fixtures:check": "node tests/fixtures/generate-fixtures.mjs --check",
+    "generate": "node build/generate-landing.js",
+    "seo:check": "node build/generate-landing.js --check",
+    "verify:dist": "node build/verify-dist.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1",
+    "jszip": "3.10.1",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "3.11.174",
+    "vite": "5.4.21",
+    "vitest": "2.1.9"
+  }
+}
