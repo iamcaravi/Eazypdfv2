@@ -213,27 +213,31 @@ TOOLS.headerfooter = function(){
    handles to fight with first), and the right-hand controls panel never
    moves. See docs/none - design brief lived in chat only.
 
-   Coordinate system: the crop rectangle is stored as page-relative
+   Coordinate system: each page's crop rectangle is stored as page-relative
    FRACTIONS (x0/y0/x1/y1, each 0..1, origin top-left) rather than CSS or
-   canvas pixels. Every .crop-page wrapper's on-screen box IS the page at
-   whatever zoom/DPR happens to be active (width set in JS, height
-   follows via CSS aspect-ratio from the page's real point dimensions),
-   so a fraction of that box's own getBoundingClientRect() is already
-   resolution- and zoom-independent - no separate canvas-pixel/zoom/DPR
-   conversion step is needed the way raw canvas coordinates would require.
-   At crop time those fractions are multiplied by each target page's own
-   width/height in points (from pdf-lib) and flipped for the PDF's
-   bottom-left origin, matching pdf-lib's setCropBox(). Applying the same
-   fractions to every page (not the same absolute point margins, as the
-   old single-canvas version did) is also what makes "All pages" behave
-   correctly on documents that mix page sizes, with no special-case
-   warning needed. */
+   canvas pixels, on that page's own pagesMeta entry (meta.rect). Every
+   .crop-page wrapper's on-screen box IS the page at whatever zoom/DPR
+   happens to be active (width set in JS, height follows via CSS
+   aspect-ratio from the page's real point dimensions), so a fraction of
+   that box's own getBoundingClientRect() is already resolution- and
+   zoom-independent - no separate canvas-pixel/zoom/DPR conversion step is
+   needed the way raw canvas coordinates would require. At crop time those
+   fractions are multiplied by each target page's own width/height in
+   points (from pdf-lib) and flipped for the PDF's bottom-left origin,
+   matching pdf-lib's setCropBox().
+
+   Selection state is per-page (selectionMode "custom", the default) so
+   navigating/scrolling between pages never disturbs another page's
+   rectangle. selectionMode "same" instead keeps every page's meta.rect in
+   sync with whichever one was last edited - reusing the same fractions
+   (not absolute point margins) is what makes it, and plain "All pages"
+   scope, behave correctly on documents that mix page sizes, with no
+   special-case warning needed. */
 TOOLS.crop = function(){
   let file=null, fileBytesCache=null, loadToken=0;
   let numPages=0;
-  let pagesMeta=[]; // {index, widthPt, heightPt, wrapEl, canvasEl, layerEl, rectEl, rendered, rendering}
-  let normRect=null; // {x0,y0,x1,y1} 0..1, or null = no crop drawn yet (full page)
-  let activePageIndex=0;   // which page currently hosts the interactive rect
+  let pagesMeta=[]; // {index, widthPt, heightPt, wrapEl, canvasEl, layerEl, rectEl, rect, rendered, rendering}
+  let selectionMode="custom"; // "custom" = independent rect per page (default), "same" = every page mirrors the last-edited rect
   let currentPageIndex=0;  // which page is most in view (drives indicator + "Current page" scope)
   let zoom=1;
   let docObserver=null;
@@ -275,6 +279,11 @@ TOOLS.crop = function(){
             </div>
           </div>
           <div class="crop-scope">
+            <span class="tool-side-panel-section-label">Selection</span>
+            <label class="crop-scope-option"><input type="radio" name="cropSelectionMode" value="custom" checked> Custom selection per page</label>
+            <label class="crop-scope-option"><input type="radio" name="cropSelectionMode" value="same"> Apply same selection to all pages</label>
+          </div>
+          <div class="crop-scope">
             <span class="tool-side-panel-section-label">Pages</span>
             <label class="crop-scope-option"><input type="radio" name="cropScope" value="all" checked> All pages</label>
             <label class="crop-scope-option"><input type="radio" name="cropScope" value="current"> Current page</label>
@@ -282,6 +291,7 @@ TOOLS.crop = function(){
           <div class="split-error" id="cropError" hidden></div>
           <div class="crop-side-actions">
             <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
+            <button class="btn secondary" id="resetAllCrop" type="button">Reset all selections</button>
             <button class="btn tool-toolbar-primary" id="go" disabled>Crop PDF →</button>
           </div>
         </aside>
@@ -298,6 +308,7 @@ TOOLS.crop = function(){
   const errorBox = document.getElementById("cropError");
   const goBtn = document.getElementById("go");
   const resetBtn = document.getElementById("resetCrop");
+  const resetAllBtn = document.getElementById("resetAllCrop");
   const docViewport = document.getElementById("cropDocViewport");
   const docEl = document.getElementById("cropDocument");
   const pageIndicator = document.getElementById("cropPageIndicator");
@@ -338,8 +349,12 @@ TOOLS.crop = function(){
     // remove) left the prior document's pdf.js-worker-side state alive for
     // the rest of the tab's life.
     if(activePdoc){ try{ activePdoc.destroy(); }catch(e){} activePdoc=null; }
-    pagesMeta=[]; normRect=null; activePageIndex=0; currentPageIndex=0; numPages=0;
+    pagesMeta=[]; currentPageIndex=0; numPages=0;
     docEl.innerHTML="";
+    selectionMode="custom";
+    const customRadio = panel.querySelector('input[name="cropSelectionMode"][value="custom"]');
+    if(customRadio) customRadio.checked=true;
+    updateResetAllVisibility();
   }
 
   wireDropzone(async fs=>{
@@ -414,7 +429,7 @@ TOOLS.crop = function(){
         index:i-1, widthPt:vp.width, heightPt:vp.height,
         wrapEl:wrap, canvasEl:wrap.querySelector(".crop-page-canvas"),
         layerEl:wrap.querySelector(".crop-select-layer"),
-        rectEl:null, rendered:false, rendering:false
+        rectEl:null, rect:null, rendered:false, rendering:false
       };
       docEl.appendChild(wrap);
       pagesMeta.push(meta);
@@ -566,27 +581,23 @@ TOOLS.crop = function(){
     meta.rectEl = el;
     return el;
   }
-  function setActivePage(idx){
-    pagesMeta.forEach((m,i)=>{
-      if(m.rectEl && i!==idx) m.rectEl.hidden = true;
-      m.wrapEl.classList.toggle("crop-page-active", i===idx);
-    });
-    activePageIndex = idx;
-  }
-  function redrawRect(animate){
-    if(!normRect){
-      pagesMeta.forEach(m=>{ if(m.rectEl) m.rectEl.hidden = true; });
+  // Draws (or hides) one page's own rect element from its own meta.rect -
+  // replaces the old single shared normRect/activePageIndex pair so every
+  // page keeps a visible, independent rectangle at once.
+  function redrawRectFor(meta, animate){
+    if(!meta) return;
+    if(!meta.rect){
+      if(meta.rectEl) meta.rectEl.hidden = true;
       updateGoState();
       return;
     }
-    const meta = pagesMeta[activePageIndex];
-    if(!meta) return;
+    const rect = meta.rect;
     const el = ensureRectEl(meta);
     el.hidden = false;
-    el.style.left = (normRect.x0*100)+"%";
-    el.style.top = (normRect.y0*100)+"%";
-    el.style.width = ((normRect.x1-normRect.x0)*100)+"%";
-    el.style.height = ((normRect.y1-normRect.y0)*100)+"%";
+    el.style.left = (rect.x0*100)+"%";
+    el.style.top = (rect.y0*100)+"%";
+    el.style.width = ((rect.x1-rect.x0)*100)+"%";
+    el.style.height = ((rect.y1-rect.y0)*100)+"%";
     if(animate && window.gsap && !MOTION.reduced){
       gsap.fromTo(el, {opacity:0, scale:0.98}, {opacity:1, scale:1, duration:MOTION.fast, ease:MOTION.ease.enter, overwrite:"auto"});
       // Same stuck-invisible-forever safety net motionEnter() uses above:
@@ -600,70 +611,89 @@ TOOLS.crop = function(){
     }
     updateGoState();
   }
+  function redrawAllRects(animate){ pagesMeta.forEach(m=>redrawRectFor(m, animate)); }
   function pulseRect(el){
     if(!el || !window.gsap || MOTION.reduced) return;
     gsap.fromTo(el, {filter:"brightness(1.7)"}, {filter:"brightness(1)", duration:.35, ease:"power2.out", overwrite:"auto"});
     setTimeout(()=>{ if(el.isConnected) el.style.filter=""; }, 600);
   }
+  function updateResetAllVisibility(){
+    resetAllBtn.style.display = (selectionMode==="custom" && pagesMeta.some(m=>m.rect)) ? "" : "none";
+  }
+  // selectionMode "same": every page's rect mirrors the one just edited -
+  // reusing its fractions (not absolute point margins) is what keeps the
+  // same logical crop area correct across pages of different sizes.
+  function propagateToAllPages(sourceMeta){
+    pagesMeta.forEach(m=>{
+      if(m===sourceMeta) return;
+      m.rect = {...sourceMeta.rect};
+    });
+    redrawAllRects(false);
+  }
 
+  // Each page owns its own listeners AND its own meta.rect - unlike the
+  // old shared normRect/activePageIndex, dragging on this page can never
+  // read or clobber another page's rectangle.
   function wireCropPageLayer(meta){
     let mode=null, handle=null, startPt=null, startRect=null;
     function hitHandle(p){
-      if(activePageIndex!==meta.index || !normRect) return null;
+      if(!meta.rect) return null;
+      const r = meta.rect;
       const pts = {
-        nw:{x:normRect.x0,y:normRect.y0}, n:{x:(normRect.x0+normRect.x1)/2,y:normRect.y0}, ne:{x:normRect.x1,y:normRect.y0},
-        e:{x:normRect.x1,y:(normRect.y0+normRect.y1)/2}, se:{x:normRect.x1,y:normRect.y1}, s:{x:(normRect.x0+normRect.x1)/2,y:normRect.y1},
-        sw:{x:normRect.x0,y:normRect.y1}, w:{x:normRect.x0,y:(normRect.y0+normRect.y1)/2}
+        nw:{x:r.x0,y:r.y0}, n:{x:(r.x0+r.x1)/2,y:r.y0}, ne:{x:r.x1,y:r.y0},
+        e:{x:r.x1,y:(r.y0+r.y1)/2}, se:{x:r.x1,y:r.y1}, s:{x:(r.x0+r.x1)/2,y:r.y1},
+        sw:{x:r.x0,y:r.y1}, w:{x:r.x0,y:(r.y0+r.y1)/2}
       };
-      const r = meta.wrapEl.getBoundingClientRect();
-      const tolX = 14/r.width, tolY = 14/r.height;
+      const box = meta.wrapEl.getBoundingClientRect();
+      const tolX = 14/box.width, tolY = 14/box.height;
       for(const k in pts){ if(Math.abs(p.x-pts[k].x)<=tolX && Math.abs(p.y-pts[k].y)<=tolY) return k; }
       return null;
     }
     function inside(p){
-      if(activePageIndex!==meta.index || !normRect) return false;
-      return p.x>normRect.x0 && p.x<normRect.x1 && p.y>normRect.y0 && p.y<normRect.y1;
+      if(!meta.rect) return false;
+      return p.x>meta.rect.x0 && p.x<meta.rect.x1 && p.y>meta.rect.y0 && p.y<meta.rect.y1;
+    }
+    function commitRect(rect){
+      meta.rect = rect;
+      redrawRectFor(meta, false);
+      if(selectionMode==="same") propagateToAllPages(meta);
     }
     meta.layerEl.addEventListener("pointerdown", e=>{
       if(e.button!=null && e.button!==0) return;
       // Capture is best-effort (keeps the drag tracking correctly if the
       // pointer leaves the layer's own bounds mid-gesture) - it can throw
       // "no active pointer" in some browsers/edge cases, which must not
-      // abort the rest of this handler (mode/normRect below) the way an
+      // abort the rest of this handler (mode/meta.rect below) the way an
       // uncaught exception here otherwise would.
       try{ meta.layerEl.setPointerCapture(e.pointerId); }catch(err){}
       const p = localPos(meta, e.clientX, e.clientY);
-      startPt = p; startRect = normRect ? {...normRect} : null;
+      startPt = p; startRect = meta.rect ? {...meta.rect} : null;
       const h = hitHandle(p);
       if(h){ mode="resize"; handle=h; }
       else if(inside(p)){ mode="move"; meta.rectEl && meta.rectEl.classList.add("crop-rect-dragging"); }
       else {
         mode = "new";
-        setActivePage(meta.index);
-        normRect = {x0:p.x, y0:p.y, x1:p.x, y1:p.y};
-        redrawRect(true);
+        commitRect({x0:p.x, y0:p.y, x1:p.x, y1:p.y});
+        redrawRectFor(meta, true);
       }
     });
     meta.layerEl.addEventListener("pointermove", e=>{
       if(!mode){
         // Cursor feedback only, while idle.
         const p = localPos(meta, e.clientX, e.clientY);
-        if(activePageIndex===meta.index && normRect){
-          meta.layerEl.style.cursor = hitHandle(p) ? "" : (inside(p) ? "grab" : "crosshair");
-        } else {
-          meta.layerEl.style.cursor = "crosshair";
-        }
+        meta.layerEl.style.cursor = meta.rect ? (hitHandle(p) ? "" : (inside(p) ? "grab" : "crosshair")) : "crosshair";
         return;
       }
       const p = localPos(meta, e.clientX, e.clientY);
+      let rect;
       if(mode==="new"){
-        normRect = {x0:Math.min(startPt.x,p.x), y0:Math.min(startPt.y,p.y), x1:Math.max(startPt.x,p.x), y1:Math.max(startPt.y,p.y)};
+        rect = {x0:Math.min(startPt.x,p.x), y0:Math.min(startPt.y,p.y), x1:Math.max(startPt.x,p.x), y1:Math.max(startPt.y,p.y)};
       } else if(mode==="move"){
         const dx=p.x-startPt.x, dy=p.y-startPt.y;
         const w=startRect.x1-startRect.x0, h=startRect.y1-startRect.y0;
         const x0 = Math.max(0, Math.min(1-w, startRect.x0+dx));
         const y0 = Math.max(0, Math.min(1-h, startRect.y0+dy));
-        normRect = {x0, y0, x1:x0+w, y1:y0+h};
+        rect = {x0, y0, x1:x0+w, y1:y0+h};
       } else if(mode==="resize"){
         let {x0,y0,x1,y1} = startRect;
         const dx=p.x-startPt.x, dy=p.y-startPt.y;
@@ -671,9 +701,9 @@ TOOLS.crop = function(){
         if(handle.includes("s")) y1 = Math.max(y1+dy, y0+MIN_SIZE);
         if(handle.includes("w")) x0 = Math.min(x0+dx, x1-MIN_SIZE);
         if(handle.includes("e")) x1 = Math.max(x1+dx, x0+MIN_SIZE);
-        normRect = {x0:Math.max(0,x0), y0:Math.max(0,y0), x1:Math.min(1,x1), y1:Math.min(1,y1)};
+        rect = {x0:Math.max(0,x0), y0:Math.max(0,y0), x1:Math.min(1,x1), y1:Math.min(1,y1)};
       }
-      redrawRect(false);
+      commitRect(rect);
     });
     function endDrag(){
       if(mode && meta.rectEl){
@@ -681,17 +711,45 @@ TOOLS.crop = function(){
         pulseRect(meta.rectEl);
       }
       mode=null; handle=null;
+      updateResetAllVisibility();
     }
     meta.layerEl.addEventListener("pointerup", endDrag);
     meta.layerEl.addEventListener("pointercancel", endDrag);
   }
 
+  // Page-aware: in "custom" mode this clears only the page currently in
+  // view, leaving every other page's saved selection intact. In "same"
+  // mode all pages are one logical selection, so resetting clears all of
+  // them - matching what the Selection radio just told the user to expect.
   function resetSelection(){
-    normRect = null;
-    pagesMeta.forEach(m=>{ if(m.rectEl) m.rectEl.hidden = true; });
-    updateGoState();
+    if(selectionMode==="same"){
+      pagesMeta.forEach(m=>{ m.rect=null; });
+      redrawAllRects(false);
+    } else {
+      const meta = pagesMeta[currentPageIndex];
+      if(meta){ meta.rect=null; redrawRectFor(meta, false); }
+    }
+    updateResetAllVisibility();
   }
   resetBtn.addEventListener("click", resetSelection);
+  resetAllBtn.addEventListener("click", ()=>{
+    pagesMeta.forEach(m=>{ m.rect=null; });
+    redrawAllRects(false);
+    updateResetAllVisibility();
+  });
+
+  const selectionModeRadios = panel.querySelectorAll('input[name="cropSelectionMode"]');
+  selectionModeRadios.forEach(r=>r.addEventListener("change", ()=>{
+    if(!r.checked) return;
+    selectionMode = r.value;
+    if(selectionMode==="same"){
+      const source = pagesMeta[currentPageIndex] && pagesMeta[currentPageIndex].rect
+        ? pagesMeta[currentPageIndex]
+        : pagesMeta.find(m=>m.rect);
+      if(source) propagateToAllPages(source);
+    }
+    updateResetAllVisibility();
+  }));
 
   function cropKeyHandler(e){
     // panel.innerHTML gets replaced wholesale on every openPanel() (see
@@ -706,7 +764,10 @@ TOOLS.crop = function(){
     if(workspace.style.display==="none") return;
     const active = document.activeElement;
     if(active && /INPUT|TEXTAREA/.test(active.tagName)) return;
-    if((e.key==="Escape" || e.key==="Delete" || e.key==="Backspace") && normRect){
+    const hasResettableRect = selectionMode==="same"
+      ? pagesMeta.some(m=>m.rect)
+      : !!(pagesMeta[currentPageIndex] && pagesMeta[currentPageIndex].rect);
+    if((e.key==="Escape" || e.key==="Delete" || e.key==="Backspace") && hasResettableRect){
       resetSelection();
       e.preventDefault();
       // Capture-phase (see the addEventListener call below) + stopPropagation:
@@ -733,11 +794,11 @@ TOOLS.crop = function(){
     const out=document.getElementById("out"); out.innerHTML=statusEl("Cropping PDF...");
     goBtn.disabled = true; const goLabel = goBtn.textContent; goBtn.textContent = "Cropping PDF...";
     const scope = (panel.querySelector('input[name="cropScope"]:checked') || {}).value || "all";
-    const rect = normRect;
     try{
       const doc = await loadPdfSafe(fileBytesCache);
       doc.getPages().forEach((p,i)=>{
         if(scope==="current" && i!==currentPageIndex) return;
+        const rect = pagesMeta[i] && pagesMeta[i].rect;
         if(!rect) return;
         const {width,height} = p.getSize();
         const l = Math.max(0, Math.min(rect.x0*width, width-1));

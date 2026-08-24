@@ -94,6 +94,189 @@ test("crop PDF: a real drag on the page selection layer produces a genuinely sma
   expect(errors).toEqual([]);
 });
 
+async function dragSelectionOnPage(page, pageIndex, fromFrac, toFrac) {
+  const layer = page.locator(`.crop-page[data-page-index="${pageIndex}"] .crop-select-layer`);
+  await layer.scrollIntoViewIfNeeded();
+  await expect(layer).toBeVisible({ timeout: 15_000 });
+  const box = await layer.boundingBox();
+  if (!box) throw new Error(`selection layer for page ${pageIndex} has no bounding box`);
+  const from = { x: box.x + box.width * fromFrac.x, y: box.y + box.height * fromFrac.y };
+  const to = { x: box.x + box.width * toFrac.x, y: box.y + box.height * toFrac.y };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2);
+  await page.mouse.move(to.x, to.y);
+  await page.mouse.up();
+  // Lets the fallback/IntersectionObserver scan settle so currentPageIndex
+  // (which "same selection" and "reset current page" both key off) reflects
+  // the page we just scrolled to and dragged on.
+  await page.waitForTimeout(150);
+}
+
+async function scrollToPage(page, pageIndex) {
+  // Scrolls the same element dragSelectionOnPage's own scrollIntoViewIfNeeded
+  // targets (the selection layer, not the page wrapper) - matches the one
+  // navigation path already proven not to hang, and gives the
+  // IntersectionObserver/scroll-fallback the same settle time.
+  const layer = page.locator(`.crop-page[data-page-index="${pageIndex}"] .crop-select-layer`);
+  await layer.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(150);
+}
+
+function rectStyleOf(page, pageIndex) {
+  return page.locator(`.crop-page[data-page-index="${pageIndex}"] .crop-rect`).evaluate((el) => ({
+    hidden: el.hidden,
+    left: el.style.left,
+    top: el.style.top,
+    width: el.style.width,
+    height: el.style.height,
+  }));
+}
+
+test("crop PDF: independent selections on two pages survive navigating away and back", async ({ page }) => {
+  test.setTimeout(45_000);
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/crop-pdf");
+  await page.locator("#fi").setInputFiles(multiPagePdf);
+
+  await dragSelectionOnPage(page, 0, { x: 0.1, y: 0.1 }, { x: 0.4, y: 0.4 });
+  const rectA = await rectStyleOf(page, 0);
+  expect(rectA.hidden).toBe(false);
+
+  await dragSelectionOnPage(page, 1, { x: 0.2, y: 0.2 }, { x: 0.7, y: 0.7 });
+  const rectB = await rectStyleOf(page, 1);
+  expect(rectB.hidden).toBe(false);
+
+  // Page 0's own rect element must still reflect selection A - drawing B on
+  // page 1 must not have hidden or overwritten it.
+  const rectAAfter = await rectStyleOf(page, 0);
+  expect(rectAAfter).toEqual(rectA);
+  expect(rectAAfter.width).not.toBe(rectB.width);
+
+  const rectBAfter = await rectStyleOf(page, 1);
+  expect(rectBAfter).toEqual(rectB);
+  expect(errors).toEqual([]);
+});
+
+test("crop PDF: three independent page selections all survive repeated navigation", async ({ page }) => {
+  test.setTimeout(60_000);
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/crop-pdf");
+  await page.locator("#fi").setInputFiles(multiPagePdf);
+
+  await dragSelectionOnPage(page, 0, { x: 0.08, y: 0.08 }, { x: 0.3, y: 0.3 });
+  const rectA = await rectStyleOf(page, 0);
+  await dragSelectionOnPage(page, 1, { x: 0.15, y: 0.15 }, { x: 0.55, y: 0.5 });
+  const rectB = await rectStyleOf(page, 1);
+  await dragSelectionOnPage(page, 2, { x: 0.25, y: 0.25 }, { x: 0.85, y: 0.8 });
+  const rectC = await rectStyleOf(page, 2);
+
+  // Navigate 1 -> 2 -> 1 -> 3, re-checking each still matches its own rect.
+  await scrollToPage(page, 0);
+  expect(await rectStyleOf(page, 0)).toEqual(rectA);
+  await scrollToPage(page, 1);
+  expect(await rectStyleOf(page, 1)).toEqual(rectB);
+  await scrollToPage(page, 0);
+  expect(await rectStyleOf(page, 0)).toEqual(rectA);
+  await scrollToPage(page, 2);
+  expect(await rectStyleOf(page, 2)).toEqual(rectC);
+
+  expect(errors).toEqual([]);
+});
+
+test("crop PDF: Reset Selection only clears the currently displayed page", async ({ page }) => {
+  test.setTimeout(60_000);
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/crop-pdf");
+  await page.locator("#fi").setInputFiles(multiPagePdf);
+
+  await dragSelectionOnPage(page, 0, { x: 0.1, y: 0.1 }, { x: 0.4, y: 0.4 });
+  const rectA = await rectStyleOf(page, 0);
+  await dragSelectionOnPage(page, 1, { x: 0.2, y: 0.2 }, { x: 0.7, y: 0.7 });
+
+  // currentPageIndex is now page 1 (last scrolled/dragged on) - Reset
+  // Selection must only clear page 1, not page 0.
+  await page.locator("#resetCrop").click();
+  const rectBAfterReset = await rectStyleOf(page, 1);
+  expect(rectBAfterReset.hidden).toBe(true);
+
+  await scrollToPage(page, 0);
+  const rectAAfterReset = await rectStyleOf(page, 0);
+  expect(rectAAfterReset).toEqual(rectA);
+  expect(rectAAfterReset.hidden).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test("crop PDF: apply same selection to all pages mirrors one logical crop across every page", async ({ page }) => {
+  test.setTimeout(45_000);
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/crop-pdf");
+  await page.locator("#fi").setInputFiles(multiPagePdf);
+
+  await dragSelectionOnPage(page, 0, { x: 0.15, y: 0.15 }, { x: 0.6, y: 0.55 });
+  const rectSource = await rectStyleOf(page, 0);
+
+  await page.locator('input[name="cropSelectionMode"][value="same"]').check();
+
+  const rect1 = await rectStyleOf(page, 1);
+  const rect2 = await rectStyleOf(page, 2);
+  expect(rect1).toEqual(rectSource);
+  expect(rect2).toEqual(rectSource);
+
+  await expect(page.locator("#go")).toBeEnabled();
+  await page.locator("#go").click();
+  const downloadLink = page.locator('a.dl-link[download="multipage_cropped.pdf"]');
+  await expect(downloadLink).toBeVisible({ timeout: 30_000 });
+  const downloadPromise = page.waitForEvent("download");
+  await downloadLink.click();
+  const download = await downloadPromise;
+  const bytes = readFileSync(await download.path());
+
+  const result = await PDFDocument.load(bytes);
+  const boxes = result.getPages().map((p) => p.getCropBox());
+  expect(boxes).toHaveLength(3);
+  for (const box of boxes) {
+    expect(box.width).toBeLessThan(420);
+    expect(box.height).toBeLessThan(594);
+  }
+  // Same logical crop area on equal-size pages must land on the same
+  // physical crop box across every page.
+  expect(boxes[1].width).toBeCloseTo(boxes[0].width, 1);
+  expect(boxes[1].height).toBeCloseTo(boxes[0].height, 1);
+  expect(boxes[2].width).toBeCloseTo(boxes[0].width, 1);
+  expect(boxes[2].height).toBeCloseTo(boxes[0].height, 1);
+  expect(errors).toEqual([]);
+});
+
+test("crop PDF: custom per-page selections produce different crop boxes per page in the output", async ({ page }) => {
+  test.setTimeout(45_000);
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/crop-pdf");
+  await page.locator("#fi").setInputFiles(multiPagePdf);
+
+  await dragSelectionOnPage(page, 0, { x: 0.05, y: 0.05 }, { x: 0.25, y: 0.25 });
+  await dragSelectionOnPage(page, 1, { x: 0.1, y: 0.1 }, { x: 0.5, y: 0.5 });
+  await dragSelectionOnPage(page, 2, { x: 0.1, y: 0.1 }, { x: 0.9, y: 0.85 });
+
+  await expect(page.locator('input[name="cropScope"][value="all"]')).toBeChecked();
+  await page.locator("#go").click();
+  const downloadLink = page.locator('a.dl-link[download="multipage_cropped.pdf"]');
+  await expect(downloadLink).toBeVisible({ timeout: 30_000 });
+  const downloadPromise = page.waitForEvent("download");
+  await downloadLink.click();
+  const download = await downloadPromise;
+  const bytes = readFileSync(await download.path());
+
+  const result = await PDFDocument.load(bytes);
+  const boxes = result.getPages().map((p) => p.getCropBox());
+  expect(boxes).toHaveLength(3);
+  // Each page's own crop box should reflect its own (very different-sized)
+  // drawn rectangle, not one global rectangle applied to every page.
+  expect(boxes[0].width).toBeLessThan(boxes[1].width);
+  expect(boxes[1].width).toBeLessThan(boxes[2].width);
+  expect(errors).toEqual([]);
+});
+
 test("crop image: a real drag on the selection layer produces genuinely smaller output dimensions", async ({ page }) => {
   test.setTimeout(45_000);
   const errors = captureRuntimeErrors(page);
