@@ -17,6 +17,8 @@ const validPdf = resolve(FIXTURES, "valid.pdf");
 const minimalDocx = resolve(FIXTURES, "minimal.docx");
 const minimalXlsx = resolve(FIXTURES, "minimal.xlsx");
 const simplePng = resolve(FIXTURES, "simple.png");
+const workbookA = resolve(FIXTURES, "workbook-a.xlsx");
+const workbookB = resolve(FIXTURES, "workbook-b.xlsx");
 
 function captureRuntimeErrors(page) {
   const errors = [];
@@ -128,5 +130,54 @@ test("PDF to PowerPoint: renders a single-page PDF into a real, ZIP-based .pptx 
   const zip = await JSZip.loadAsync(bytes);
   expect(zip.file("ppt/presentation.xml")).not.toBeNull();
   expect(zip.file("ppt/slides/slide1.xml")).not.toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test("Merge Excel: requires at least 2 files before Merge Workbooks is enabled", async ({ page }) => {
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/merge-excel");
+  await page.locator("#fi").setInputFiles([workbookA]);
+  await expect(page.locator('.file-card')).toHaveCount(1);
+  await expect(page.locator("#go")).toBeDisabled();
+  await expect(page.locator("#mergeexcelError")).toContainText(/2 or more/i);
+  expect(errors).toEqual([]);
+});
+
+test("Merge Excel: real package-level merge of two workbooks - correct sheet names, worksheet XML, and dependent parts", async ({ page }) => {
+  test.setTimeout(45_000);
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/merge-excel");
+  await page.locator("#fi").setInputFiles([workbookA, workbookB]);
+
+  await expect(page.locator('.file-card')).toHaveCount(2);
+  // Per-file sheet-name preview (best-effort UI feature) should surface
+  // each workbook's real sheet names, not just a generic file-type badge.
+  await expect(page.locator(".file-card-sheets").first()).toContainText("Sheet1", { timeout: 10_000 });
+  await expect(page.locator("#go")).toBeEnabled();
+  await page.locator("#go").click();
+
+  // Not just "a download happened" - read the real downloaded XLSX package
+  // back with JSZip and verify its actual OOXML structure.
+  const bytes = await downloadBytes(page, 'a.dl-link[download="workbook-a_merged.xlsx"]');
+  const zip = await JSZip.loadAsync(bytes);
+
+  const workbookXml = await zip.file("xl/workbook.xml").async("string");
+  const sheetNames = [...workbookXml.matchAll(/<sheet name="([^"]*)"/g)].map((m) => m[1]);
+  // workbook-a and workbook-b both use "Sheet1"/"Sheet2" - the collision
+  // must be resolved by uniquifying, never by silently overwriting.
+  expect(sheetNames).toEqual(["Sheet1", "Sheet2", "Sheet1 (2)", "Sheet2 (2)"]);
+
+  const sheet1 = await zip.file("xl/worksheets/sheet1.xml").async("string");
+  expect(sheet1).toContain('<mergeCell ref="A1:C1"/>'); // workbook-a's own merged header, byte-preserved
+  expect(sheet1).toMatch(/<f>SUM\(B3:B3\)<\/f>/); // workbook-a's own formula, byte-preserved
+
+  const sheet3 = await zip.file("xl/worksheets/sheet3.xml").async("string"); // workbook-b's renamed "Sheet1 (2)"
+  expect(sheet3).toContain('<mergeCell ref="A1:B1"/>'); // workbook-b's own (differently-shaped) merged header
+
+  expect(zip.file("xl/styles.xml")).not.toBeNull();
+  expect(zip.file("xl/sharedStrings.xml")).not.toBeNull();
+  expect(zip.file("docProps/app.xml")).not.toBeNull();
+  expect(zip.file("[Content_Types].xml")).not.toBeNull();
+
   expect(errors).toEqual([]);
 });

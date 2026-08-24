@@ -390,6 +390,37 @@
       ]
     },
     {
+      "slug": "merge-excel",
+      "file": "merge-excel.html",
+      "toolId": "mergeexcel",
+      "status": "live",
+      "category": "convert",
+      "name": "Merge Excel",
+      "title": "Merge Excel Files Free Online — Combine Workbooks | YOYOPDF",
+      "description": "Combine multiple Excel workbooks into one while keeping each worksheet's layout and formatting intact. Free, browser-based, no upload.",
+      "h1": "Merge Excel",
+      "heroValueProp": "Combine multiple Excel workbooks into one while keeping each worksheet's layout and formatting intact.",
+      "faqs": [
+        {
+          "q": "What happens to sheets with the same name?",
+          "a": "They're never overwritten — a colliding sheet name is automatically renamed, e.g. \"Sheet1\" and \"Sheet1 (2)\", so every worksheet from every file ends up in the merged workbook."
+        },
+        {
+          "q": "Is formatting, like colors, fonts, and column widths, preserved?",
+          "a": "Yes — Merge Excel works at the file-package level (not by reading and rewriting cell data), so each worksheet's fonts, fills, borders, number formats, merged cells, column widths, row heights and freeze panes carry over. A small number of advanced features (custom color themes after the first file, pivot tables, external workbook links) aren't guaranteed — the tool tells you exactly if any of these were found."
+        },
+        {
+          "q": "Is my spreadsheet uploaded anywhere?",
+          "a": "No. Every workbook is read and merged entirely in your browser."
+        }
+      ],
+      "relatedSlugs": [
+        "excel-to-pdf",
+        "pdf-to-excel",
+        "merge-pdf"
+      ]
+    },
+    {
       "slug": "sign-pdf",
       "file": "sign-pdf.html",
       "toolId": "sign",

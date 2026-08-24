@@ -8,17 +8,17 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Add Page Numbers to PDF Free Online | YOYOPDF</title>
-<meta name="description" content="Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads.">
+<title>Merge Excel Files Free Online — Combine Workbooks | YOYOPDF</title>
+<meta name="description" content="Combine multiple Excel workbooks into one while keeping each worksheet's layout and formatting intact. Free, browser-based, no upload.">
 <meta name="robots" content="index,follow,max-image-preview:large">
-<link rel="canonical" href="https://yoyopdf.in/page-numbers">
+<link rel="canonical" href="https://yoyopdf.in/merge-excel">
 
 <!-- Open Graph -->
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://yoyopdf.in/page-numbers">
+<meta property="og:url" content="https://yoyopdf.in/merge-excel">
 <meta property="og:site_name" content="YOYOPDF">
-<meta property="og:title" content="Add Page Numbers to PDF Free Online | YOYOPDF">
-<meta property="og:description" content="Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads.">
+<meta property="og:title" content="Merge Excel Files Free Online — Combine Workbooks | YOYOPDF">
+<meta property="og:description" content="Combine multiple Excel workbooks into one while keeping each worksheet's layout and formatting intact. Free, browser-based, no upload.">
 <meta property="og:image" content="https://yoyopdf.in/assets/og/yoyopdf-default-og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -26,8 +26,8 @@
 
 <!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Add Page Numbers to PDF Free Online | YOYOPDF">
-<meta name="twitter:description" content="Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads.">
+<meta name="twitter:title" content="Merge Excel Files Free Online — Combine Workbooks | YOYOPDF">
+<meta name="twitter:description" content="Combine multiple Excel workbooks into one while keeping each worksheet's layout and formatting intact. Free, browser-based, no upload.">
 <meta name="twitter:image" content="https://yoyopdf.in/assets/og/yoyopdf-default-og.png">
 
 <meta name="theme-color" content="#050505">
@@ -40,9 +40,9 @@
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  "name": "Add Page Numbers",
-  "url": "https://yoyopdf.in/page-numbers",
-  "description": "Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads.",
+  "name": "Merge Excel",
+  "url": "https://yoyopdf.in/merge-excel",
+  "description": "Combine multiple Excel workbooks into one while keeping each worksheet's layout and formatting intact. Free, browser-based, no upload.",
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "Any",
   "browserRequirements": "Requires JavaScript and a modern web browser",
@@ -68,8 +68,8 @@
     {
       "@type": "ListItem",
       "position": 2,
-      "name": "Add Page Numbers",
-      "item": "https://yoyopdf.in/page-numbers"
+      "name": "Merge Excel",
+      "item": "https://yoyopdf.in/merge-excel"
     }
   ]
 }
@@ -81,26 +81,26 @@
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "Can I start numbering from a page other than 1?",
+      "name": "What happens to sheets with the same name?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes, set any starting number, which is useful when this file is part of a larger combined document."
+        "text": "They're never overwritten — a colliding sheet name is automatically renamed, e.g. \"Sheet1\" and \"Sheet1 (2)\", so every worksheet from every file ends up in the merged workbook."
       }
     },
     {
       "@type": "Question",
-      "name": "Where can page numbers be placed?",
+      "name": "Is formatting, like colors, fonts, and column widths, preserved?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Choose from common positions such as bottom-center, bottom-right, or top-right, with a live preview."
+        "text": "Yes — Merge Excel works at the file-package level (not by reading and rewriting cell data), so each worksheet's fonts, fills, borders, number formats, merged cells, column widths, row heights and freeze panes carry over. A small number of advanced features (custom color themes after the first file, pivot tables, external workbook links) aren't guaranteed — the tool tells you exactly if any of these were found."
       }
     },
     {
       "@type": "Question",
-      "name": "Can I exclude the first page, like a cover page?",
+      "name": "Is my spreadsheet uploaded anywhere?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes, numbering options let you skip the cover page while numbering the rest."
+        "text": "No. Every workbook is read and merged entirely in your browser."
       }
     }
   ]
@@ -227,8 +227,8 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
 <section class="hero-v2">
   <div class="hero-copy">
     <span class="hero-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg>100% Free &bull; No Sign Up</span>
-    <h1>Add Page Numbers</h1>
-    <p class="tagline">Insert page numbers into a PDF with control over position, starting number and format. Free, live preview, no uploads.</p>
+    <h1>Merge Excel</h1>
+    <p class="tagline">Combine multiple Excel workbooks into one while keeping each worksheet's layout and formatting intact.</p>
     <div class="hero-cta">
       <button class="btn-cta-primary" id="heroChoosePdfBtn" type="button">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
@@ -448,19 +448,16 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
 <section class="tool-seo-content">
   <div class="tool-seo-block">
     <h2>Frequently asked questions</h2>
-    <details class="tool-seo-faq"><summary>Can I start numbering from a page other than 1?</summary><p>Yes, set any starting number, which is useful when this file is part of a larger combined document.</p></details>
-    <details class="tool-seo-faq"><summary>Where can page numbers be placed?</summary><p>Choose from common positions such as bottom-center, bottom-right, or top-right, with a live preview.</p></details>
-    <details class="tool-seo-faq"><summary>Can I exclude the first page, like a cover page?</summary><p>Yes, numbering options let you skip the cover page while numbering the rest.</p></details>
+    <details class="tool-seo-faq"><summary>What happens to sheets with the same name?</summary><p>They're never overwritten — a colliding sheet name is automatically renamed, e.g. &quot;Sheet1&quot; and &quot;Sheet1 (2)&quot;, so every worksheet from every file ends up in the merged workbook.</p></details>
+    <details class="tool-seo-faq"><summary>Is formatting, like colors, fonts, and column widths, preserved?</summary><p>Yes — Merge Excel works at the file-package level (not by reading and rewriting cell data), so each worksheet's fonts, fills, borders, number formats, merged cells, column widths, row heights and freeze panes carry over. A small number of advanced features (custom color themes after the first file, pivot tables, external workbook links) aren't guaranteed — the tool tells you exactly if any of these were found.</p></details>
+    <details class="tool-seo-faq"><summary>Is my spreadsheet uploaded anywhere?</summary><p>No. Every workbook is read and merged entirely in your browser.</p></details>
   </div>
 
   <div class="tool-seo-block">
     <h2>Related tools</h2>
     <div class="tool-seo-related">
-      <a href="/watermark-pdf">Watermark PDF</a>
-      <a href="/crop-pdf">Crop PDF</a>
-      <a href="/protect-pdf">Protect PDF</a>
-      <a href="/organize-pdf">Organize PDF</a>
-      <a href="/compress-pdf">Compress PDF</a>
+      <a href="/excel-to-pdf">Excel to PDF</a>
+      <a href="/pdf-to-excel">PDF to Excel</a>
       <a href="/merge-pdf">Merge PDF</a>
     </div>
   </div>
@@ -589,7 +586,9 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
 <script src="js/core/pdf-processing-utils.js?v=130"></script>
 <script src="js/core/pdf-canvas-widgets.js?v=130"></script>
 <script src="js/tools/misc-tools.js?v=130"></script>
-<script src="js/tools/pdf-page-tools-1.js?v=130"></script>
+<script src="js/core/doc-export-builders.js?v=130"></script>
+<script src="js/core/xlsx-merge.js?v=130"></script>
+<script src="js/tools/pdf-convert-tools.js?v=130"></script>
 <script src="js/app.js?v=130"></script>
 <!-- RUNTIME_SCRIPTS_END -->
 </body>

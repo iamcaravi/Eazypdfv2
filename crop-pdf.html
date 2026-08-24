@@ -402,8 +402,10 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
 <!-- SEO_TOOL_DIRECTORY_START -->
 <section class="seo-tool-directory" aria-labelledby="seo-tool-directory-title">
   <div class="seo-tool-directory-inner">
-    <h2 id="seo-tool-directory-title">Explore all YOYOPDF tools</h2>
-    <p class="seo-tool-directory-intro">Open any free PDF or image tool directly. Processing stays in your browser.</p>
+    <div class="seo-tool-directory-head">
+      <h2 id="seo-tool-directory-title">Explore YOYOPDF Tools</h2>
+      <a class="seo-tool-directory-viewall" href="#tools">View all tools &rarr;</a>
+    </div>
     <nav class="seo-tool-directory-groups" aria-label="All YOYOPDF tools">
       <div class="seo-tool-directory-group">
         <h3>Organize PDF</h3>
@@ -452,6 +454,7 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
         <ul>
           <li><a href="/excel-to-pdf">Excel to PDF</a></li>
           <li><a href="/jpg-to-pdf">JPG to PDF</a></li>
+          <li><a href="/merge-excel">Merge Excel</a></li>
           <li><a href="/pdf-to-excel">PDF to Excel</a></li>
           <li><a href="/pdf-to-jpg">PDF to JPG</a></li>
           <li><a href="/pdf-to-powerpoint">PDF to PowerPoint</a></li>

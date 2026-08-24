@@ -3,7 +3,7 @@ const CATEGORIES = [
   { id:"convert", title:"Convert", tools:[
     ["pdf2word","PDF to Word"],["pdf2excel","PDF to Excel"],["jpg2pdf","JPG to PDF"],
     ["pdf2jpg","PDF to JPG"],["word2pdf","Word to PDF"],["excel2pdf","Excel to PDF"],
-    ["pdf2pptx","PDF to PowerPoint"],
+    ["pdf2pptx","PDF to PowerPoint"],["mergeexcel","Merge Excel"],
   ]},
   { id:"edit", title:"Edit", tools:[
     ["merge","Merge PDF"],["split","Split PDF"],["edit","Edit PDF"],
@@ -59,6 +59,7 @@ const DESCRIPTIONS = {
   word2pdf:"Convert a Word document's text into a clean PDF.",
   pdf2excel:"Extract PDF content into rows and columns in Excel.",
   excel2pdf:"Turn a spreadsheet's first sheet into a table PDF.",
+  mergeexcel:"Combine multiple Excel workbooks into one, keeping each sheet's layout and formatting.",
   organize:"Preview every page and drag together a new page order.",
   rotate:"Rotate every page 90°, 180° or 270° in one click.",
   crop:"Trim margins from every page of a PDF.",
@@ -116,6 +117,7 @@ const TOOL_ICONS = {
   word2pdf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M8 13l1.4 6L11 15l1.6 4L14 13"/></svg>`,
   pdf2excel:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M8.5 13l6 6M14.5 13l-6 6"/></svg>`,
   excel2pdf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M8.5 13l6 6M14.5 13l-6 6"/></svg>`,
+  mergeexcel:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M8 12h8M8 16h5"/></svg>`,
   pdf2jpg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="14" height="11" rx="1.5"/><circle cx="7" cy="9" r="1.1"/><path d="M3 14l4-3.5 3 2.5 3.5-3L17 13"/></svg>`,
   jpg2pdf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="14" height="11" rx="1.5"/><circle cx="7" cy="9" r="1.1"/><path d="M3 14l4-3.5 3 2.5 3.5-3L17 13"/></svg>`,
   imgresize:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="12" height="12" rx="1.5"/><path d="M14 21l7-7M17 21h4v-4"/></svg>`,
@@ -141,6 +143,7 @@ const TOOL_BADGES = {
   word2pdf:  {label:"W",   color:"#2E5FD9"},
   pdf2excel: {label:"X",   color:"#1E8E3E"},
   excel2pdf: {label:"X",   color:"#1E8E3E"},
+  mergeexcel:{label:"X",   color:"#1E8E3E"},
   pdf2jpg:   {label:"JPG", color:"#F59E0B"},
   jpg2pdf:   {label:"JPG", color:"#F59E0B"},
   imgconvert:{label:"IMG", color:"#F764B0"},

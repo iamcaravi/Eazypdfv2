@@ -42,5 +42,25 @@
   "valid.pdf": {
     "bytes": 1351,
     "sha256": "b834750ea3eb89190e60690eb43905c433a64cf0b9e5aa9798e79e5bc807cc1c"
+  },
+  "workbook-a.xlsx": {
+    "bytes": 3190,
+    "sha256": "19f9d900cc8b2acbc568cf92c017363286772193585e60adb0062c033e7d3fe4"
+  },
+  "workbook-b.xlsx": {
+    "bytes": 3068,
+    "sha256": "5156470a47ca47b011b9aa3f88010681245607ae8e3d89adff4707f17c5bc9f9"
+  },
+  "workbook-financial-a.xlsx": {
+    "bytes": 3132,
+    "sha256": "950762febeef76f08d25b15b785d70b736b7d535bca45e77f3347df95204f62d"
+  },
+  "workbook-financial-b.xlsx": {
+    "bytes": 3133,
+    "sha256": "94f2a60eb604bf315b1ddd77db9d7b9d3b723ef55819bce4e1c8ebdba80ac607"
+  },
+  "workbook-image.xlsx": {
+    "bytes": 3729,
+    "sha256": "b50dac7ce6e46969cddb38f2a71981fbe82b8804df188570076c1fbd6b5382f2"
   }
 }

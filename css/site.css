@@ -766,6 +766,8 @@ html.panel-open{ overflow:hidden; }
 }
 .merge-workspace .file-card-order-controls button:hover,
 .merge-workspace .file-card-order-controls button:focus-visible{ border-color:var(--red); color:var(--red); outline:2px solid var(--red); outline-offset:2px; }
+.file-card-sheets{ font-size:.68rem; color:var(--ink-soft); margin-top:2px; white-space:normal; overflow-wrap:anywhere; }
+.mergeexcel-warning{ align-items:flex-start; }
 /* Reusable "workspace action stack" - a small vertical stack of round
    icon buttons floating at the upper-right corner of a tool's main
    working area (Add Files above Sort, iLovePDF's own arrangement).
@@ -2756,16 +2758,30 @@ footer{
 
 /* Generated from seo/*.json: a compact, crawlable directory that also
    gives visitors a direct path to every live tool. */
-.seo-tool-directory{ max-width:1180px; margin:42px auto 28px; padding:0 28px; }
-.seo-tool-directory-inner{ border:1px solid var(--line); border-radius:18px; background:var(--card-bg); padding:24px; }
-.seo-tool-directory h2{ margin:0 0 6px; font-size:clamp(1.2rem,2vw,1.55rem); }
-.seo-tool-directory-intro{ margin:0 0 20px; color:var(--ink-soft); font-size:.9rem; line-height:1.55; }
-.seo-tool-directory-groups{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:22px; }
-.seo-tool-directory-group h3{ margin:0 0 9px; font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
-.seo-tool-directory-group ul{ list-style:none; margin:0; padding:0; display:grid; gap:7px; }
-.seo-tool-directory-group a{ color:var(--ink); font-size:.86rem; font-weight:600; text-decoration:none; }
+/* Compact internal-link directory, not a boxed SEO card - deliberately no
+   border/background "container" (that read as a duplicate footer/directory
+   dump). Every <a href> the generator produces is still real, visible,
+   crawlable markup; only the layout changed from a tall per-tool-per-line
+   grid to one flowing, middot-separated line per category. */
+.seo-tool-directory{ max-width:1180px; margin:0 auto; padding:34px 28px; border-top:1px solid var(--line); }
+.seo-tool-directory-inner{ display:block; }
+.seo-tool-directory-head{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin:0 0 14px; }
+.seo-tool-directory h2{ margin:0; font-size:clamp(1.05rem,1.6vw,1.25rem); }
+.seo-tool-directory-viewall{ flex:0 0 auto; color:var(--ink-soft); font-size:.82rem; font-weight:600; text-decoration:none; white-space:nowrap; }
+.seo-tool-directory-viewall:hover{ color:var(--red); text-decoration:underline; text-underline-offset:3px; }
+.seo-tool-directory-groups{ display:flex; flex-direction:column; gap:8px; }
+.seo-tool-directory-group{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:12px; row-gap:2px; }
+.seo-tool-directory-group h3{ flex:0 0 auto; min-width:104px; margin:0; font-size:.72rem; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-soft); }
+.seo-tool-directory-group ul{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; flex:1 1 auto; }
+.seo-tool-directory-group li{ display:inline; }
+.seo-tool-directory-group li:not(:last-child)::after{ content:"\00b7"; margin:0 8px; color:var(--ink-soft); opacity:.5; }
+.seo-tool-directory-group a{ color:var(--ink); font-size:.82rem; font-weight:600; text-decoration:none; }
 .seo-tool-directory-group a:hover{ color:var(--red); text-decoration:underline; text-underline-offset:3px; }
-@media(max-width:600px){ .seo-tool-directory{ padding:0 18px; } .seo-tool-directory-inner{ padding:20px; } }
+@media(max-width:700px){
+  .seo-tool-directory{ padding:26px 18px; }
+  .seo-tool-directory-group{ flex-direction:column; row-gap:4px; }
+  .seo-tool-directory-group h3{ min-width:0; }
+}
 
 /* ===== Bottom CTA (light blue band + illustration) ===== */
 .cta-section{ max-width:1240px; margin:36px auto 0; padding:0 28px; }

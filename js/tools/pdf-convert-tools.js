@@ -451,3 +451,130 @@ TOOLS.excel2pdf = function(){
     }
   }));
 };
+
+/* ---- Merge Excel (low-level OOXML/JSZip package merge, see js/core/xlsx-merge.js) ---- */
+TOOLS.mergeexcel = function(){
+  let files=[];
+  const sheetNameCache = new WeakMap();
+
+  openPanel(`
+    <div class="panel-head"><h3>Merge Excel</h3></div>
+    <div class="panel-body compact tool-workspace merge-workspace" id="mergeexcelBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">Merge Excel workbooks</h2>
+        <p class="tool-hero-desc">Combine 2 or more .xlsx files into one workbook, keeping each worksheet's own layout and formatting.</p>
+      </div>
+      <p class="page-grid-hint" id="mergeexcelHint" style="display:none">Add .xlsx files and drag them into the order you want their sheets combined.</p>
+      <div class="tool-upload-wrap workspace-host" id="mergeexcelUploadWrap">
+        ${fileInputHTML(".xlsx", true, "Select Excel files")}
+        <div class="workspace-action-stack" id="mergeexcelFileToolbar" style="display:none">
+          <button type="button" class="workspace-action-btn workspace-action-primary" id="mergeexcelAddFab" aria-label="Add more files" data-tip="Add more files">
+            +<span class="workspace-action-badge" id="mergeexcelFileCount" hidden></span>
+          </button>
+        </div>
+      </div>
+      <div class="tool-content-area merge-info-tip">
+        <span class="tip-icon" aria-hidden="true">ℹ️</span><span>Worksheets are combined in file order — drag files to reorder, or remove one before merging. Sheets with the same name are kept as separate sheets (e.g. "Sheet1" and "Sheet1 (2)").</span>
+      </div>
+      <p class="tool-privacy-hint">🔒 Your Excel files are processed locally in your browser — nothing is uploaded or stored anywhere.</p>
+      <div class="split-error" id="mergeexcelError" hidden></div>
+      <div class="tool-toolbar" id="mergeexcelToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go" disabled>Merge Workbooks <span aria-hidden="true">&rarr;</span></button>
+      </div>
+      <div id="out"></div>
+    </div>`);
+
+  const errorBox = document.getElementById("mergeexcelError");
+  function showError(msg){
+    if(msg){ errorBox.innerHTML = `<span aria-hidden="true">⚠️</span><span>${escapeAttr(msg)}</span>`; errorBox.hidden=false; }
+    else { errorBox.hidden=true; errorBox.innerHTML=""; }
+  }
+
+  async function loadSheetNames(file){
+    if(sheetNameCache.has(file)) return sheetNameCache.get(file);
+    const promise = (async ()=>{
+      try{
+        await ensureJSZip();
+        const zip = await JSZip.loadAsync(await file.arrayBuffer());
+        const wbFile = zip.file("xl/workbook.xml");
+        if(!wbFile) return null;
+        const wbXml = await wbFile.async("string");
+        return [...wbXml.matchAll(/<sheet\b[^>]*\sname="([^"]*)"/g)].map(m=>m[1]);
+      }catch(e){ return null; }
+    })();
+    sheetNameCache.set(file, promise);
+    return promise;
+  }
+
+  const flistDrag = wireFileCardDrag(()=>files, reordered=>{ files = reordered; refresh(); });
+  const refresh = ()=>{
+    renderFileList(files, i=>{files.splice(i,1); refresh();});
+    document.querySelectorAll("#flist .file-card").forEach((card,i)=>{
+      let badge = card.querySelector(".file-card-order");
+      if(!badge){ badge = document.createElement("span"); badge.className="file-card-order"; card.prepend(badge); }
+      badge.textContent = i+1;
+      // Best-effort, per-file sheet-name preview - not required for the
+      // merge itself, just lets the user confirm what's inside each file
+      // before merging. Silently omitted (never blocks the tool) if the
+      // file can't be read as a workbook.
+      let sheetsEl = card.querySelector(".file-card-sheets");
+      if(!sheetsEl){
+        sheetsEl = document.createElement("div");
+        sheetsEl.className = "file-card-sheets";
+        sheetsEl.textContent = "Reading sheets…";
+        card.appendChild(sheetsEl);
+        loadSheetNames(files[i]).then(names=>{
+          if(!sheetsEl.isConnected) return;
+          if(names && names.length) sheetsEl.textContent = names.join(", ");
+          else sheetsEl.remove();
+        });
+      }
+    });
+    flistDrag.rewire();
+    document.getElementById("go").disabled = files.length<2;
+    document.getElementById("mergeexcelToolbar").style.display = files.length ? "flex" : "none";
+    document.getElementById("mergeexcelFileToolbar").style.display = files.length ? "flex" : "none";
+    document.getElementById("mergeexcelHint").style.display = files.length ? "block" : "none";
+    const countBadge = document.getElementById("mergeexcelFileCount");
+    if(files.length){ countBadge.hidden=false; countBadge.textContent = files.length; } else countBadge.hidden = true;
+    document.getElementById("mergeexcelBody").classList.toggle("is-loaded", files.length>0);
+    showError(files.length===1 ? "Add at least one more .xlsx file — Merge Excel needs 2 or more workbooks." : null);
+  };
+  document.getElementById("mergeexcelAddFab").addEventListener("click", ()=>document.getElementById("fi").click());
+  wireDropzone(fs=>{ files = files.concat(fs.filter(f=>f.name.toLowerCase().endsWith(".xlsx"))); refresh(); });
+
+  document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
+    const out = document.getElementById("out");
+    out.innerHTML = statusEl("Reading workbooks...");
+    showError(null);
+    try{
+      await ensureJSZip();
+      const inputs = [];
+      for(const f of files) inputs.push({ name: f.name, bytes: await f.arrayBuffer() });
+      if(!operation.isCurrent()) return;
+      const result = await XlsxMerge.mergeWorkbooks(inputs, (pct, msg)=>{ if(operation.isCurrent()) setStatus(msg, false, pct); });
+      if(!operation.isCurrent()) return;
+      const blob = new Blob([result.bytes], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+      const outName = suffixedName(files[0], "merged", "xlsx");
+      setStatus("Preparing download...");
+      if(!operation.isCurrent()) return;
+      const {url} = downloadBlob(blob, outName);
+      setStatus("Done", true);
+      if(!operation.isCurrent()) return;
+      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
+      // Truthful, specific caveats only - never a blanket "some formatting
+      // may be lost" disclaimer, and never shown at all when the merge
+      // engine found nothing worth flagging.
+      if(result.warnings.length){
+        const note = document.createElement("div");
+        note.className = "status mergeexcel-warning";
+        note.setAttribute("role", "note");
+        note.innerHTML = `<span aria-hidden="true">⚠️</span><span>${result.warnings.map(w=>escapeAttr(w)).join(" ")}</span>`;
+        out.appendChild(note);
+      }
+    }catch(e){
+      out.innerHTML = "";
+      showError(e && e.message ? e.message : "Something went wrong while merging these workbooks. Please try again.");
+    }
+  }));
+};
