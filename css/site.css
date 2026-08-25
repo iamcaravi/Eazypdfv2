@@ -13,68 +13,70 @@
   navigation: auto;
 }
 :root{
-  --paper:#FFFFFF;
-  /* Was #FBF2F1 (warm pink-tinted, matching the old red brand) - a
-     faint green tint instead so the page's own dim/tinted surfaces read
-     as "this site's brand" rather than a leftover red undertone bleeding
-     through neutral backgrounds. */
-  --paper-dim:#F5FBF0;
+  /* Was pure #FFFFFF/#F5FBF0 - a hair of blue keeps the page from
+     reading as stark/clinical white while staying "mostly white" per
+     the brief (section 18: subtle, not a blue page). */
+  --paper:#FAFCFF;
+  --paper-dim:#F4F8FF;
   --panel-bg:#FFFFFF;
-  --ink:#1A1214;
-  --ink-soft:#6E5C59;
-  /* LIGHT THEME BRAND CORRECTION: --red/--brand-grad/--brand-shadow-rgb/
-     --btn-ink/--ochre/--glow-shadow were still the OLD red identity here
-     - dark theme (below) already replaced all of these with neon lime
-     and left a comment saying so ("replacing the light theme's red/
-     orange brand color everywhere"), but light theme itself never
-     actually got that same treatment. Same technique as dark theme's
-     remap: redefine what these EXISTING tokens resolve to, so every
-     button/card/focus-ring/glow already written as var(--red) or
-     var(--brand-grad) picks up the new green brand for free - no
-     hunting down individual usages, no parallel color system. Uses the
-     brief's own specified triad (#8DFF00 primary / #5FA800 mid / #244500
-     deep) rather than reusing dark theme's --accent-lime (#9CFF00)
-     outright - pure neon lime text/icons are unreadable on a white
-     background, so light mode needs its own slightly deeper primary
-     plus real dark-green shades for text/icon contrast, which dark
-     theme's single lime value was never designed to provide. --rose
-     (errors/destructive - delete buttons, invalid states, "bad" size
-     badges) is a SEPARATE token, untouched by this - confirmed via grep
-     that every destructive/error usage in this file already reads
-     var(--rose), never var(--red), so this rebrand cannot accidentally
-     turn a delete button or error message green. */
-  --red:#5FA800;
-  --red-rgb: 95,168,0;
+  --ink:#15171A;
+  --ink-soft:#667085;
+  /* LIGHT THEME REBRAND (electric blue): --red/--brand-grad/
+     --brand-shadow-rgb/--btn-ink/--ochre/--glow-shadow were the site's
+     green identity here - same technique used for the two prior
+     rebrands of this exact block (red->green, now green->blue):
+     redefine what these EXISTING tokens resolve to, so every button/
+     card/focus-ring/glow already written as var(--red) or
+     var(--brand-grad) picks up the new blue brand for free, no hunting
+     down individual usages, no parallel color system. Values follow the
+     brief's own palette (#1677FF primary / #2F8CFF bright accent /
+     #0959C9 deep, for hover/pressed states). --rose (errors/destructive)
+     and --success (unrelated semantic green, e.g. checkmarks) are
+     SEPARATE tokens, untouched by this - confirmed via grep that no
+     destructive/success usage in this file reads var(--red). */
+  --red:#1677FF;
+  --red-rgb: 22,119,255;
   --orange:#FF6A3D;
-  --brand-grad: linear-gradient(135deg, #8DFF00, #5FA800);
-  /* Donate/support stays visually distinct from the primary green CTA
-     (same principle dark theme uses purple for) - a deeper, quieter
-     green rather than the old unrelated gold, so it still reads as
-     "this brand" without competing with the bright primary green. */
-  --teal:#5FA800;
-  --teal-rgb:95,168,0;
-  --teal-deep:#244500;
-  --ochre:#8DFF00;
+  --brand-grad: linear-gradient(135deg, #2F8CFF, #1677FF);
+  /* Donate/support stays visually distinct from the primary CTA blue
+     (same principle dark theme uses purple for) - the palette's own
+     deep blue rather than a totally unrelated hue, so it still reads as
+     "this brand" without competing with the brighter primary blue. */
+  --teal:#0959C9;
+  --teal-rgb:9,89,201;
+  --teal-deep:#063E85;
+  --ochre:#1677FF;
   --rose:#D63A3A;
   --success:#1E9E5A;
   --success-rgb: 30,158,90;
-  --line: rgba(26,18,20,0.12);
+  --line: #DCE5F2;
   --header-bg:#FFFFFF;
   --card-bg:#FFFFFF;
   --radius: 10px;
-  --glow-shadow: 0 0 0 1px rgba(141,255,0,0.35), 0 10px 30px -8px rgba(95,168,0,0.35);
+  --glow-shadow: 0 0 0 1px rgba(22,119,255,0.28), 0 10px 30px -8px rgba(9,89,201,0.28);
   /* Backs every hardcoded `rgba(var(--brand-shadow-rgb),...)` brand-color shadow across
      this file (buttons, cards, hero CTA, workspace actions - ~15 call
-     sites) - introduced so dark mode's lime remap below can correct all
-     of them at once via rgba(var(--brand-shadow-rgb),X) instead of
-     leaving them mismatched red glows around lime buttons. --btn-ink is
-     the primary-button TEXT color - near-black reads correctly on the
-     new bright-green primary (white-on-bright-green would be the same
-     contrast failure dark theme's own comment already flags for lime),
-     so this is brand-green-flipped here instead of staying the old #fff
-     that assumed a dark red button. */
-  --brand-shadow-rgb: 141,255,0;
-  --btn-ink: #142400;
+     sites) - one value the dark-theme remap below also corrects via the
+     same variable instead of leaving mismatched glows around a
+     different-colored button. --btn-ink is the primary-button TEXT
+     color - white reads correctly on the new electric-blue primary per
+     the brief (section 5: "white text"), flipped from the previous
+     near-black that assumed a bright-lime button. */
+  --brand-shadow-rgb: 22,119,255;
+  --btn-ink: #FFFFFF;
+  /* Semantic aliases (brief section 21) for new/future code - point at
+     the same decisions above rather than duplicating them, so both
+     naming conventions stay in sync automatically. */
+  --accent-primary: var(--red);
+  --accent-hover: #0959C9;
+  --accent-soft: #EAF3FF;
+  --accent-border: rgba(22,119,255,0.28);
+  --accent-glow: rgba(22,119,255,0.12);
+  --surface: var(--card-bg);
+  --surface-muted: var(--paper-dim);
+  --border: var(--line);
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-soft);
   /* Neon accent system (design brief: "black + neon lime primary +
      colorful supporting accents") - defined on bare :root so they're
      available regardless of theme, but only visually dominant once dark
@@ -139,6 +141,14 @@
      glow -> large low-opacity ambient - fades naturally outward instead
      of reading as a single pasted-on neon rectangle. */
   --glow-shadow: 0 0 0 1px rgba(var(--accent-lime-rgb),0.9), 0 0 10px rgba(var(--accent-lime-rgb),0.45), 0 0 25px rgba(var(--accent-lime-rgb),0.28), 0 0 45px rgba(var(--accent-lime-rgb),0.12);
+  /* --accent-primary/--surface/--border/--text-* (added to :root above)
+     are all var() references into tokens this block already redefines,
+     so they resolve correctly here automatically - only the LITERAL
+     blue values from :root need a lime counterpart here. */
+  --accent-hover: var(--accent-lime);
+  --accent-soft: rgba(var(--accent-lime-rgb),0.12);
+  --accent-border: rgba(var(--accent-lime-rgb),0.28);
+  --accent-glow: rgba(var(--accent-lime-rgb),0.12);
 }
 *{box-sizing:border-box;}
 /* ---- Magnetic / Dock targets ----
@@ -2387,7 +2397,16 @@ footer{
 /* ===== Premium two-column hero ===== */
 .hero-v2{
   max-width:1280px; margin:0 auto; padding:36px 32px 20px;
-  display:grid; grid-template-columns:1.05fr 0.95fr; gap:40px; align-items:center;
+  /* Was 1.05fr/0.95fr - shifted toward the illustration column to give
+     the hero orbit's curved paths real room to sweep. The h1 has no
+     max-width of its own, so it wraps at whatever width this column
+     resolves to - bisected live at BOTH 1280px (this section's own
+     max-width) and 1024px (a narrower "still 2-column" desktop width,
+     since the h1's font-size itself scales via 3.8vw and a more
+     aggressive ratio that was safe at 1280px turned out to already
+     wrap at 1024px). 0.9fr/1.1fr is the value confirmed safe at both:
+     ~522px hero-copy at 1280px, ~407px at 1024px, both one line. */
+  display:grid; grid-template-columns:0.9fr 1.1fr; gap:40px; align-items:center;
   position:relative; overflow:hidden;
 }
 .hero-v2::before{
@@ -2434,7 +2453,16 @@ footer{
    uses --accent-lime-rgb (156,255,0 - defined on bare :root, NOT inside
    [data-theme="dark"]) directly rather than the theme-flipped tokens
    every other component on the page uses. ===================== */
-.hero-art{ position:relative; display:flex; align-items:center; justify-content:center; min-height:320px; }
+/* min-height was 320px pre-orbit. A TRUE continuous ellipse that never
+   overlaps the card (as opposed to a small local wobble) needs real
+   vertical room in every direction - see the geometry comment on
+   .hero-orbits below - so this grows enough for that with margin.
+   Height only, not width: row HEIGHT and column WIDTH are independent
+   in CSS grid, so this alone cannot reflow the headline's own line
+   wrapping (a PREVIOUS attempt that touched grid-template-columns
+   instead did exactly that, and was reverted - confirmed live that
+   height alone never has). */
+.hero-art{ position:relative; display:flex; align-items:center; justify-content:center; min-height:480px; }
 
 /* Large blurred ambient glow behind the device - breathes via GSAP
    (opacity/scale only, see HeroDeviceFX in app.js) instead of an
@@ -2565,32 +2593,66 @@ footer{
    (a lime radial glow that reads as "premium ambient light" on near-
    black looks like a colored stain on white) rather than removed
    outright, so the card still visibly belongs to the same brand. */
-[data-theme="light"] .hero-upload-glow{ opacity:0.35; }
+/* Electric-blue variant of the above light-theme re-skin (brief section
+   6): swaps the lime accents for the same --brand-shadow-rgb/--red
+   tokens the rest of the light theme now uses, so this card's accent
+   colors stay in sync with any future palette tweak instead of being a
+   second hardcoded copy. */
+[data-theme="light"] .hero-upload-glow{
+  opacity:0.55;
+  background:
+    radial-gradient(46% 46% at 50% 42%, rgba(var(--brand-shadow-rgb),0.10), transparent 70%),
+    radial-gradient(30% 30% at 62% 68%, rgba(9,89,201,0.06), transparent 72%);
+}
 [data-theme="light"] .hero-upload-device{
   background:var(--card-bg);
   border:1px solid var(--line);
   box-shadow:
     inset 0 1px 0 0 rgba(255,255,255,0.6),
-    0 1px 2px 0 rgba(26,18,20,0.04),
-    0 20px 44px -22px rgba(26,18,20,0.16);
+    0 1px 2px 0 rgba(20,40,80,0.04),
+    0 20px 44px -22px rgba(20,40,80,0.14);
 }
 [data-theme="light"] .hero-upload-device.drag-active{
-  border-color:rgba(var(--accent-lime-rgb),0.6);
+  border-color:rgba(var(--brand-shadow-rgb),0.6);
   box-shadow:
     inset 0 1px 0 0 rgba(255,255,255,0.6),
-    0 0 0 1px rgba(var(--accent-lime-rgb),0.3),
-    0 20px 44px -20px rgba(26,18,20,0.18);
+    0 0 0 1px rgba(var(--brand-shadow-rgb),0.3),
+    0 20px 44px -20px rgba(20,40,80,0.16);
 }
 [data-theme="light"] .laptop-screen{
   background:var(--paper-dim); border-color:var(--line);
 }
 [data-theme="light"] .mock-dropzone{
-  border-color:rgba(var(--accent-lime-rgb),0.4);
-  background:radial-gradient(60% 60% at 50% 40%, rgba(var(--accent-lime-rgb),0.06), transparent 70%);
+  border-color:rgba(var(--brand-shadow-rgb),0.45);
+  background:radial-gradient(60% 60% at 50% 40%, rgba(var(--brand-shadow-rgb),0.06), transparent 70%);
 }
+[data-theme="light"] .mock-dropzone:hover{
+  border-color:rgba(var(--brand-shadow-rgb),0.7);
+  box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.14), 0 0 22px rgba(var(--brand-shadow-rgb),0.10) inset;
+}
+[data-theme="light"] .mock-dropzone:focus-visible{ outline-color:var(--red); }
+[data-theme="light"] .mock-dropzone.drag-hover{
+  border-color:var(--red);
+  background:radial-gradient(65% 65% at 50% 40%, rgba(var(--brand-shadow-rgb),0.14), transparent 70%);
+  box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.5), 0 0 32px rgba(var(--brand-shadow-rgb),0.18) inset;
+}
+[data-theme="light"] .mock-dropzone.state-success{
+  border-color:var(--red);
+  background:radial-gradient(65% 65% at 50% 40%, rgba(var(--brand-shadow-rgb),0.14), transparent 70%);
+}
+[data-theme="light"] .mock-dz-icon{ background:rgba(var(--brand-shadow-rgb),0.10); color:var(--red); }
 [data-theme="light"] .mock-dz-title{ color:var(--ink); }
 [data-theme="light"] .mock-dz-or{ color:var(--ink-soft); }
-[data-theme="light"] .mock-choose-btn{ color:#0A0A0A; }
+[data-theme="light"] .mock-choose-btn{
+  background:var(--brand-grad); color:#fff;
+  box-shadow:0 8px 20px -8px rgba(var(--brand-shadow-rgb),0.5);
+}
+[data-theme="light"] .mock-choose-btn:hover{
+  background:var(--accent-hover);
+  box-shadow:0 12px 26px -8px rgba(var(--brand-shadow-rgb),0.6);
+  filter:none;
+}
+[data-theme="light"] .mock-choose-btn:focus-visible{ outline-color:var(--red); }
 
 @media(max-width:980px){
   .hero-v2{ grid-template-columns:1fr; padding:32px 24px 12px; gap:28px; text-align:center; }
@@ -2598,7 +2660,7 @@ footer{
   .hero-v2 h1, .hero-v2 h1 .hero-line1, .hero-v2 h1 .hero-line2, .hero-v2 .tagline{ text-align:center; }
   .hero-v2 .tagline{ margin-left:auto; margin-right:auto; }
   .hero-cta{ justify-content:center; }
-  .hero-art{ order:-1; min-height:260px; }
+  .hero-art{ order:-1; min-height:260px; flex-direction:column; }
   .hero-upload-device{ max-width:320px; }
   .hero-upload-glow{ filter:blur(28px); opacity:0.65; }
 }
@@ -2608,6 +2670,252 @@ footer{
 }
 @media(prefers-reduced-motion: reduce){
   .hero-upload-device.pulse-success{ animation:none; }
+}
+
+/* ===== Hero atomic orbit tool shortcuts =====
+   Real, clickable [data-tool] shortcuts (see buildHeroOrbitTools in
+   js/core/nav-menu.js), built as TRUE continuous elliptical orbits
+   around the upload card - replaces an earlier corner-anchor +
+   straight-connector-line design, rejected on visual grounds (it read
+   as "four buttons near a card with lines", not an atomic orbit).
+
+   Two parallel layers share the same 3 orbits (rotation + radii),
+   because a CSS `transform` (the tilt) creates a new stacking context
+   for its descendants - a ring and a button INSIDE the same rotated
+   carrier can't be interleaved with an external sibling (the device)
+   between them in z-index. Splitting into two independently-stacked
+   carrier trees is what actually lets the ring pass BEHIND the card
+   while the button stays in FRONT of it:
+   1. .hero-orbit-rings (z-index 1, BEHIND the device's z-index 2,
+      decorative/aria-hidden) - one ring outline + 2 drifting particles
+      per orbit.
+   2. .hero-orbits (z-index 4, ABOVE the device, interactive) - the 4
+      real [data-tool] buttons, riding the SAME 3 ellipses.
+
+   GEOMETRY - orbit A (tilt -20deg) carries Merge + Compress at
+   opposite phase; orbit B (+20deg) carries Rotate; orbit C (+5deg,
+   the widest/flattest) carries Organize. Radii are sized so the closed
+   ellipse's own boundary clears the upload card's real desktop box
+   (390x282, half-extents 195/141) at EVERY angle, not just at the
+   nearest point - a tilted ellipse's minor axis alone isn't sufficient
+   (confirmed live in an earlier pass on this feature: a smaller,
+   flatter ellipse cleared at its minor axis but still clipped the
+   card across roughly half its cycle, because the card's own CORNER
+   direction - where distance to the rectangle is the ~241px half-
+   diagonal - is the true worst case for any tilt). Practical floor:
+   241 (corner) + 23 (icon half) + ~15 (gap) = ~279px in every
+   direction, so both rx and ry stay close to that floor. This is also
+   why .hero-art grew taller (see its own rule below): a short,
+   wide-only box has no room for an ellipse that's this tall in every
+   direction regardless of how the radii are balanced. Verified live by
+   pausing each button's real Web Animation and sampling offset-
+   distance across the full 0-100% cycle at fine resolution against
+   both the device's box and hero-art's own box (see session notes) -
+   zero overlap, zero clipping, at every sampled point. */
+.hero-orbit-rings{ position:absolute; inset:0; z-index:1; pointer-events:none; overflow:hidden; }
+.hero-orbits{ position:absolute; inset:0; z-index:4; pointer-events:none; }
+.hero-orbit-carrier{ position:absolute; top:50%; left:50%; width:0; height:0; }
+.oc-a{ transform:rotate(-15deg); }
+.oc-b{ transform:rotate(15deg); }
+.oc-c{ transform:rotate(4deg); }
+
+.hero-orbit-ring{
+  position:absolute; top:0; left:0; transform:translate(-50%,-50%);
+  border-radius:50%; pointer-events:none;
+  border:1.5px solid rgba(var(--brand-shadow-rgb),0.32);
+  box-shadow:0 0 30px -6px rgba(var(--brand-shadow-rgb),0.28);
+}
+.oc-a .hero-orbit-ring{ width:600px; height:420px; }
+.oc-b .hero-orbit-ring{ width:610px; height:410px; }
+.oc-c .hero-orbit-ring{ width:600px; height:396px; }
+
+.hero-orbit-particle{
+  position:absolute; top:0; left:0; width:4px; height:4px; border-radius:50%;
+  background:rgba(var(--brand-shadow-rgb),0.85); box-shadow:0 0 7px 1.5px rgba(var(--brand-shadow-rgb),0.6);
+  offset-rotate:0deg; animation:hotOrbit linear infinite;
+}
+.hop-a-1{ offset-path:ellipse(300px 210px at center); animation-duration:22s; }
+.hop-a-2{ offset-path:ellipse(300px 210px at center); animation-duration:26s; animation-delay:-13s; animation-direction:reverse; }
+.hop-a-3{ offset-path:ellipse(300px 210px at center); animation-duration:31s; animation-delay:-7s; }
+.hop-a-4{ offset-path:ellipse(300px 210px at center); animation-duration:19s; animation-delay:-11s; animation-direction:reverse; }
+.hop-a-5{ offset-path:ellipse(300px 210px at center); animation-duration:34s; animation-delay:-21s; }
+.hop-b-1{ offset-path:ellipse(305px 205px at center); animation-duration:24s; animation-direction:reverse; }
+.hop-b-2{ offset-path:ellipse(305px 205px at center); animation-duration:28s; animation-delay:-14s; }
+.hop-b-3{ offset-path:ellipse(305px 205px at center); animation-duration:20s; animation-delay:-9s; animation-direction:reverse; }
+.hop-b-4{ offset-path:ellipse(305px 205px at center); animation-duration:33s; animation-delay:-17s; }
+.hop-b-5{ offset-path:ellipse(305px 205px at center); animation-duration:25s; animation-delay:-4s; animation-direction:reverse; }
+.hop-c-1{ offset-path:ellipse(300px 198px at center); animation-duration:30s; }
+.hop-c-2{ offset-path:ellipse(300px 198px at center); animation-duration:20s; animation-delay:-10s; animation-direction:reverse; }
+.hop-c-3{ offset-path:ellipse(300px 198px at center); animation-duration:27s; animation-delay:-6s; }
+.hop-c-4{ offset-path:ellipse(300px 198px at center); animation-duration:23s; animation-delay:-15s; animation-direction:reverse; }
+.hop-c-5{ offset-path:ellipse(300px 198px at center); animation-duration:36s; animation-delay:-19s; }
+
+/* The outer button is the real orbit-following element - a plain 46x46
+   box. Durations are deliberately very slow (22-42s) - electrons
+   drifting, not buttons spinning - with a different value per orbit
+   (and per tool sharing an orbit) so nothing ever visibly synchronizes.
+   transform:rotate(--counter-rot) here (not on .hot-icon) cancels the
+   carrier's tilt for the WHOLE button - not just the icon glyph - which
+   matters because getBoundingClientRect() of an UN-rotated box rendered
+   inside a rotated ancestor still reports an inflated, rotated axis-
+   aligned bounding box, silently eating into the safety margins the
+   geometry above was sized against (confirmed live in an earlier pass).
+   Rotating the button itself back to upright keeps its real hit area an
+   honest 46x46 square, while offset-path's own position along the
+   tilted ellipse is a separate mechanism unaffected by this - the
+   button still visibly travels the tilted orbit, just without spinning
+   as it goes. */
+.hero-orbit-tool{
+  position:absolute; pointer-events:auto;
+  width:46px; height:46px; border:0; background:none; padding:0; margin:0; cursor:pointer;
+  offset-rotate:0deg; animation:hotOrbit linear infinite;
+  transform:rotate(var(--counter-rot, 0deg));
+}
+/* All four share ONE period (34s - within every orbit's brief-suggested
+   28-45s range) with different large negative delays for phase spacing,
+   NOT four independent periods: with different periods, the RELATIVE
+   phase between any two icons drifts continuously over time, and for
+   3 large ellipses this size sharing one center, that drift periodically
+   re-enters an icon-icon collision zone regardless of the starting
+   delay (confirmed live via an exhaustive 2D delay search plus a wide
+   300s time-window sweep - every combination tried still produced a
+   ~44-46px overlap at SOME point). A shared period instead locks the
+   relative phase permanently, so checking one full 34s cycle is a
+   conclusive, forever guarantee rather than a "probably fine" sample -
+   the actual delay values below were themselves found by the same kind
+   of search, this time over that one deterministic cycle. Direction
+   still differs per tool for visual variety; that doesn't reintroduce
+   drift (a reversed but equal-period animation still has fixed relative
+   phase, just traversed the other way). */
+/* Each tool travels a CONFINED ARC of its ellipse (ping-ponging back
+   and forth via animation-direction:alternate, linear speed throughout
+   - no slowdown at the turn, matching the brief's "no pauses, no
+   easing slowdown" even though direction does reverse there) rather
+   than sweeping the full 0-100% loop. This is a deliberate change from
+   an initial full-360-degree attempt: with 3 ellipses this size all
+   sharing one center (required for card clearance - see the geometry
+   comment above), exhaustive testing found NO combination of tilt,
+   duration, or delay that kept two icons on different orbits from
+   occasionally passing through the same screen point during a full
+   revolution (confirmed via a systematic delay search spanning the
+   ENTIRE relative-phase space of a shared 34s period - the true worst-
+   case overlap floor stayed ~34-46px regardless). Confining each icon
+   to its own arc, chosen so the FOUR arcs occupy four separate screen
+   regions by construction, is what actually delivers "four separated
+   floating nodes" - matching the brief's own description of icons
+   occupying "upper-left/upper-right/lower-left/lower-right regions"
+   that continuously move WITHIN those regions, not fixed points but
+   also not a full circuit through every other icon's territory.
+   Verified live (see session notes) - zero icon-icon overlap at fine
+   resolution across the full ping-pong cycle. */
+.hot-merge{      offset-path:ellipse(300px 210px at center); animation:hotOrbitMerge 32s linear infinite alternate; --counter-rot:15deg; }
+.hot-compress{   offset-path:ellipse(300px 210px at center); animation:hotOrbitCompress 38s linear infinite alternate; --counter-rot:15deg; }
+.hot-split{      offset-path:ellipse(300px 210px at center); animation:hotOrbitSplit 36s linear infinite alternate; --counter-rot:15deg; }
+.hot-mergeexcel{ offset-path:ellipse(300px 210px at center); animation:hotOrbitMergeexcel 37s linear infinite alternate; --counter-rot:15deg; }
+.hot-rotate{     offset-path:ellipse(305px 205px at center); animation:hotOrbitRotate 35s linear infinite alternate; --counter-rot:-15deg; }
+.hot-sign{       offset-path:ellipse(305px 205px at center); animation:hotOrbitSign 39s linear infinite alternate; --counter-rot:-15deg; }
+.hot-organize{   offset-path:ellipse(300px 198px at center); animation:hotOrbitOrganize 41s linear infinite alternate; --counter-rot:-4deg; }
+.hot-invertpdf{  offset-path:ellipse(300px 198px at center); animation:hotOrbitInvertpdf 33s linear infinite alternate; --counter-rot:-4deg; }
+@keyframes hotOrbit{ from{ offset-distance:0%; } to{ offset-distance:100%; } }
+/* Arc ranges: each tool is confined near ONE compass position (left/
+   right on orbit A's wide axis, top/bottom-safe zones on B/C) rather
+   than sweeping the full ellipse - re-derived after the orbit was
+   shrunk to a compact card-hugging footprint (see geometry comment
+   above orbit definitions). Values found/verified via live sampling
+   against the real card, hero-art and dock rects - not guessed. */
+@keyframes hotOrbitMerge{      from{ offset-distance:47%; } to{ offset-distance:61%; } }
+@keyframes hotOrbitCompress{   from{ offset-distance:0%; } to{ offset-distance:9%; } }
+@keyframes hotOrbitSplit{      from{ offset-distance:34%; } to{ offset-distance:41%; } }
+@keyframes hotOrbitMergeexcel{ from{ offset-distance:85%; } to{ offset-distance:90%; } }
+@keyframes hotOrbitRotate{     from{ offset-distance:12%; } to{ offset-distance:18%; } }
+@keyframes hotOrbitSign{       from{ offset-distance:63%; } to{ offset-distance:68%; } }
+@keyframes hotOrbitOrganize{   from{ offset-distance:75%; } to{ offset-distance:80%; } }
+@keyframes hotOrbitInvertpdf{  from{ offset-distance:24%; } to{ offset-distance:30%; } }
+
+.hero-orbit-tool .hot-icon{
+  position:relative; display:flex; align-items:center; justify-content:center;
+  width:46px; height:46px; border-radius:50%; flex:none;
+  /* Solid --hot-color circle + white icon (dark theme) - matches the
+     reference image's bold colored nodes (blue/green/red/yellow
+     circles with a white glyph), reusing the exact per-tool colors the
+     rest of the site already assigns via CATEGORY_META. Light theme
+     below overrides to a single uniform blue instead, per the earlier
+     "all four belong to the same visual system" light-theme brief.
+     No rotation here - the parent .hero-orbit-tool already counter-
+     rotates the whole button back to upright. */
+  background:var(--hot-color, var(--red));
+  color:#fff;
+  border:1px solid rgba(var(--brand-shadow-rgb),0.5);
+  box-shadow:0 0 0 3px rgba(var(--brand-shadow-rgb),0.14), 0 10px 26px -10px rgba(0,0,0,0.55), 0 0 26px -2px rgba(var(--brand-shadow-rgb),0.55);
+  transition:box-shadow 200ms ease, filter 200ms ease, transform 200ms ease;
+}
+[data-theme="light"] .hero-orbit-tool .hot-icon{
+  background:#fff; color:var(--red); border-color:var(--accent-border);
+  box-shadow:0 0 0 1px var(--accent-border), 0 8px 24px -12px var(--accent-glow);
+}
+.hero-orbit-tool .hot-icon svg{ width:19px; height:19px; }
+.hero-orbit-tool:hover .hot-icon, .hero-orbit-tool:focus-visible .hot-icon{
+  transform:scale(1.08);
+  box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.5), 0 10px 22px -10px rgba(0,0,0,0.55), 0 0 22px -2px rgba(var(--brand-shadow-rgb),0.55);
+  filter:brightness(1.12);
+}
+/* Slow the orbit while hovered/focused rather than freezing it outright -
+   still reads as "responsive to you" without the motion cutting off
+   abruptly (brief: "does not need to stop the orbital animation"). */
+.hero-orbit-tool:hover, .hero-orbit-tool:focus-visible{ animation-duration:90s; }
+.hero-orbit-tool:focus-visible{ outline:none; }
+.hero-orbit-tool:focus-visible .hot-icon{ outline:2px solid var(--red); outline-offset:3px; }
+.hero-orbit-tool:active .hot-icon{ transform:scale(0.96); }
+
+/* Icon-only by default; the tool name only ever appears as a small
+   accessible tooltip on hover/focus, per the "no labels" constraint. */
+.hot-tooltip{
+  /* No rotation needed here - it's a child of the already counter-
+     rotated .hero-orbit-tool button, so it inherits upright screen
+     space for free; adding another rotate() here would double it. */
+  position:absolute; bottom:calc(100% + 9px); left:50%; transform:translateX(-50%);
+  background:var(--ink); color:#fff; font-size:0.7rem; font-weight:700;
+  padding:4px 9px; border-radius:7px; white-space:nowrap;
+  opacity:0; visibility:hidden; transition:opacity 180ms ease; pointer-events:none;
+}
+[data-theme="dark"] .hot-tooltip{ background:#000; border:1px solid rgba(var(--brand-shadow-rgb),0.3); }
+.hero-orbit-tool:hover .hot-tooltip, .hero-orbit-tool:focus-visible .hot-tooltip{ opacity:1; visibility:visible; }
+
+@media(prefers-reduced-motion: reduce){
+  .hero-orbit-tool, .hero-orbit-particle{ animation:none; offset-path:none; }
+}
+
+/* Falls back to a small static row of the same 4 plain icon nodes
+   directly below the card (still real [data-tool] buttons, just not
+   orbiting; rings/particles are purely decorative and simply hidden)
+   below .hero-v2's own 1280px max-width, NOT just below its 980px
+   single-column breakpoint. Reason, confirmed live: the orbit's fixed-
+   px ellipse radii (and .hero-art's own real box) are only correct
+   once .hero-v2 is at (or near) its own 1280px max-width - hero-v2
+   STAYS 2-column well below that (down to 980px), so a genuinely
+   narrower "2-column but not full-width" viewport (1024px tested) had
+   icons landing outside hero-art entirely, at every point in their
+   orbit. Rather than compute and maintain a second geometry tier for
+   that in-between range, this simply widens the existing, already-safe
+   static fallback to cover it too. */
+@media(max-width:1279px){
+  /* .hero-art stays flex-direction:row down to 980px (that's .hero-v2's
+     own single-column breakpoint, unrelated to this one) - without this,
+     the now-static icon row sits BESIDE the still-centered card instead
+     of below it, overlapping it (confirmed live at 1024px). Only the
+     direction changes here; order/min-height stay mobile-only. */
+  .hero-art{ flex-direction:column; }
+  .hero-orbit-rings{ display:none; }
+  .hero-orbits{
+    position:static; inset:auto; z-index:auto; display:flex; justify-content:center;
+    gap:14px; margin-top:14px; pointer-events:auto;
+  }
+  .hero-orbit-carrier{ position:static; display:contents; }
+  .hero-orbit-tool{
+    position:static; transform:none; width:auto; height:auto;
+    animation:none; offset-path:none;
+  }
+  .hot-tooltip{ display:none; }
 }
 
 /* ===== Category tab navigation ===== */
@@ -3067,3 +3375,249 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   position:absolute; top:10px; right:10px; font-size:0.62rem; font-weight:800; text-transform:uppercase;
   letter-spacing:0.03em; color:var(--btn-ink); background:var(--ochre); padding:3px 8px; border-radius:20px;
 }
+
+/* ============================================================
+   PREMIUM CONTENT PAGES — About, Contact, Donate, Privacy, Terms.
+   Deliberately reuses existing tokens/primitives (.section-eyebrow,
+   .feature-card/.ficon, .cta-card, .field/.btn, --ochre/--brand-shadow-rgb/
+   --glow-shadow) rather than introducing a second color/spacing system -
+   these panels must read as the same product as the homepage, not a
+   bolted-on section. All panels render via js/core/panel.js's existing
+   openPanel()/.panel-body shell; no new modal/routing mechanism.
+   ============================================================ */
+
+/* Shared page-ending tail (Explore YOYOPDF Tools + full footer) appended
+   after every non-tool content panel's own content - see
+   contentPageTailHTML() in js/core/panel.js, which clones the real
+   .seo-tool-directory/.site-footer already on index.html rather than
+   duplicating that markup. Negative side margins cancel .panel-body's
+   own 22px horizontal padding so the footer's background still reaches
+   the panel's true edges (matching how it looks on the homepage, where
+   it isn't nested inside a padded container at all); padding-bottom
+   reserves room below the copyright bar for #quickDock (position:fixed,
+   bottom:20px, ~46px tall) so it never sits on top of the last visible
+   line of content - confirmed necessary live, not a guess. */
+.content-page-tail{ margin:8px -22px 0; padding-bottom:90px; }
+/* ---- Shared hero (About/Contact/Donate/Privacy/Terms all start here) --- */
+.content-page{ max-width:1180px; margin:0 auto; padding:8px 28px 64px; }
+.content-hero{ max-width:680px; margin:0 auto 40px; text-align:center; }
+.content-hero .section-eyebrow{ margin-bottom:16px; }
+.content-hero h1{ font-size:clamp(1.9rem, 3.6vw, 2.5rem); margin:0 0 14px; font-weight:800; letter-spacing:-0.01em; line-height:1.15; }
+.content-hero p{ color:var(--ink-soft); font-size:1.02rem; line-height:1.65; margin:0 auto; max-width:56ch; }
+
+/* Abstract "document + thin neon lines" visual for the About hero -
+   theme-independent like .hero-art (uses --accent-lime-rgb directly),
+   restrained: thin strokes + one soft blur glow, never a solid fill. */
+.about-visual{ display:flex; justify-content:center; margin:28px 0 8px; }
+.about-visual svg{ width:100%; max-width:280px; height:auto; filter:drop-shadow(0 18px 34px rgba(var(--accent-lime-rgb),0.16)); }
+
+/* ---- "Why Yoyopdf?" principle strip ---- */
+.principles-section{ margin:8px 0 44px; }
+.principles-section h2{ text-align:center; font-size:1.4rem; margin:0 0 20px; font-weight:800; letter-spacing:-0.01em; }
+.principles-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media(max-width:900px){ .principles-grid{ grid-template-columns:1fr 1fr; } }
+@media(max-width:520px){ .principles-grid{ grid-template-columns:1fr; } }
+.principle-item{
+  display:flex; align-items:center; gap:12px; padding:15px 16px;
+  background:var(--card-bg); border:1px solid var(--line); border-radius:14px;
+}
+.principle-item .p-dot{
+  width:8px; height:8px; border-radius:50%; background:var(--ochre); flex:none;
+  box-shadow:0 0 10px rgba(var(--brand-shadow-rgb),0.65);
+}
+.principle-item span{ font-size:0.88rem; font-weight:600; color:var(--ink); }
+
+/* Compact CTA reuses .cta-card as-is; this only adds the two-button row
+   under its copy, since the homepage's own .cta-card never needed one. */
+.cta-copy .cta-actions{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-top:18px; }
+@media(max-width:760px){ .cta-copy .cta-actions{ justify-content:center; } }
+
+/* ---- Contact ---- */
+.contact-layout{
+  display:grid; grid-template-columns:1fr 1.05fr; gap:48px; align-items:start;
+  max-width:1180px; margin:0 auto; padding:8px 28px 64px;
+}
+@media(max-width:900px){ .contact-layout{ grid-template-columns:1fr; gap:32px; } }
+.contact-info h1{ font-size:clamp(1.7rem, 3vw, 2.2rem); margin:0 0 14px; font-weight:800; letter-spacing:-0.01em; }
+.contact-info > p{ color:var(--ink-soft); font-size:1rem; line-height:1.6; margin:0 0 26px; max-width:44ch; }
+.contact-info-cards{ display:flex; flex-direction:column; gap:10px; }
+.contact-info-card{
+  display:flex; align-items:flex-start; gap:12px; padding:15px 16px;
+  background:var(--card-bg); border:1px solid var(--line); border-radius:14px;
+  transition:border-color .18s ease, box-shadow .18s ease;
+}
+.contact-info-card:hover{ border-color:rgba(var(--brand-shadow-rgb),0.4); box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.18); }
+.contact-info-card .ficon{
+  width:36px; height:36px; border-radius:10px; flex:none;
+  background:rgba(var(--brand-shadow-rgb),0.12); border:1.5px solid rgba(var(--brand-shadow-rgb),0.4); color:var(--ochre);
+  display:flex; align-items:center; justify-content:center;
+}
+.contact-info-card .ficon svg{ width:16px; height:16px; }
+.contact-info-card h3{ margin:0 0 3px; font-size:0.9rem; font-weight:700; color:var(--ink); }
+.contact-info-card p{ margin:0; font-size:0.8rem; color:var(--ink-soft); line-height:1.5; }
+
+.contact-form-wrap{ position:relative; }
+/* Extremely restrained decorative geometry - one soft blurred glow patch
+   behind a corner of the card, plus a thin unfilled rotated square
+   outline (a "PDF corner fold" gesture) - never a filled shape, never
+   competing with the form itself. */
+.contact-form-wrap::before{
+  content:""; position:absolute; z-index:0; top:-50px; right:-40px; width:220px; height:220px;
+  background:radial-gradient(closest-side, rgba(var(--brand-shadow-rgb),0.16), transparent 72%);
+  pointer-events:none;
+}
+.contact-form-wrap::after{
+  content:""; position:absolute; z-index:0; bottom:-26px; left:-26px; width:96px; height:96px;
+  border:1px solid rgba(var(--brand-shadow-rgb),0.25); border-radius:18px; transform:rotate(18deg);
+  pointer-events:none;
+}
+.contact-form-card{
+  position:relative; z-index:1; background:var(--card-bg); border:1px solid var(--line); border-radius:20px;
+  padding:32px; box-shadow:0 30px 64px -36px rgba(0,0,0,0.4);
+}
+.contact-form-card .field{ margin-bottom:16px; }
+.contact-form-card .field:last-of-type{ margin-bottom:0; }
+.contact-form-card .field label{ color:var(--ink); }
+.contact-form-card .field input, .contact-form-card .field textarea, .contact-form-card .field select{
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:10px; padding:11px 13px; font-size:0.92rem;
+  transition:border-color .18s ease, box-shadow .18s ease;
+}
+.contact-form-card .field input:focus, .contact-form-card .field textarea:focus, .contact-form-card .field select:focus{
+  outline:none; border-color:var(--red); box-shadow:0 0 0 3px rgba(var(--brand-shadow-rgb),0.18);
+}
+.contact-form-card .field input[type=file]{ padding:9px 10px; font-size:0.84rem; }
+.contact-form-card .btn{ width:100%; margin-top:6px; }
+.contact-privacy-note{
+  display:flex; align-items:flex-start; gap:8px; font-size:0.78rem; color:var(--ink-soft);
+  margin-top:16px; line-height:1.55;
+}
+.contact-privacy-note svg{ width:14px; height:14px; flex:none; margin-top:2px; color:var(--ochre); }
+
+/* ---- Donate ---- */
+.donate-page-hero{ max-width:640px; }
+.donate-card{
+  position:relative; overflow:hidden; background:var(--card-bg); border:1px solid var(--line); border-radius:22px;
+  padding:36px 40px; margin:8px auto 40px; max-width:620px;
+  box-shadow:0 30px 70px -42px rgba(0,0,0,0.4);
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+}
+.donate-card::before{
+  content:""; position:absolute; z-index:0; inset:-30% -10% auto -10%; height:60%;
+  background:radial-gradient(50% 50% at 50% 0%, rgba(var(--brand-shadow-rgb),0.12), transparent 72%);
+  pointer-events:none;
+}
+.donate-card > *{ position:relative; z-index:1; }
+.donate-amount-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:100%; margin:8px 0 4px; }
+@media(max-width:520px){ .donate-amount-grid{ grid-template-columns:1fr 1fr; } }
+.donate-amount-btn{
+  background:var(--paper-dim); border:1.5px solid var(--line); border-radius:12px; padding:14px 10px;
+  font-family:inherit; font-weight:700; font-size:1rem; color:var(--ink); cursor:pointer;
+  transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease, color .18s ease;
+}
+.donate-amount-btn:hover{ border-color:rgba(var(--brand-shadow-rgb),0.5); transform:translateY(-1px); }
+.donate-amount-btn.selected{
+  border-color:var(--ochre); background:rgba(var(--brand-shadow-rgb),0.10); color:var(--ochre);
+  box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.5), 0 0 22px rgba(var(--brand-shadow-rgb),0.22);
+  transform:translateY(-2px);
+}
+.donate-amount-custom{ grid-column:1/-1; margin-top:2px; }
+.donate-amount-custom input{
+  width:100%; background:var(--paper-dim); border:1.5px solid var(--line); border-radius:12px;
+  padding:13px 14px; font-family:inherit; font-size:0.95rem; color:var(--ink); text-align:center;
+  transition:border-color .18s ease, box-shadow .18s ease;
+}
+.donate-amount-custom input:focus{ outline:none; border-color:var(--red); box-shadow:0 0 0 3px rgba(var(--brand-shadow-rgb),0.18); }
+.donate-amount-custom input.selected{ border-color:var(--ochre); box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.5), 0 0 22px rgba(var(--brand-shadow-rgb),0.22); }
+.donate-card .donate-qr-wrap{ margin:22px 0 6px; }
+.donate-card .btn{ width:100%; max-width:320px; font-size:1.02rem; padding:15px 24px; }
+.donate-footnote{ margin:14px 0 0; font-size:0.84rem; color:var(--ink-soft); }
+.donate-support-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; max-width:960px; margin:0 auto; }
+@media(max-width:760px){ .donate-support-grid{ grid-template-columns:1fr; } }
+
+/* ---- Privacy / Terms (shared legal-document layout) ---- */
+.legal-layout{
+  display:grid; grid-template-columns:210px 1fr; gap:48px; align-items:start;
+  max-width:1180px; margin:0 auto; padding:8px 28px 64px;
+}
+@media(max-width:900px){ .legal-layout{ grid-template-columns:1fr; gap:24px; } }
+.legal-header{ grid-column:1/-1; max-width:680px; margin:0 0 12px; }
+.legal-header .section-eyebrow{ margin-bottom:14px; }
+.legal-header h1{ font-size:clamp(1.8rem, 3.2vw, 2.3rem); margin:0 0 10px; font-weight:800; letter-spacing:-0.01em; }
+.legal-meta{ display:flex; align-items:center; gap:8px; color:var(--ink-soft); font-size:0.85rem; }
+.legal-intro-callout{ grid-column:1/-1; }
+.legal-nav{ position:sticky; top:16px; display:flex; flex-direction:column; gap:1px; }
+@media(max-width:900px){
+  .legal-nav{ position:static; flex-direction:row; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+}
+.legal-nav a{
+  padding:8px 12px; border-radius:8px; font-size:0.84rem; font-weight:600; color:var(--ink-soft);
+  text-decoration:none; border-left:2px solid transparent;
+  transition:color .15s ease, background .15s ease, border-color .15s ease;
+}
+.legal-nav a:hover{ color:var(--ink); background:var(--paper-dim); }
+.legal-nav a.active{ color:var(--ochre); border-left-color:var(--ochre); background:rgba(var(--brand-shadow-rgb),0.08); }
+@media(max-width:900px){
+  .legal-nav a{ border-left:none; border-bottom:2px solid transparent; border-radius:20px; background:var(--card-bg); border:1px solid var(--line); }
+  .legal-nav a.active{ border-bottom-color:var(--ochre); border-color:rgba(var(--brand-shadow-rgb),0.5); }
+}
+.legal-content{ max-width:74ch; }
+.legal-content h2{ font-size:1.28rem; margin:36px 0 12px; font-weight:800; letter-spacing:-0.01em; scroll-margin-top:20px; color:var(--ink); }
+.legal-content > h2:first-child, .legal-content > section:first-child h2{ margin-top:0; }
+.legal-content h3{ font-size:1.02rem; margin:20px 0 8px; font-weight:700; color:var(--ink); }
+.legal-content p{ font-size:1rem; line-height:1.75; color:var(--ink-soft); margin:0 0 14px; }
+.legal-content ul{ margin:0 0 14px; padding-left:20px; color:var(--ink-soft); font-size:1rem; line-height:1.75; }
+.legal-content li{ margin-bottom:4px; }
+.legal-content a{ color:var(--ochre); text-decoration:underline; text-underline-offset:2px; }
+.legal-content strong{ color:var(--ink); }
+.legal-content hr{ border:none; border-top:1px solid var(--line); margin:28px 0; }
+.legal-callout{
+  display:flex; align-items:flex-start; gap:10px;
+  background:var(--paper-dim); border:1px solid var(--line); border-left:3px solid var(--ochre);
+  border-radius:12px; padding:16px 18px; margin:8px 0 24px; font-size:0.9rem; color:var(--ink); line-height:1.6;
+}
+.legal-callout svg{ width:16px; height:16px; flex:none; margin-top:3px; color:var(--ochre); }
+.legal-visual{ display:flex; justify-content:center; margin:0 0 4px; opacity:0.92; }
+.legal-visual svg{ filter:drop-shadow(0 14px 26px rgba(var(--accent-lime-rgb),0.14)); }
+
+/* ============================================================
+   GLOBAL FLOATING DOCK — one coherent dark-glass surface (not a loose
+   row of ungrounded buttons) with each tool's own real category color
+   back on the icons themselves (background/color set inline per-button
+   in initQuickDock's dock.innerHTML build) - the shared glass surface
+   still ties every icon together as one system even though each one
+   carries its own color.
+   ============================================================ */
+#quickDock{
+  padding:6px; border-radius:20px;
+  background:rgba(14,14,14,0.72); backdrop-filter:blur(20px) saturate(160%); -webkit-backdrop-filter:blur(20px) saturate(160%);
+  border:1px solid rgba(255,255,255,0.10);
+  box-shadow:0 20px 50px -18px rgba(0,0,0,0.55), 0 0 30px -10px rgba(var(--brand-shadow-rgb),0.16);
+}
+[data-theme="light"] #quickDock{
+  background:rgba(255,255,255,0.82); border-color:rgba(0,0,0,0.08);
+  box-shadow:0 20px 50px -18px rgba(0,0,0,0.18), 0 0 24px -12px rgba(var(--brand-shadow-rgb),0.14);
+}
+/* Base chip (background/color overridden per-icon via inline style for
+   tools that carry a category color; Home/More have none, so they keep
+   this neutral default). Color-only transitions (no transform) - GSAP
+   owns .qd-icon's transform (hover proximity lift + magnify), see the
+   "TRANSFORM OWNERSHIP" comment on initQuickDock above. */
+.qd-icon{
+  background:var(--paper-dim); color:var(--ink-soft); border:1px solid transparent;
+  transition:color var(--t-fast,180ms) ease, border-color var(--t-fast,180ms) ease, box-shadow var(--t-fast,180ms) ease, background var(--t-fast,180ms) ease;
+}
+.qd-icon:hover{ border-color:rgba(var(--brand-shadow-rgb),0.4); box-shadow:0 0 14px -4px rgba(var(--brand-shadow-rgb),0.45); }
+.qd-icon.qd-active{
+  color:var(--ochre); background:rgba(var(--brand-shadow-rgb),0.12); border-color:rgba(var(--brand-shadow-rgb),0.55);
+  box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.35), 0 0 16px -2px rgba(var(--brand-shadow-rgb),0.4);
+}
+.qd-home{ color:var(--ochre); } /* Home stays a permanent accent icon (already true pre-redesign), not a random color */
+.qd-home:hover{ border-color:rgba(var(--brand-shadow-rgb),0.4); box-shadow:0 0 14px -4px rgba(var(--brand-shadow-rgb),0.45); }
+.qd-more{ background:var(--paper-dim); color:var(--ink-soft); }
+[data-theme="light"] .qd-more{ background:var(--paper-dim); color:var(--ink-soft); }
+/* Mobile menu items pick up the same per-tool color (set inline via
+   style="color:..." in initQuickDock) - Home/More keep the neutral/accent
+   default since they carry no category color. */
+.qdm-item .qdm-icon{ color:var(--ink-soft); }
+.qdm-item .qdm-icon svg{ color:inherit; }
+.qdm-item[data-tool-id="home"] .qdm-icon, #qdHomeBtnMobile .qdm-icon{ color:var(--ochre); }

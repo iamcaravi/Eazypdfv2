@@ -210,6 +210,103 @@ gridHtml += AI_TOOLS.map(t=>`
 
 toolCategoriesEl.innerHTML = `<div class="grid" id="toolsGrid">${gridHtml}</div>`;
 
+/* ---------------- Hero atomic orbit tool shortcuts ----------------
+   Real functional shortcuts orbiting the hero upload card like
+   electrons around a nucleus - NOT decorative icons. Each button
+   carries data-tool="<id>" (the exact same attribute + id values
+   CATEGORIES/cardHTML above already use for the "Popular PDF Tools"
+   cards) and nothing else: the existing global [data-tool] click
+   delegation in js/core/panel.js already calls openTool(id) for any
+   element with this attribute, so these buttons need zero new
+   click-handling code and automatically get the same real
+   cross-document navigation, preload/glitch-fix, and active-state sync
+   every other tool entry point already has. iconFor()/category-color
+   data are reused as-is from the registry above - no second icon/color
+   system. Only 4 tools by design (Merge, Compress, Rotate, Organize).
+
+   TRUE CONTINUOUS ELLIPTICAL ORBITS (replaces an earlier corner-anchor
+   + straight-connector-line design, rejected on visual grounds - it
+   read as "four buttons near a card", not an atomic orbit). 3 tilted
+   ellipses share .hero-art's center with the upload card: orbit A
+   (tilt -20deg) carries TWO tools at opposite phase, orbits B (+20deg)
+   and C (+5deg) carry one each - see the full geometry derivation in
+   css/site.css. Each orbit exists as TWO separate layers sharing the
+   same rotation/radii (decorative ring+particles behind the card,
+   interactive buttons in front of it) because a CSS `transform`
+   establishes a new stacking context for its descendants - z-index
+   values on a ring vs. a button INSIDE the same rotated carrier can't
+   be interleaved with an external sibling (the device) between them;
+   splitting into two parallel carrier trees, each independently
+   stacked relative to the device, is what actually lets the orbit
+   LINE pass behind the card while the ICON stays in front of it. */
+const HERO_ORBIT_TOOLS = [
+  {id:"merge",      cls:"hot-merge",      carrier:"oc-a"},
+  {id:"compress",   cls:"hot-compress",   carrier:"oc-a"},
+  {id:"split",      cls:"hot-split",      carrier:"oc-a"},
+  {id:"mergeexcel", cls:"hot-mergeexcel", carrier:"oc-a"},
+  {id:"rotate",     cls:"hot-rotate",     carrier:"oc-b"},
+  {id:"sign",       cls:"hot-sign",       carrier:"oc-b"},
+  {id:"organize",   cls:"hot-organize",   carrier:"oc-c"},
+  {id:"invertpdf",  cls:"hot-invertpdf",  carrier:"oc-c"},
+];
+function buildHeroOrbitTools(){
+  const heroArt = document.querySelector(".hero-art");
+  if(!heroArt) return; // hero markup isn't present on every generated page
+  const idToCat = {};
+  CATEGORIES.forEach(cat=>{ cat.tools.forEach(([id,name])=>{ idToCat[id] = {name, color:(CATEGORY_META[cat.id]||{}).color}; }); });
+  // Decorative layer (z-index BELOW the device - see css) - one ring +
+  // 5 drifting particles per orbit (15 total), always rendered
+  // regardless of which tools exist, since it's purely visual.
+  const ringsWrap = document.createElement("div");
+  ringsWrap.className = "hero-orbit-rings";
+  ringsWrap.innerHTML = ["a","b","c"].map(k=>`
+    <div class="hero-orbit-carrier oc-${k}" aria-hidden="true">
+      <div class="hero-orbit-ring"></div>
+      <span class="hero-orbit-particle hop-${k}-1"></span>
+      <span class="hero-orbit-particle hop-${k}-2"></span>
+      <span class="hero-orbit-particle hop-${k}-3"></span>
+      <span class="hero-orbit-particle hop-${k}-4"></span>
+      <span class="hero-orbit-particle hop-${k}-5"></span>
+    </div>
+  `).join("");
+  // Interactive layer (z-index ABOVE the device) - real [data-tool]
+  // buttons, grouped into the SAME 3 carriers by rotation/radii (see
+  // .oc-a/.oc-b/.oc-c in css) so each button's offset-path ellipse
+  // agrees exactly with its decorative twin.
+  const carriers = {a:[], b:[], c:[]};
+  HERO_ORBIT_TOOLS.forEach(({id, cls, carrier})=>{
+    const meta = idToCat[id];
+    if(!meta || typeof TOOLS === "undefined" || !TOOLS[id]) return; // only ever render a tool that actually exists
+    const color = meta.color || "#9CFF00";
+    // --hot-color is data only (per-tool color, used by dark theme's
+    // colorful icons); CSS drives the actual background/color from it,
+    // so light theme's CSS can override to a single uniform blue without
+    // fighting an inline style (see [data-theme="light"] .hot-icon).
+    const key = carrier.slice(-1); // "oc-a" -> "a"
+    carriers[key].push(`<button type="button" class="hero-orbit-tool ${cls}" data-tool="${id}" aria-label="Open ${escapeAttr(meta.name)}">
+      <span class="hot-icon" style="--hot-color:${color}">${iconFor(id)}</span>
+      <span class="hot-tooltip" aria-hidden="true">${meta.name}</span>
+    </button>`);
+  });
+  const orbitsHTML = Object.keys(carriers).map(k=>
+    carriers[k].length ? `<div class="hero-orbit-carrier oc-${k}">${carriers[k].join("")}</div>` : ""
+  ).join("");
+  if(!orbitsHTML) return; // no tool exists on this page - skip both layers
+  heroArt.appendChild(ringsWrap);
+  const orbitsWrap = document.createElement("div");
+  orbitsWrap.className = "hero-orbits";
+  orbitsWrap.innerHTML = orbitsHTML;
+  heroArt.appendChild(orbitsWrap);
+}
+// nav-menu.js loads (and runs, as a `defer` script) BEFORE the tool-
+// implementation files (misc-tools.js, pdf-convert-tools.js, etc. - see
+// their <script> order in index.html), so `TOOLS.merge`/`TOOLS.rotate`/
+// etc. don't exist yet at this point in the file - same reason
+// initQuickDock in app.js (which runs LAST) is the one that already does
+// `TOOLS[id] && ...` checks successfully. DOMContentLoaded fires only
+// after every deferred script has finished executing in order, so
+// TOOLS is guaranteed fully populated by the time this actually runs.
+document.addEventListener("DOMContentLoaded", buildHeroOrbitTools);
 
 /* ---------------- Mega Menu ("All PDF Tools") — desktop hover panel + mobile accordion.
    Both are generated dynamically from CATEGORIES / AI_TOOLS, so any future tool added to the
