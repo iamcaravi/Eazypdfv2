@@ -6,6 +6,34 @@
   try { __savedTheme = localStorage.getItem("yoyopdf-theme") || "dark"; } catch(e) {}
   document.documentElement.setAttribute("data-theme", __savedTheme);
 </script>
+<script>
+  /* Every generated tool page (this same template, re-rendered per tool
+     by build/generate-landing.js) ships the identical static hero + tool-
+     grid markup as the homepage, for SEO/no-JS. On a real tool page,
+     app.js's own bottom IIFE synchronously calls TOOLS[pathToolId]() on
+     load, which opens the #overlay tool workspace - but that only
+     happens once the page has parsed and every deferred <script> (see
+     RUNTIME_LIBRARIES/RUNTIME_SCRIPTS below, all `defer`) has run, so
+     without this, the browser paints the raw static hero/grid first and
+     THEN swaps to the tool workspace: a visible flash of the "wrong"
+     page content. Fixed the same way the theme is - a synchronous
+     inline script, before first paint, that hides the static content up
+     front instead of letting JS reveal the right content after a
+     visible wrong-content frame. Paired with css/site.css's
+     html.tool-preload rule and openPanel()'s removal of this class in
+     js/core/panel.js (the actual reveal, the instant the real tool
+     workspace is ready - not a delay). The setTimeout below is a safety
+     net only (same "never stuck forever" pattern as motionEnter's own
+     guard in js/core/motion.js), for the edge case of a future SEO-only
+     landing page with no matching TOOLS[id] handler, or a blocked
+     script - never the primary reveal mechanism. Never applies on the
+     homepage itself (bare "/" or "/index.html"), which has no
+     auto-opening tool and always shows its grid immediately. */
+  if(location.pathname !== "/" && !/\/index\.html$/i.test(location.pathname) && location.pathname !== ""){
+    document.documentElement.classList.add("tool-preload");
+    setTimeout(function(){ document.documentElement.classList.remove("tool-preload"); }, 2500);
+  }
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Delete Pages from PDF Free Online | YOYOPDF</title>
@@ -152,11 +180,22 @@
      to execute instead of running with full page privileges against the
      user's actual files. Pinning a version without this still trusted
      the CDN completely; this is the actual point of pinning one. -->
+<!-- defer (not async): these must still execute in this exact relative
+     order before js/app.js's own scripts run (see the RUNTIME_SCRIPTS
+     load-order comment below) - defer preserves that guarantee while
+     letting the browser fetch all of them IN PARALLEL and continue
+     parsing the rest of <head>/<body> (including discovering the
+     stylesheet and painting the page) instead of blocking on each one
+     sequentially. This was a real, measured root cause of the tool-
+     opening flash: with plain blocking <script src> tags here, the
+     parser - and therefore first paint AND every later local script's
+     own fetch - couldn't even begin until all four of these had
+     downloaded and run, one after another. -->
 <!-- RUNTIME_LIBRARIES_START -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" integrity="sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" integrity="sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d" crossorigin="anonymous"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" integrity="sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI" crossorigin="anonymous"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" integrity="sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d" crossorigin="anonymous"></script>
 <!-- RUNTIME_LIBRARIES_END -->
 <!-- jszip/mammoth/xlsx are each only needed by a handful of specific
      tools (Split/Extract Pages, PDF to Word, PDF<->Excel)
@@ -656,17 +695,17 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
      to sit at the very top and very bottom of the original file, and
      must stay loaded last. -->
 <!-- RUNTIME_SCRIPTS_START -->
-<script src="js/core/motion.js?v=130"></script>
-<script src="js/core/nav-menu.js?v=130"></script>
-<script src="js/core/hero-upload.js?v=130"></script>
-<script src="js/core/routing.js?v=130"></script>
-<script src="js/core/quick-actions.js?v=130"></script>
-<script src="js/core/panel.js?v=130"></script>
-<script src="js/core/pdf-processing-utils.js?v=130"></script>
-<script src="js/core/pdf-canvas-widgets.js?v=130"></script>
-<script src="js/tools/misc-tools.js?v=130"></script>
-<script src="js/tools/pdf-page-tools-1.js?v=130"></script>
-<script src="js/app.js?v=130"></script>
+<script defer src="js/core/motion.js?v=130"></script>
+<script defer src="js/core/nav-menu.js?v=130"></script>
+<script defer src="js/core/hero-upload.js?v=130"></script>
+<script defer src="js/core/routing.js?v=130"></script>
+<script defer src="js/core/quick-actions.js?v=130"></script>
+<script defer src="js/core/panel.js?v=130"></script>
+<script defer src="js/core/pdf-processing-utils.js?v=130"></script>
+<script defer src="js/core/pdf-canvas-widgets.js?v=130"></script>
+<script defer src="js/tools/misc-tools.js?v=130"></script>
+<script defer src="js/tools/pdf-page-tools-1.js?v=130"></script>
+<script defer src="js/app.js?v=130"></script>
 <!-- RUNTIME_SCRIPTS_END -->
 </body>
 </html>

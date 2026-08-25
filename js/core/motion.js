@@ -51,104 +51,22 @@ function motionExit(target, onDone){
   });
 }
 
-/* ---------------- Redesign: cursor trail / magnetic / dock system ----------------
+/* ---------------- Redesign: magnetic / dock system ----------------
    Design brief: "black + neon lime primary, GSAP creative-engineering
-   polish, 80% usability / 20% motion delight." Three small, reusable
+   polish, 80% usability / 20% motion delight." Two small, reusable
    utilities instead of scattering pointermove handlers per component:
-   initCursorTrail (global), initMagnetic (per element), initDockMagnify
-   (per icon row). All three share the same ground rules: skip entirely
-   under prefers-reduced-motion or on touch devices (coarse pointer - no
-   real hover/cursor concept to enhance there), never intercept real
-   interaction (pointer-events:none on decorative elements, no
-   preventDefault on real inputs/canvas), and drive movement via
-   transform only so nothing here triggers layout. */
+   initMagnetic (per element), initDockMagnify (per icon row). Both share
+   the same ground rules: skip entirely under prefers-reduced-motion or
+   on touch devices (coarse pointer - no real hover/cursor concept to
+   enhance there), never intercept real interaction (pointer-events:none
+   on decorative elements, no preventDefault on real inputs/canvas), and
+   drive movement via transform only so nothing here triggers layout.
+   (A third utility, initCursorTrail - a mouse-following dot trail - used
+   to live here too; removed per explicit request: any custom
+   cursor-following visual is unwanted, only real :hover-driven effects
+   like these two are.) */
 const IS_TOUCH_DEVICE = matchMedia("(pointer: coarse)").matches;
 function shouldSkipCursorFx(){ return MOTION.reduced || IS_TOUCH_DEVICE || !window.gsap; }
-
-/* A handful of lime/accent dots lerping toward the real pointer with a
-   staggered delay per dot - not a particle burst, just a soft trailing
-   line that thins out (opacity/scale falloff) toward the tail. Lives on
-   one fixed, pointer-events:none overlay for the whole app; a single
-   quickSetter per dot (not gsap.to() every pointermove) is what keeps
-   this at 60fps - gsap.to() on every mousemove would stack/queue
-   tweens, quickSetter just writes a transform directly with no
-   tween-management overhead. Paused (not destroyed) whenever the
-   pointer is over a real PDF canvas/text input/contenteditable, per the
-   brief's "PDF editor gets priority over decorative effects" - resumes
-   the moment the pointer leaves that element.
-   Phase 6: the one utility this file's own header comment always named
-   alongside initMagnetic/initDockMagnify but never actually implemented
-   - the other two shipped in an earlier redesign phase, this one was
-   left as a documented gap. Driven by gsap.ticker (GSAP's own shared
-   rAF loop) rather than a second independent requestAnimationFrame loop,
-   per the "avoid unnecessary RAF loops" rule - one tick source for every
-   per-frame effect in this file, not two competing ones. Call once,
-   anywhere after DOM is ready; no-ops under reduced-motion/touch/no-GSAP
-   the same way every other utility here does, so call sites never need
-   their own guard. */
-function initCursorTrail(opts={}){
-  if(shouldSkipCursorFx()) return;
-  const count = opts.count ?? 5;
-  const pauseSelector = opts.pauseSelector
-    ?? "canvas, input, textarea, select, [contenteditable], .editor-canvas, .crop-select-layer, .imgcrop-select-layer, .fillform-field-overlay";
-
-  const trail = document.createElement("div");
-  trail.className = "cursor-trail";
-  trail.setAttribute("aria-hidden", "true");
-  const dots = [];
-  for(let i=0; i<count; i++){
-    const dot = document.createElement("span");
-    dot.className = "cursor-trail-dot";
-    trail.appendChild(dot);
-    dots.push({
-      el: dot, x: 0, y: 0,
-      setX: gsap.quickSetter(dot, "x", "px"),
-      setY: gsap.quickSetter(dot, "y", "px"),
-    });
-  }
-  document.body.appendChild(trail);
-
-  let mouseX = 0, mouseY = 0, started = false, paused = false;
-  function onMove(e){
-    mouseX = e.clientX; mouseY = e.clientY;
-    if(!started){
-      started = true;
-      dots.forEach(d=>{ d.x = mouseX; d.y = mouseY; d.setX(mouseX); d.setY(mouseY); });
-      trail.classList.add("is-active");
-    }
-  }
-  window.addEventListener("pointermove", onMove, {passive:true});
-
-  // Real content (a PDF canvas, a text field, an editor field overlay)
-  // always wins - the trail steps aside rather than drawing on top of
-  // something the user is actually working with. Delegated on document
-  // (capture, so it still sees the event even if the target itself calls
-  // stopPropagation) rather than one listener per matching element,
-  // since the set of matches changes as tools/panels open and close.
-  document.addEventListener("pointerover", e=>{
-    if(e.target.closest && e.target.closest(pauseSelector)){ paused = true; trail.classList.remove("is-active"); }
-  }, true);
-  document.addEventListener("pointerout", e=>{
-    if(e.target.closest && e.target.closest(pauseSelector)){ paused = false; if(started) trail.classList.add("is-active"); }
-  }, true);
-
-  gsap.ticker.add(()=>{
-    if(paused || !started) return;
-    let targetX = mouseX, targetY = mouseY;
-    dots.forEach((d, i)=>{
-      // Each dot chases the ONE ahead of it, not the raw pointer - that's
-      // what produces a trailing line instead of every dot independently
-      // (and identically) lagging the cursor. Later dots ease slower
-      // (smaller factor, floored) so the line visibly thins/lags toward
-      // the tail rather than all dots bunching at the same distance.
-      const ease = Math.max(0.35 - i*0.045, 0.14);
-      d.x += (targetX - d.x) * ease;
-      d.y += (targetY - d.y) * ease;
-      d.setX(d.x); d.setY(d.y);
-      targetX = d.x; targetY = d.y;
-    });
-  });
-}
 
 /* Attracts `el` toward the pointer within `radius` px of its own
    center, spring-releases on leave. Movement is capped at `strength` px

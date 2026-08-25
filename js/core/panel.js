@@ -168,8 +168,34 @@ function openPanel(html){
     if(panelHead) panelHead.style.display = "none";
   }
   layoutTwoColumn();
+  // .overlay.open has its own 220ms opacity fade-in (css/site.css) -
+  // harmless for a same-page modal open (About/Contact/Quick Action,
+  // or switching tools while a panel is already showing), where the
+  // page underneath is legitimately supposed to be visible throughout.
+  // But for the tool-preload page-load reveal specifically, that fade
+  // is actively wrong: confirmed via frame-by-frame pixel inspection of
+  // a throttled navigation that a partially-faded overlay lets the
+  // still-visibility:hidden-until-now static SEO content underneath
+  // bleed through as a real, visible double-exposure ghost (two
+  // overlapping hero headings) for several frames. Skipping the
+  // transition ONLY for this one reveal keeps it a genuine atomic
+  // switch - no fade ever starts, so there's nothing to bleed through
+  // during. Restored immediately after so any LATER same-page panel
+  // open (a real, intentional interaction) still gets its normal fade.
+  const isPageLoadReveal = document.documentElement.classList.contains("tool-preload");
+  if(isPageLoadReveal) overlay.style.transition = "none";
   overlay.classList.add("open");
   document.documentElement.classList.add("panel-open");
+  // The real reveal for the tool-preload flash fix (index.html's inline
+  // <head> script + css/site.css's html.tool-preload rule) - the instant
+  // the tool workspace is actually open, not a timer. No-op (harmless)
+  // when this class was never added, e.g. the homepage's own Quick
+  // Action/tool-card clicks.
+  document.documentElement.classList.remove("tool-preload");
+  if(isPageLoadReveal){
+    void overlay.offsetWidth; // force the transition:none to actually apply before restoring it
+    overlay.style.transition = "";
+  }
   /* Every tool page keeps the site header visible above it (logo, nav,
      search, dark mode) — same pattern iLovePDF uses on its own tool
      pages — instead of covering the entire viewport and hiding all site

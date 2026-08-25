@@ -179,14 +179,25 @@ function homepageSoftwareSchema() {
 }
 
 function renderRuntime(template, runtime, label) {
+  // defer (not async): every one of these classic, non-module scripts
+  // shares one global scope and depends on running in exactly this
+  // relative order (see the RUNTIME_SCRIPTS load-order comment in
+  // index.html - js/app.js's own top-level IIFEs must run last). defer
+  // preserves that exact ordering guarantee while letting the browser
+  // fetch every script IN PARALLEL and keep parsing/painting the rest of
+  // the page instead of blocking on each one sequentially - a real,
+  // measured root cause of the tool-opening flash: with plain blocking
+  // <script src> tags, the parser (and therefore first paint, and every
+  // later script's own fetch) couldn't even begin until each earlier one
+  // had downloaded and run, one after another.
   const libraryBlock = [
     "<!-- RUNTIME_LIBRARIES_START -->",
-    ...runtime.libraries.map((library) => `<script src="${library.src}" integrity="${library.integrity}" crossorigin="anonymous"></script>`),
+    ...runtime.libraries.map((library) => `<script defer src="${library.src}" integrity="${library.integrity}" crossorigin="anonymous"></script>`),
     "<!-- RUNTIME_LIBRARIES_END -->"
   ].join("\n");
   const scriptBlock = [
     "<!-- RUNTIME_SCRIPTS_START -->",
-    ...runtime.scripts.map((src) => `<script src="${src}"></script>`),
+    ...runtime.scripts.map((src) => `<script defer src="${src}"></script>`),
     "<!-- RUNTIME_SCRIPTS_END -->"
   ].join("\n");
   let out = replaceRequired(template, RUNTIME_LIBRARIES_RE, libraryBlock, label + " runtime libraries");

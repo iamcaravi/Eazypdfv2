@@ -289,6 +289,31 @@ section.category{ max-width:1180px; margin:0 auto; padding:38px 28px; }
 }
 .card .name{font-weight:600; font-size:1.08rem;}
 
+/* Paired with the inline <head> script (index.html, copied into every
+   generated tool page) and openPanel()'s removal of this class
+   (js/core/panel.js): hides the ENTIRE page synchronously, before first
+   paint, on any page that is about to auto-open a tool workspace on
+   load. Deliberately whole-page, not just #main-content: hiding only
+   #main-content still let the header paint on its own the instant CSS
+   loaded, which released the browser's own cross-document paint-holding
+   (the mechanism that keeps the PREVIOUS page's last frame on screen
+   during navigation) - exposing a real, confirmed (frame-by-frame,
+   via a screen recording) header-only/blank-body flash for the
+   several-hundred-ms window before openPanel() finishes assembling the
+   real tool workspace. Hiding the whole page means NOTHING here paints
+   at all until that reveal, so the browser has nothing to swap TO yet -
+   it keeps holding the outgoing page's last frame instead, and the user
+   sees one clean jump straight from the old screen to the fully-ready
+   new one, with no partially-rendered frame in between. This is the
+   platform's own built-in mechanism working as designed, not a fade or
+   an artificial delay: nothing here controls how LONG the hold lasts,
+   only that the new page never exposes an incomplete state while it's
+   catching up. visibility (not display:none) so layout/geometry stays
+   intact underneath - nothing shifts when it's revealed, and
+   getBoundingClientRect() calls made while still hidden (e.g.
+   openPanel()'s own header-height read) still return real values. */
+html.tool-preload{ visibility:hidden; }
+
 /* Every tool opens as a full page, not a small popup — matching iLovePDF's
    own tool pages (dedicated page, full-width workspace), just implemented
    as a full-viewport overlay since this app stays a single HTML page. This
@@ -1928,33 +1953,6 @@ html.panel-open{ overflow:hidden; }
 @media(prefers-reduced-motion: reduce){
   .dl-click-ripple, .dl-click-ring, .dl-click-flash{ animation:none; display:none; }
 }
-
-/* Phase 6: cursor trail (js/core/motion.js's initCursorTrail()). One
-   fixed overlay, z-index:40 - well under header(150)/quick-tools-rail
-   (130)/.overlay(100), so it only ever shows over plain page background,
-   never competing with real chrome. Dots are positioned via GSAP
-   quickSetter-driven x/y (a translate transform under the hood), so
-   top:0/left:0 here is the anchor those translates are relative to, not
-   the dot's actual rendered position. Sizes/opacities step down per
-   dot (nth-child) for the thinning-toward-the-tail look; initCursorTrail
-   itself never creates more dots than this file declares steps for.
-   is-active is toggled by the same JS, not this CSS, based on
-   "has the pointer moved yet" and "is it currently over real content" -
-   this file only owns how the trail looks once active, not when. */
-.cursor-trail{
-  position:fixed; inset:0; z-index:40; pointer-events:none;
-  opacity:0; transition:opacity .2s ease;
-}
-.cursor-trail.is-active{ opacity:1; }
-.cursor-trail-dot{
-  position:absolute; top:0; left:0; border-radius:50%;
-  background:var(--accent-lime); will-change:transform;
-}
-.cursor-trail-dot:nth-child(1){ width:8px; height:8px; margin:-4px 0 0 -4px; opacity:.9; }
-.cursor-trail-dot:nth-child(2){ width:7px; height:7px; margin:-3.5px 0 0 -3.5px; opacity:.68; }
-.cursor-trail-dot:nth-child(3){ width:6px; height:6px; margin:-3px 0 0 -3px; opacity:.48; }
-.cursor-trail-dot:nth-child(4){ width:5px; height:5px; margin:-2.5px 0 0 -2.5px; opacity:.3; }
-.cursor-trail-dot:nth-child(5){ width:4px; height:4px; margin:-2px 0 0 -2px; opacity:.16; }
 
 .next-tool-cta{
   display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;

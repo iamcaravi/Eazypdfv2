@@ -127,18 +127,12 @@ async function loadPdfSafe(bytes, extraOpts={}, timeoutMs=20000){
 })();
 
 /* Magnetic CTAs + Dock-style trust-badge row (homepage-only elements) and
-   the cursor trail (site-wide - it's an ambient pointer effect, not tied
-   to any homepage-specific markup, same reasoning as the header icon
-   buttons a few lines down already being wired here despite this IIFE's
-   own homepage-only elements). All of it no-ops under reduced-motion/
-   touch (see shouldSkipCursorFx in each utility) - nothing here needs
-   its own separate guard.
-   Phase 6: initCursorTrail() call added here - the function itself
-   already existed only as a documented-but-unbuilt gap in motion.js's
-   own file header until this phase. */
+   the header icon buttons' magnetic pull (site-wide, same reasoning as
+   the homepage-only elements a few lines down already being wired here).
+   All of it no-ops under reduced-motion/touch (see shouldSkipCursorFx in
+   each utility) - nothing here needs its own separate guard. */
 (function(){
   if(!window.gsap) return;
-  initCursorTrail();
   const heroPrimary = document.getElementById("heroChoosePdfBtn");
   const heroSecondary = document.querySelector(".btn-cta-secondary");
   if(heroPrimary){ heroPrimary.classList.add("magnetic"); initMagnetic(heroPrimary, {strength:14, scale:1.04}); }
