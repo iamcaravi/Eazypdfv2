@@ -207,10 +207,15 @@ window.addEventListener('pageshow', (e)=>{
      a fresh nav click is not the same thing as an explicit "carry my
      file to the next tool" action. */
 function openTool(toolId, bridgeFile){
-  if(!TOOLS[toolId]) return;
   const route = TOOL_ROUTES[toolId];
   const alreadyOnThisToolsPage = route && toolIdForPath(location.pathname) === toolId;
   if(route && !alreadyOnThisToolsPage){
+    // A real navigation to the tool's own page never needs TOOLS[toolId]
+    // to already be defined on THIS page - only a subset of tool scripts
+    // loads per page (see build/runtime-manifest.js's per-profile script
+    // bundles), so e.g. clicking "Sign PDF" from rotate-pdf.html would
+    // wrongly no-op here if this required TOOLS.sign locally. The target
+    // page loads its own scripts fresh, exactly like typing the URL cold.
     const targetFile = route.path.slice(1) + ".html"; // e.g. "/crop-pdf" -> "crop-pdf.html"
     if(bridgeFile && AppSession.currentFiles.length){
       const files = AppSession.currentFiles;
@@ -221,6 +226,7 @@ function openTool(toolId, bridgeFile){
     }
     return;
   }
+  if(!TOOLS[toolId]) return;
   // Either a page-less tool (About/Donate/Contact) or already sitting on
   // this exact tool's own page (e.g. re-clicking the same nav item, or
   // "Start over") - no navigation needed, just re-run its init in place.

@@ -19,6 +19,7 @@
    aspect ratio), so "same position on every page", "apply to all pages"
    and the pdf-lib export path below are all unchanged. */
 TOOLS.sign = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, pdoc=null, loadToken=0, numPages=0;
   // One entry per page, created up front in a cheap metadata-only pass
   // so the whole document exists in the scroll flow immediately; pixels
@@ -54,24 +55,24 @@ TOOLS.sign = function(){
   let drag=null; // {mode:"move"|"resize", asset, meta, startPt, startRect, corner, anchor}
 
   openPanel(`
-    <div class="panel-head"><h3>Sign PDF</h3></div>
+    <div class="panel-head"><h3>${t("tools.sign")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="signBody">
       <div class="tool-hero" id="signHero">
-        <h2 class="tool-hero-title">Sign PDF</h2>
-        <p class="tool-hero-desc">Draw, type, or upload a signature — it's applied to every page, scroll to any page to reposition it, then download the signed PDF.</p>
+        <h2 class="tool-hero-title">${t("tools.sign")}</h2>
+        <p class="tool-hero-desc">${t("toolSign.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="signUploadWrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
+        ${fileInputHTML("application/pdf", false, t("workspace.selectPdfFiles"))}
       </div>
-      <div class="status" role="note">This places a visual signature image on the page — a drawn, typed, or uploaded mark, not a certificate-backed digital signature (no PAdES/CMS, no identity verification). It carries the same legal weight as a scanned or pasted signature image, not a cryptographically verifiable one.</div>
-      <p class="tool-privacy-hint" id="signPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <div class="status" role="note">${t("toolSign.legalNote")}</div>
+      <p class="tool-privacy-hint" id="signPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace sign-app-workspace" id="signWorkspace" style="display:none">
         <div class="tool-main-pane sign-main-pane">
           <div class="sign-zoom">
-            <button type="button" class="sign-zoom-btn" id="signZoomOut" aria-label="Zoom out">−</button>
+            <button type="button" class="sign-zoom-btn" id="signZoomOut" aria-label="${t("workspace.zoomOut")}">−</button>
             <span class="sign-zoom-level" id="signZoomLevel">100%</span>
-            <button type="button" class="sign-zoom-btn" id="signZoomIn" aria-label="Zoom in">+</button>
-            <span class="sign-page-indicator" id="signPageIndicator">Page 1 / 1</span>
+            <button type="button" class="sign-zoom-btn" id="signZoomIn" aria-label="${t("workspace.zoomIn")}">+</button>
+            <span class="sign-page-indicator" id="signPageIndicator">${t("toolSign.pageIndicator",{n:1,total:1})}</span>
           </div>
           <div class="sign-document-viewport" id="signDocViewport">
             <div class="sign-document" id="signDocument"></div>
@@ -79,10 +80,10 @@ TOOLS.sign = function(){
           <div class="mono" id="signReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
         </div>
         <aside class="tool-side-panel">
-          <h3 class="tool-side-panel-title">Sign PDF</h3>
+          <h3 class="tool-side-panel-title">${t("tools.sign")}</h3>
           <div id="signFileSlot"></div>
           <div class="tool-content-area" id="sigPanelArea"></div>
-          <button class="btn tool-toolbar-primary" id="go">Sign PDF</button>
+          <button class="btn tool-toolbar-primary" id="go">${t("tools.sign")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -121,22 +122,22 @@ TOOLS.sign = function(){
     return Object.keys(asset.pageOverrides).some(p=>parseInt(p,10)!==activePage);
   }
   function placementStatusText(asset){
-    if(asset.hiddenPages.has(activePage)) return `Hidden on page ${activePage}`;
-    if(asset.pageOverrides[activePage]) return `Custom position on page ${activePage}`;
-    return "Same position on every page";
+    if(asset.hiddenPages.has(activePage)) return t("toolSign.hiddenOnPage",{n:activePage});
+    if(asset.pageOverrides[activePage]) return t("toolSign.customPositionOnPage",{n:activePage});
+    return t("toolSign.samePositionEveryPage");
   }
   function renderSigListRows(){
-    if(assets.length===0) return `<p class="mode-info">No signatures added yet.</p>`;
+    if(assets.length===0) return `<p class="mode-info">${t("toolSign.noSignaturesYet")}</p>`;
     // role="button"/tabindex here (not just the delete button) - this
     // row is otherwise the only way to select a signature at all, and a
     // bare click-only <div> is invisible to keyboard/screen-reader use.
     // Once selected, the viewport keydown handler below (nudge/resize/
     // delete) picks up from here.
     return `<div class="sig-list">` + assets.map(a=>`
-      <div class="sig-list-item ${a.id===selectedAssetId?"active":""}" data-asset-id="${a.id}" role="button" tabindex="0" aria-pressed="${a.id===selectedAssetId}" aria-label="Signature, ${placementStatusText(a)}">
-        <img src="${a.pngDataUrl}" alt="Signature" class="sig-list-thumb">
+      <div class="sig-list-item ${a.id===selectedAssetId?"active":""}" data-asset-id="${a.id}" role="button" tabindex="0" aria-pressed="${a.id===selectedAssetId}" aria-label="${t("toolSign.signatureAlt")}, ${placementStatusText(a)}">
+        <img src="${a.pngDataUrl}" alt="${t("toolSign.signatureAlt")}" class="sig-list-thumb">
         <span class="sig-list-meta">${placementStatusText(a)}</span>
-        <button type="button" class="sig-list-del" data-del-id="${a.id}" aria-label="Delete signature">✕</button>
+        <button type="button" class="sig-list-del" data-del-id="${a.id}" aria-label="${t("toolSign.deleteSignature")}">✕</button>
       </div>`).join("") + `</div>`;
   }
   function showSigDefault(){
@@ -144,14 +145,14 @@ TOOLS.sign = function(){
     panelState = "default";
     const selected = assets.find(a=>a.id===selectedAssetId);
     sigPanelArea.innerHTML = `
-      <div class="tool-content-area-label">Signatures</div>
+      <div class="tool-content-area-label">${t("toolSign.signaturesLabel")}</div>
       ${renderSigListRows()}
       ${selected ? `
       <div class="sig-active-controls" id="sigActiveControls">
-        <button class="btn secondary btn-sm" id="applyAllBtn" type="button" style="width:100%">Apply to all pages</button>
-        <button class="btn secondary btn-sm" id="toggleHideBtn" type="button" style="width:100%;margin-top:6px">${selected.hiddenPages.has(activePage) ? `Show on page ${activePage}` : `Hide on page ${activePage}`}</button>
+        <button class="btn secondary btn-sm" id="applyAllBtn" type="button" style="width:100%">${t("toolSign.applyToAllPages")}</button>
+        <button class="btn secondary btn-sm" id="toggleHideBtn" type="button" style="width:100%;margin-top:6px">${selected.hiddenPages.has(activePage) ? t("toolSign.showOnPage",{n:activePage}) : t("toolSign.hideOnPage",{n:activePage})}</button>
       </div>` : ``}
-      <button class="btn" id="addSigBtn" type="button" style="margin-top:10px;width:100%">+ Add Signature</button>
+      <button class="btn" id="addSigBtn" type="button" style="margin-top:10px;width:100%">${t("toolSign.addSignature")}</button>
     `;
     document.getElementById("addSigBtn").addEventListener("click", showMethodPicker);
     sigPanelArea.querySelectorAll("[data-asset-id]").forEach(row=>{
@@ -180,10 +181,10 @@ TOOLS.sign = function(){
     const controls = document.getElementById("sigActiveControls");
     if(!controls) return;
     controls.innerHTML = `
-      <p class="mode-info" style="margin-bottom:8px">Apply this position and size to all pages? This replaces any custom placements on other pages.</p>
+      <p class="mode-info" style="margin-bottom:8px">${t("toolSign.confirmApplyAllText")}</p>
       <div class="row">
-        <button class="btn secondary btn-sm" id="cancelApplyAll" type="button">Cancel</button>
-        <button class="btn btn-sm" id="confirmApplyAll" type="button">Apply to all pages</button>
+        <button class="btn secondary btn-sm" id="cancelApplyAll" type="button">${t("workspace.cancel")}</button>
+        <button class="btn btn-sm" id="confirmApplyAll" type="button">${t("toolSign.applyToAllPages")}</button>
       </div>
     `;
     document.getElementById("cancelApplyAll").addEventListener("click", showSigDefault);
@@ -211,19 +212,19 @@ TOOLS.sign = function(){
     clearDrawEndHandler();
     panelState = "picker";
     sigPanelArea.innerHTML = `
-      <div class="tool-content-area-label">Add Signature</div>
+      <div class="tool-content-area-label">${t("toolSign.addSignatureLabel")}</div>
       <div class="sig-method-list">
         <button type="button" class="sig-method-btn" data-method="draw">
-          <strong>Draw Signature</strong><span>Create your signature manually</span>
+          <strong>${t("toolSign.drawSignature")}</strong><span>${t("toolSign.drawSignatureDesc")}</span>
         </button>
         <button type="button" class="sig-method-btn" data-method="type">
-          <strong>Type Signature</strong><span>Type your name as a signature</span>
+          <strong>${t("toolSign.typeSignature")}</strong><span>${t("toolSign.typeSignatureDesc")}</span>
         </button>
         <button type="button" class="sig-method-btn" data-method="upload">
-          <strong>Upload Signature</strong><span>Upload an existing signature image</span>
+          <strong>${t("toolSign.uploadSignature")}</strong><span>${t("toolSign.uploadSignatureDesc")}</span>
         </button>
       </div>
-      <button class="btn secondary" id="cancelAddSig" type="button" style="margin-top:10px;width:100%">Cancel</button>
+      <button class="btn secondary" id="cancelAddSig" type="button" style="margin-top:10px;width:100%">${t("workspace.cancel")}</button>
     `;
     sigPanelArea.querySelectorAll("[data-method]").forEach(btn=>{
       btn.addEventListener("click", ()=>{
@@ -241,12 +242,12 @@ TOOLS.sign = function(){
     clearDrawEndHandler();
     panelState = "draw";
     sigPanelArea.innerHTML = `
-      <div class="tool-content-area-label">Draw Signature</div>
+      <div class="tool-content-area-label">${t("toolSign.drawSignature")}</div>
       <div class="canvas-wrap"><canvas id="sigDrawCanvas" width="260" height="100"></canvas></div>
-      <button class="btn secondary btn-sm" id="clearDrawSig" type="button" style="margin-top:8px">Clear</button>
+      <button class="btn secondary btn-sm" id="clearDrawSig" type="button" style="margin-top:8px">${t("toolSign.clear")}</button>
       <div class="row" style="margin-top:10px">
-        <button class="btn secondary" id="cancelDrawSig" type="button">Cancel</button>
-        <button class="btn" id="useDrawSig" type="button">Use Signature</button>
+        <button class="btn secondary" id="cancelDrawSig" type="button">${t("workspace.cancel")}</button>
+        <button class="btn" id="useDrawSig" type="button">${t("toolSign.useSignature")}</button>
       </div>
     `;
     const canvas = document.getElementById("sigDrawCanvas");
@@ -262,7 +263,7 @@ TOOLS.sign = function(){
     document.getElementById("clearDrawSig").addEventListener("click", ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawInk=false; });
     document.getElementById("cancelDrawSig").addEventListener("click", showSigDefault);
     document.getElementById("useDrawSig").addEventListener("click", ()=>{
-      if(!hasDrawInk){ toast("Draw a signature first"); return; }
+      if(!hasDrawInk){ toast(t("toolSign.errDrawFirst")); return; }
       const img = new Image();
       img.onload = ()=> addSignature(img);
       img.src = canvas.toDataURL("image/png");
@@ -274,19 +275,19 @@ TOOLS.sign = function(){
     clearDrawEndHandler();
     panelState = "type";
     sigPanelArea.innerHTML = `
-      <div class="tool-content-area-label">Type Signature</div>
-      <div class="field"><label for="typeSigInput">Name</label><input type="text" id="typeSigInput" placeholder="Type your name" maxlength="40"></div>
-      <div class="field"><label for="typeSigFont">Style</label>
+      <div class="tool-content-area-label">${t("toolSign.typeSignature")}</div>
+      <div class="field"><label for="typeSigInput">${t("toolSign.nameLabel")}</label><input type="text" id="typeSigInput" placeholder="${t("toolSign.typeYourNamePlaceholder")}" maxlength="40"></div>
+      <div class="field"><label for="typeSigFont">${t("toolSign.styleLabel")}</label>
         <select id="typeSigFont">
-          <option value="'Brush Script MT', cursive" selected>Script</option>
-          <option value="'Plus Jakarta Sans', sans-serif">Sans</option>
-          <option value="Georgia, serif">Serif</option>
+          <option value="'Brush Script MT', cursive" selected>${t("toolSign.styleScript")}</option>
+          <option value="'Plus Jakarta Sans', sans-serif">${t("toolSign.styleSans")}</option>
+          <option value="Georgia, serif">${t("toolSign.styleSerif")}</option>
         </select>
       </div>
       <div class="canvas-wrap"><canvas id="typeSigPreview" width="260" height="100"></canvas></div>
       <div class="row" style="margin-top:10px">
-        <button class="btn secondary" id="cancelTypeSig" type="button">Cancel</button>
-        <button class="btn" id="useTypeSig" type="button">Use Signature</button>
+        <button class="btn secondary" id="cancelTypeSig" type="button">${t("workspace.cancel")}</button>
+        <button class="btn" id="useTypeSig" type="button">${t("toolSign.useSignature")}</button>
       </div>
     `;
     const input = document.getElementById("typeSigInput");
@@ -307,7 +308,7 @@ TOOLS.sign = function(){
     fontSel.addEventListener("change", draw);
     document.getElementById("cancelTypeSig").addEventListener("click", showSigDefault);
     document.getElementById("useTypeSig").addEventListener("click", ()=>{
-      if(!input.value.trim()){ toast("Type your name first"); return; }
+      if(!input.value.trim()){ toast(t("toolSign.errTypeNameFirst")); return; }
       const img = new Image();
       img.onload = ()=> addSignature(img);
       img.src = preview.toDataURL("image/png");
@@ -319,19 +320,19 @@ TOOLS.sign = function(){
     clearDrawEndHandler();
     panelState = "upload";
     sigPanelArea.innerHTML = `
-      <div class="tool-content-area-label">Upload Signature</div>
-      <div class="dropzone" id="sigUploadDz" role="button" tabindex="0" aria-label="Choose signature image" aria-controls="sigUploadInput" style="padding:20px 12px">
+      <div class="tool-content-area-label">${t("toolSign.uploadSignature")}</div>
+      <div class="dropzone" id="sigUploadDz" role="button" tabindex="0" aria-label="${t("toolSign.chooseSignatureImage")}" aria-controls="sigUploadInput" style="padding:20px 12px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="28" height="28"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
-        <div><strong>Choose file</strong></div>
-        <div class="hint">PNG, JPG or WEBP · stays on this device</div>
-        <input type="file" id="sigUploadInput" class="hidden" accept="image/png,image/jpeg,image/webp" aria-label="Choose signature image">
+        <div><strong>${t("toolSign.chooseFile")}</strong></div>
+        <div class="hint">${t("toolSign.uploadHint")}</div>
+        <input type="file" id="sigUploadInput" class="hidden" accept="image/png,image/jpeg,image/webp" aria-label="${t("toolSign.chooseSignatureImage")}">
       </div>
       <div id="sigUploadPreviewWrap" style="display:none;margin-top:10px;text-align:center">
-        <div class="canvas-wrap sig-transparency-bg"><img id="sigUploadPreview" alt="Signature preview" style="max-width:100%;max-height:140px;display:block;margin:0 auto"></div>
+        <div class="canvas-wrap sig-transparency-bg"><img id="sigUploadPreview" alt="${t("toolSign.signatureAlt")}" style="max-width:100%;max-height:140px;display:block;margin:0 auto"></div>
       </div>
       <div class="row" style="margin-top:10px">
-        <button class="btn secondary" id="cancelUploadSig" type="button">Cancel</button>
-        <button class="btn" id="useUploadSig" type="button" disabled>Use Signature</button>
+        <button class="btn secondary" id="cancelUploadSig" type="button">${t("workspace.cancel")}</button>
+        <button class="btn" id="useUploadSig" type="button" disabled>${t("toolSign.useSignature")}</button>
       </div>
     `;
     const dz = document.getElementById("sigUploadDz");
@@ -348,24 +349,24 @@ TOOLS.sign = function(){
         if(typeof validateFileSelection === "function") {
           await validateFileSelection([f], {accept:input.accept, multiple:false});
         } else if(!/^image\/(png|jpeg|webp)$/.test(f.type)) {
-          throw new Error("Please choose a PNG, JPG or WEBP image.");
+          throw new Error(t("toolSign.errChoosePngJpgWebp"));
         }
       }catch(error){
-        if(generation === uploadGeneration) toast(error?.message || "Please choose a valid signature image.");
+        if(generation === uploadGeneration) toast(error?.message || t("toolSign.errInvalidSignatureImage"));
         return;
       }
       const reader = new FileReader();
-      reader.onerror = ()=>{ if(generation === uploadGeneration) toast("This signature image could not be read."); };
+      reader.onerror = ()=>{ if(generation === uploadGeneration) toast(t("toolSign.errCouldNotReadImage")); };
       reader.onload = ()=>{
         if(generation !== uploadGeneration) return;
         const img = new Image();
-        img.onerror = ()=>{ if(generation === uploadGeneration) toast("This signature image could not be decoded."); };
+        img.onerror = ()=>{ if(generation === uploadGeneration) toast(t("toolSign.errCouldNotDecodeImage")); };
         img.onload = ()=>{
           if(generation !== uploadGeneration) return;
           const limits = window.YOYO_RUNTIME?.limits;
           const pixels = img.naturalWidth * img.naturalHeight;
           if(!img.naturalWidth || !img.naturalHeight || (limits && (pixels > limits.maxImagePixels || img.naturalWidth > limits.maxImageDimension || img.naturalHeight > limits.maxImageDimension))){
-            toast("This image is too large to use safely as a signature. Choose a smaller image.");
+            toast(t("toolSign.errImageTooLarge"));
             return;
           }
           uploadedImg = img;
@@ -400,7 +401,7 @@ TOOLS.sign = function(){
   }
   function addSignature(img){
     const meta = pagesMeta[activePage-1] || pagesMeta[0];
-    if(!meta){ toast("Page isn't ready yet - try again in a moment"); return; }
+    if(!meta){ toast(t("toolSign.errPageNotReady")); return; }
     const pngDataUrl = toPngDataUrl(img);
     const ratio = img.naturalWidth/img.naturalHeight;
     // Default placement: bottom-right, safe margins, moderate size -
@@ -472,7 +473,7 @@ TOOLS.sign = function(){
       el.style.width = (r.w*100)+"%";
       el.style.height = (r.h*100)+"%";
       const im = document.createElement("img");
-      im.className = "sign-sig-img"; im.src = asset.pngDataUrl; im.alt = "Signature";
+      im.className = "sign-sig-img"; im.src = asset.pngDataUrl; im.alt = t("toolSign.signatureAlt");
       el.appendChild(im);
       if(isSel){
         ["nw","ne","se","sw"].forEach((c,i)=>{
@@ -482,7 +483,7 @@ TOOLS.sign = function(){
         });
         const del = document.createElement("button");
         del.type = "button"; del.className = "sign-sig-del";
-        del.setAttribute("aria-label","Delete signature");
+        del.setAttribute("aria-label",t("toolSign.deleteSignature"));
         del.textContent = "×";
         el.appendChild(del);
       }
@@ -498,10 +499,10 @@ TOOLS.sign = function(){
   }
   function updateReadout(){
     readout.textContent = assets.length===0
-      ? "Add a signature - it appears on every page automatically. Scroll to move through the document."
+      ? t("toolSign.readoutEmpty")
       : selectedAssetId
-        ? "Drag to move, use the corner handles to resize, or the × to delete. Arrow keys move, +/- resize, Delete removes."
-        : "Scroll to any page, then drag a signature to move it, resize it by its corners, or delete it with the ×.";
+        ? t("toolSign.readoutSelected")
+        : t("toolSign.readoutUnselected");
   }
 
   // ---- Placement interaction, wired per page. Everything is expressed
@@ -628,7 +629,7 @@ TOOLS.sign = function(){
   // every edit triggers.
   docViewport.tabIndex = 0;
   docViewport.setAttribute("role", "application");
-  docViewport.setAttribute("aria-label", "PDF pages with signature placement - scroll to move through pages, arrow keys move the selected signature, plus/minus resize, Delete removes");
+  docViewport.setAttribute("aria-label", t("toolSign.docViewportAriaLabel"));
   docViewport.addEventListener("keydown", e=>{
     const meta = pagesMeta[activePage-1];
     const selected = assets.find(a=>a.id===selectedAssetId && !a.hiddenPages.has(activePage));
@@ -706,7 +707,7 @@ TOOLS.sign = function(){
       wrap.style.aspectRatio = `${vp.width} / ${vp.height}`;
       wrap.innerHTML = `
         <canvas class="sign-page-canvas"></canvas>
-        <div class="sign-page-loading">Loading page ${i}…</div>
+        <div class="sign-page-loading">${t("toolSign.loadingPageN",{n:i})}</div>
         <div class="sign-sig-layer"></div>
         <div class="sign-page-num">${i} / ${numPages}</div>`;
       const meta = {
@@ -796,7 +797,7 @@ TOOLS.sign = function(){
     }catch(e){
       if(myToken !== loadToken) return;
       const loading = meta.wrapEl.querySelector(".sign-page-loading");
-      if(loading) loading.textContent = "Couldn't render this page.";
+      if(loading) loading.textContent = t("toolSign.errCouldNotRenderPage");
     }finally{
       meta.rendering = false;
     }
@@ -842,7 +843,7 @@ TOOLS.sign = function(){
     if(nowMeta){ nowMeta.wrapEl.classList.toggle("sign-page-active", selectedAssetId!==null); redrawPage(nowMeta); }
     refreshSigListIfIdle();
   }
-  function updatePageIndicator(){ pageIndicator.textContent = `Page ${currentPageIndex+1} / ${Math.max(numPages,1)}`; }
+  function updatePageIndicator(){ pageIndicator.textContent = t("toolSign.pageIndicator",{n:currentPageIndex+1, total:Math.max(numPages,1)}); }
 
   // Fits the page to the actual workspace on BOTH axes, not just width -
   // a portrait page capped only by width can still be taller than the
@@ -910,7 +911,7 @@ TOOLS.sign = function(){
       loadedPdoc = await loadPdfJsSafe({data:bytes.slice(0)});
     }catch(e){
       if(myToken !== loadToken) return;
-      toast("Could not read this PDF. Try a different file.");
+      toast(t("toolSign.errCouldNotReadPdf"));
       return;
     }
     if(myToken !== loadToken){ try{ loadedPdoc.destroy(); }catch(e){} return; }
@@ -927,15 +928,15 @@ TOOLS.sign = function(){
       await buildDocument(myToken);
     }catch(e){
       if(myToken !== loadToken) return;
-      toast("Could not render this PDF's pages. Try a different file.");
+      toast(t("toolSign.errCouldNotRenderPdf"));
     }
   });
 
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
     const out=document.getElementById("out");
-    if(!file){ toast("Choose a PDF first"); return; }
-    if(assets.length===0){ toast("Add a signature first"); return; }
-    out.innerHTML=statusEl("Placing signature"+(assets.length>1?"s":"")+"...");
+    if(!file){ toast(t("toolSign.errChoosePdfFirst")); return; }
+    if(assets.length===0){ toast(t("toolSign.errAddSignatureFirst")); return; }
+    out.innerHTML=statusEl(assets.length>1 ? t("toolSign.statusPlacingSignatures") : t("toolSign.statusPlacingSignature"));
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
     const pageCount = doc.getPageCount();
@@ -975,11 +976,11 @@ TOOLS.sign = function(){
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "signed", "pdf");
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const {canvas:thumb}=await pdfThumb(outBytes, firstPlacedPage || 1);
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:thumb, url, filename:outName}));
   }));
@@ -996,6 +997,7 @@ TOOLS.sign = function(){
    over the matching page's canvas instead of a plain field-name list
    with no visual connection to the document. */
 TOOLS.fillform = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, doc=null, pdoc=null, currentPage=1, dispScale=1, loadToken=0;
   let fieldsByPage={}, totalFieldCount=0;
   // Field overlays only exist in the DOM for whichever page is currently
@@ -1007,16 +1009,16 @@ TOOLS.fillform = function(){
   // selected option's value (or are absent if nothing was chosen).
   let fieldValues={}, fieldTypeByName={};
   openPanel(`
-    <div class="panel-head"><h3>Fill PDF Form</h3></div>
+    <div class="panel-head"><h3>${t("tools.fillform")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="fillformBody">
       <div class="tool-hero" id="fillformHero">
-        <h2 class="tool-hero-title">Fill PDF Form</h2>
-        <p class="tool-hero-desc">Fill in interactive fields directly on the page, then download the completed document.</p>
+        <h2 class="tool-hero-title">${t("tools.fillform")}</h2>
+        <p class="tool-hero-desc">${t("toolFillform.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="fillformUploadWrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
+        ${fileInputHTML("application/pdf", false, t("workspace.selectPdfFiles"))}
       </div>
-      <p class="tool-privacy-hint" id="fillformPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="fillformPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="fillformWorkspace" style="display:none">
         <div class="tool-main-pane">
           <div class="tool-content-area crop-stage" id="fillformStage">
@@ -1027,19 +1029,19 @@ TOOLS.fillform = function(){
           <div class="mono" id="fillformReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;"></div>
         </div>
         <aside class="tool-side-panel">
-          <h3 class="tool-side-panel-title">Fill PDF Form</h3>
+          <h3 class="tool-side-panel-title">${t("tools.fillform")}</h3>
           <div id="fillformFileSlot"></div>
           <div class="field" id="fillformPageField" style="display:none">
-            <label for="fillformPageNum">Page</label>
+            <label for="fillformPageNum">${t("toolFillform.pageLabel")}</label>
             <div class="row">
-              <button class="btn secondary btn-sm" id="fillformPrevPage" type="button" aria-label="Previous page">‹</button>
+              <button class="btn secondary btn-sm" id="fillformPrevPage" type="button" aria-label="${t("toolFillform.prevPage")}">‹</button>
               <input type="number" id="fillformPageNum" value="1" min="1" style="text-align:center">
-              <button class="btn secondary btn-sm" id="fillformNextPage" type="button" aria-label="Next page">›</button>
+              <button class="btn secondary btn-sm" id="fillformNextPage" type="button" aria-label="${t("toolFillform.nextPage")}">›</button>
             </div>
           </div>
           <div id="fillformActions" style="display:none">
-            <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;margin-bottom:14px;"><input type="checkbox" id="flat"> Flatten after filling (locks the values in)</label>
-            <button class="btn tool-toolbar-primary" id="go">Fill PDF Form</button>
+            <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;margin-bottom:14px;"><input type="checkbox" id="flat"> ${t("toolFillform.flattenLabel")}</label>
+            <button class="btn tool-toolbar-primary" id="go">${t("tools.fillform")}</button>
           </div>
         </aside>
       </div>
@@ -1167,18 +1169,18 @@ TOOLS.fillform = function(){
       canvasWrap.appendChild(el);
     });
     readout.textContent = fields.length
-      ? `${fields.length} field${fields.length>1?"s":""} on this page — click to fill.`
-      : "No fillable fields on this page.";
+      ? t(fields.length>1 ? "toolFillform.fieldsOnPageMany" : "toolFillform.fieldsOnPageOne", {n:fields.length})
+      : t("toolFillform.noFieldsOnPage");
   }
 
   async function renderPage(pageNum, myToken){
-    readout.textContent = "Rendering page…";
+    readout.textContent = t("toolFillform.statusRenderingPage");
     let rendered;
     try{
       rendered = await renderPdfPageCanvas(pdoc, pageNum, dispScale);
     }catch(e){
       if(myToken !== loadToken) return false;
-      readout.textContent = "Could not render this page. Try a different file.";
+      readout.textContent = t("toolFillform.errCouldNotRenderPage");
       return false;
     }
     if(myToken !== loadToken) return false;
@@ -1209,7 +1211,7 @@ TOOLS.fillform = function(){
     // guard checks below compare against the right value.
     const runToken = loadToken;
     fileSlot.appendChild(document.getElementById("flist"));
-    readout.textContent = "Reading PDF…";
+    readout.textContent = t("workspace.statusReadingPdf");
     showWorkspace();
 
     let parsedDoc, loadedPdoc, collected;
@@ -1220,7 +1222,7 @@ TOOLS.fillform = function(){
       loadedPdoc = await loadPdfJsSafe({data:bytes.slice(0)});
     }catch(e){
       if(runToken !== loadToken) return;
-      readout.textContent = `Could not read this PDF (${e.message}).`;
+      readout.textContent = t("toolFillform.errCouldNotReadPdf", {msg: e.message});
       return;
     }
     if(runToken !== loadToken) return;
@@ -1238,12 +1240,12 @@ TOOLS.fillform = function(){
     if(runToken !== loadToken) return;
     actions.style.display = totalFieldCount>0 ? "block" : "none";
     if(totalFieldCount===0){
-      readout.textContent = "This PDF does not contain any fillable form fields.";
+      readout.textContent = t("toolFillform.noFillableFields");
     }
   });
 
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Filling form...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("toolFillform.statusFillingForm"));
     const form = doc.getForm();
     // Reads from fieldValues (kept in sync by each overlay input's own
     // change/input listener), not the live DOM - only the current page's
@@ -1268,10 +1270,10 @@ TOOLS.fillform = function(){
     const outBytes = await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "filled", "pdf");
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, url, filename:outName}));
   }));

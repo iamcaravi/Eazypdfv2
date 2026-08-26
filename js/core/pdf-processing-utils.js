@@ -980,12 +980,21 @@ function fileInputHTML(accept, multiple, label){
   // of repeating unrelated copy, derived from the one label callers
   // already pass rather than a second parameter every call site would
   // have to keep in sync.
-  const noun = (label||"file").replace(/^Select\s+/i, "");
-  const visibleLabel = label || "Drag and drop, or click to browse";
+  const t = window.I18N ? I18N.t : (k)=>k;
+  // Previously derived the hint's noun by regex-stripping the English
+  // word "Select " off the label ("Select PDF files" -> "PDF files") -
+  // once callers started passing a TRANSLATED label (see i18n.js Phase
+  // 2), that regex no longer matched anything (translated strings don't
+  // start with the English word "Select"), so the *entire* translated
+  // label leaked into the hint verbatim ("or drop [Select PDF files]
+  // here" - confirmed live in Hindi). The hint no longer depends on the
+  // label's wording at all now - "or drop here" reads correctly in every
+  // language regardless of what noun (if any) the caller's label uses.
+  const visibleLabel = label || t("workspace.dropDefaultLabel");
   return `<div class="dropzone" id="dz" role="button" tabindex="0" aria-labelledby="dzLabel dzHint" aria-controls="fi">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
     <div><strong id="dzLabel">${escapeAttr(visibleLabel)}</strong></div>
-    <div class="hint" id="dzHint">or drop ${escapeAttr(noun)} here · 🔒 stays on this device</div>
+    <div class="hint" id="dzHint">${escapeAttr(t("workspace.dropHintPrefix"))} ${escapeAttr(t("workspace.dropHintSuffix"))} · 🔒 ${escapeAttr(t("workspace.staysOnDevice"))}</div>
     <input type="file" id="fi" class="hidden" accept="${escapeAttr(accept)}" aria-labelledby="dzLabel" ${multiple?"multiple":""}>
   </div><div class="filelist" id="flist"></div><div class="thumbs" id="quickPreview"></div>`;
 }
@@ -1048,10 +1057,11 @@ function wireDropzone(onFiles){
   async function handle(selected){
     const token = ++selectionGeneration;
     let files;
+    const t = window.I18N ? I18N.t : (k)=>k;
     try {
       files = await validateFileSelection(selected, { accept: fi.accept, multiple: fi.multiple });
     } catch (error) {
-      if(token === selectionGeneration) toast(error?.message || "This file cannot be processed.");
+      if(token === selectionGeneration) toast(error?.message || t("workspace.thisFileCannotBeProcessed"));
       return;
     }
     if(token !== selectionGeneration || !files.length) return;
@@ -1062,9 +1072,9 @@ function wireDropzone(onFiles){
     cancelAllToolOperations();
     try {
       const result = onFiles(files);
-      Promise.resolve(result).catch(error => toast(error?.message || "This file could not be opened."));
+      Promise.resolve(result).catch(error => toast(error?.message || t("workspace.thisFileCouldNotBeOpened")));
     } catch (error) {
-      toast(error?.message || "This file could not be opened.");
+      toast(error?.message || t("workspace.thisFileCouldNotBeOpened"));
       return;
     }
     autoQuickPreview(files);
@@ -1105,10 +1115,11 @@ function renderFileList(files, onRemove){
   if(__fileCardPreviewUrls.length){ __fileCardPreviewUrls.forEach(u=>URL.revokeObjectURL(u)); __fileCardPreviewUrls = []; }
   flist.classList.add("file-grid");
   document.querySelector(".panel-body")?.classList.toggle("has-file", files.length>0);
+  const tRfl = window.I18N ? I18N.t : (k)=>k;
   flist.innerHTML = files.map((f,i)=>{
     const kind = isPdfFile(f) ? "PDF" : (f.type && f.type.startsWith("image/")) ? "IMG" : (f.name.split(".").pop()||"FILE").toUpperCase().slice(0,4);
     return `<div class="file-card" data-i="${i}">
-      <button type="button" class="file-card-remove" data-i="${i}" aria-label="Remove ${escapeAttr(f.name)}">✕</button>
+      <button type="button" class="file-card-remove" data-i="${i}" aria-label="${escapeAttr(tRfl("workspace.removeFile"))} ${escapeAttr(f.name)}">✕</button>
       <div class="file-card-thumb" id="fcThumb${i}"><span class="file-card-kind">${kind}</span></div>
       <div class="file-card-name" title="${escapeAttr(f.name)}">${escapeAttr(f.name)}</div>
       <div class="file-card-meta">
@@ -1164,7 +1175,7 @@ function renderFileList(files, onRemove){
           // also skip the page-count line below via the shared try/catch.
           if(canvas && document.getElementById("fcThumb"+i)===slot){ slot.innerHTML=""; slot.appendChild(canvas); }
           const pagesEl = document.getElementById("fcPages"+i);
-          if(pagesEl && numPages>0) pagesEl.textContent = numPages===1 ? "1 page" : `${numPages} pages`;
+          if(pagesEl && numPages>0) pagesEl.textContent = `${numPages} ${numPages===1 ? tRfl("workspace.page") : tRfl("workspace.pages")}`;
         } else if(f.type && f.type.startsWith("image/")){
           const img = document.createElement("img");
           const url = URL.createObjectURL(f);
@@ -1199,12 +1210,13 @@ function escapeAttr(s){ return String(s).replace(/&/g,"&amp;").replace(/"/g,"&qu
  * @returns {string} HTML to assign into `#out`.
  */
 function statusEl(msg){
+  const t = window.I18N ? I18N.t : (k)=>k;
   return `<div class="pdf-progress" id="pdfLoader" role="status" aria-live="polite">
     <div class="pdf-progress-head">
       <span class="pdf-progress-title" id="statusLine">${escapeAttr(msg)}</span>
       <span class="pdf-progress-dots" aria-hidden="true"><span></span><span></span><span></span></span>
     </div>
-    <div class="pdf-progress-sub" id="pdfLoaderSub">Please wait while we process your file.</div>
+    <div class="pdf-progress-sub" id="pdfLoaderSub">${escapeAttr(t("workspace.pleaseWait"))}</div>
     <div class="pdf-progress-track"><div class="pdf-progress-fill indeterminate" id="pdfLoaderFill"></div></div>
     <div class="pdf-progress-pct" id="pdfLoaderPct" hidden></div>
   </div>`;
@@ -1268,6 +1280,7 @@ function setStatus(msg, done, percent){
  * @returns {HTMLElement} the result box, ready to append into `#out`.
  */
 function resultBox({sizeText, sizeGood, previewNode, url, filename}){
+  const t = window.I18N ? I18N.t : (k)=>k;
   const body = document.querySelector(".panel-body");
   const out = document.getElementById("out");
   if(body){
@@ -1281,7 +1294,7 @@ function resultBox({sizeText, sizeGood, previewNode, url, filename}){
     const color = (CATEGORY_META[qa && qa.cat] && CATEGORY_META[qa.cat].color) || "#112B5C";
     return `<button type="button" class="continue-card" data-continue-tool="${id}">
       ${renderIcon(id, color)}
-      <span class="continue-name">${QA_LABELS[id] || id}</span>
+      <span class="continue-name">${window.I18N ? I18N.t("tools."+id) : (QA_LABELS[id] || id)}</span>
     </button>`;
   }).join("");
 
@@ -1289,26 +1302,29 @@ function resultBox({sizeText, sizeGood, previewNode, url, filename}){
   box.className="result-box result-success";
   box.innerHTML = `
     <div class="result-head">
-      <button type="button" class="result-back" aria-label="Start over">←</button>
-      <h3>✅ All done!</h3>
+      <button type="button" class="result-back" aria-label="${escapeAttr(t("workspace.startOver"))}">←</button>
+      <h3>✅ ${escapeAttr(t("workspace.allDone"))}</h3>
     </div>
-    <div>Result size: <span class="size-badge ${sizeGood?'good':'bad'} mono">${sizeText}</span></div>`;
+    <div>${escapeAttr(t("workspace.resultSize"))} <span class="size-badge ${sizeGood?'good':'bad'} mono">${sizeText}</span></div>`;
   if(previewNode){ const wrap=document.createElement("div"); wrap.className="thumbs"; wrap.appendChild(previewNode); box.appendChild(wrap); }
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.className="dl-link dl-link-primary"; a.textContent = "⬇ Download " + filename;
+  a.href = url; a.download = filename; a.className="dl-link dl-link-primary"; a.textContent = "⬇ " + t("workspace.download") + " " + filename;
   box.appendChild(a);
   const shareRow = document.createElement("div");
   shareRow.className = "result-share";
+  const shareOnWhatsapp = escapeAttr(`${t("workspace.shareOn")} WhatsApp`);
+  const shareOnFacebook = escapeAttr(`${t("workspace.shareOn")} Facebook`);
+  const shareOnX = escapeAttr(`${t("workspace.shareOn")} X`);
   shareRow.innerHTML = `
-    <span class="result-share-label">❤️ Enjoyed this? Spread the word!</span>
+    <span class="result-share-label">❤️ ${escapeAttr(t("workspace.enjoyedShare"))}</span>
     <span class="result-share-btns">
-      <button type="button" class="share-btn sm whatsapp" data-share="whatsapp" title="Share on WhatsApp" aria-label="Share on WhatsApp">
+      <button type="button" class="share-btn sm whatsapp" data-share="whatsapp" title="${shareOnWhatsapp}" aria-label="${shareOnWhatsapp}">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.29-1.39a9.9 9.9 0 0 0 4.75 1.21h.01c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm0 18.02h-.01a8.13 8.13 0 0 1-4.14-1.13l-.3-.18-3.08.81.82-3-.2-.31a8.1 8.1 0 0 1-1.25-4.3c0-4.48 3.65-8.12 8.14-8.12 2.17 0 4.21.85 5.75 2.38a8.06 8.06 0 0 1 2.38 5.75c0 4.48-3.65 8.1-8.11 8.1zm4.45-6.07c-.24-.12-1.44-.71-1.66-.79-.22-.08-.39-.12-.55.12-.16.24-.63.79-.78.95-.14.16-.29.18-.53.06-.24-.12-1.02-.38-1.94-1.2-.72-.64-1.2-1.43-1.35-1.67-.14-.24-.02-.37.11-.49.11-.11.24-.29.36-.43.12-.15.16-.25.24-.41.08-.16.04-.31-.02-.43-.06-.12-.55-1.32-.75-1.81-.2-.48-.4-.41-.55-.42h-.47c-.16 0-.43.06-.65.31-.22.24-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.64 4.2 3.7.59.25 1.05.4 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28z"/></svg>
       </button>
-      <button type="button" class="share-btn sm facebook" data-share="facebook" title="Share on Facebook" aria-label="Share on Facebook">
+      <button type="button" class="share-btn sm facebook" data-share="facebook" title="${shareOnFacebook}" aria-label="${shareOnFacebook}">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5 3.66 9.15 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.91h-2.34V22c4.78-.79 8.44-4.94 8.44-9.94z"/></svg>
       </button>
-      <button type="button" class="share-btn sm x" data-share="x" title="Share on X" aria-label="Share on X">
+      <button type="button" class="share-btn sm x" data-share="x" title="${shareOnX}" aria-label="${shareOnX}">
         <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M18.9 2H22l-7.6 8.7L23.3 22h-6.9l-5.4-7.1L4.7 22H1.6l8.1-9.3L1 2h7l4.9 6.5L18.9 2zm-1.2 18h1.9L7.4 4H5.4l12.3 16z"/></svg>
       </button>
     </span>`;
@@ -1323,7 +1339,7 @@ function resultBox({sizeText, sizeGood, previewNode, url, filename}){
   if(continueHtml){
     const section = document.createElement("div");
     section.className = "continue-section";
-    section.innerHTML = `<div class="continue-label">Continue to...</div><div class="continue-grid">${continueHtml}</div>`;
+    section.innerHTML = `<div class="continue-label">${escapeAttr(t("workspace.continueTo"))}</div><div class="continue-grid">${continueHtml}</div>`;
     box.appendChild(section);
   }
   box.querySelector(".result-back").addEventListener("click", ()=>{ const id=window.__currentToolId; closePanel(true); openTool(id); });

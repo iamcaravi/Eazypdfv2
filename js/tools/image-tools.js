@@ -26,7 +26,7 @@ function loadImage(file, {retainObjectUrl=false} = {}){
          width * height > YOYO_RESOURCE_LIMITS.maxImagePixels){
         URL.revokeObjectURL(url);
         reject(new ResourceValidationError(
-          `${file.name} has dimensions too large for safe in-browser processing.`,
+          T("workspace.errImageTooLargeDimensions", {name: file.name}),
           "image-too-large"
         ));
         return;
@@ -38,32 +38,33 @@ function loadImage(file, {retainObjectUrl=false} = {}){
       if(settled) return;
       settled = true;
       URL.revokeObjectURL(url);
-      reject(new Error(`Could not read ${file.name} as an image - it may be corrupt or an unsupported format.`));
+      reject(new Error(T("workspace.errCouldNotReadImageNamed", {name: file.name})));
     };
     img.src=url;
   });
 }
 
 TOOLS.imgcompress = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null;
   openPanel(`
-    <div class="panel-head"><h3>Image Compressor</h3></div>
+    <div class="panel-head"><h3>${t("tools.imgcompress")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgcompressBody">
       <div class="tool-hero" id="imgcompressHero">
-        <h2 class="tool-hero-title">Image Compressor</h2>
-        <p class="tool-hero-desc">Shrink an image toward a target file size, right in your browser.</p>
+        <h2 class="tool-hero-title">${t("tools.imgcompress")}</h2>
+        <p class="tool-hero-desc">${t("toolImgCompress.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="imgcompressUploadWrap">
-        ${fileInputHTML("image/*", false, "Select image")}
+        ${fileInputHTML("image/*", false, t("workspace.selectImage"))}
       </div>
-      <p class="tool-privacy-hint" id="imgcompressPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="imgcompressPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="imgcompressWorkspace" style="display:none">
         <div class="tool-main-pane" id="imgcompressPreviewPane"></div>
         <aside class="tool-side-panel">
-          <h3 class="tool-side-panel-title">Image Compressor</h3>
+          <h3 class="tool-side-panel-title">${t("tools.imgcompress")}</h3>
           <div id="imgcompressFileSlot"></div>
-          <div class="field"><label for="targetKb">Target size in KB</label><input type="number" id="targetKb" placeholder="e.g. 100"></div>
-          <button class="btn tool-toolbar-primary" id="go">Compress Image</button>
+          <div class="field"><label for="targetKb">${t("toolImgCompress.targetSizeLabel")}</label><input type="number" id="targetKb" placeholder="e.g. 100"></div>
+          <button class="btn tool-toolbar-primary" id="go">${t("toolImgCompress.compressImage")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -98,60 +99,61 @@ TOOLS.imgcompress = function(){
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
     const out=document.getElementById("out");
     const targetKb = parseInt(document.getElementById("targetKb").value);
-    if(!targetKb){ toast("Enter a target size in KB"); return; }
+    if(!targetKb){ toast(t("toolImgCompress.errEnterTargetSize")); return; }
     const targetBytes = targetKb*1024;
-    out.innerHTML=statusEl("Reading image...");
+    out.innerHTML=statusEl(t("workspace.statusReadingImage"));
     const img = await loadImage(file);
     let quality=0.85, scale=1;
     let best=null;
     for(let i=0;i<10;i++){
       const refSize = best ? best.size : file.size;
-      setStatus("Compressing...", false, Math.min(99, Math.round((targetBytes/refSize)*100)));
+      setStatus(t("toolImgCompress.statusCompressing"), false, Math.min(99, Math.round((targetBytes/refSize)*100)));
       const canvas=document.createElement("canvas");
       canvas.width=img.width*scale; canvas.height=img.height*scale;
       canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
       const blob = await new Promise(res=>canvas.toBlob(res,"image/jpeg",quality));
       if(!best || blob.size<best.size) best=blob;
-      setStatus("Compressing...", false, Math.min(99, Math.round((targetBytes/blob.size)*100)));
+      setStatus(t("toolImgCompress.statusCompressing"), false, Math.min(99, Math.round((targetBytes/blob.size)*100)));
       if(blob.size<=targetBytes) break;
       if(quality>0.3) quality-=0.1; else if(scale>0.4) {scale-=0.15; quality=0.7;} else break;
     }
     let usedOriginal=false;
     if(best.size >= file.size){ best = file; usedOriginal = true; }
     const outName = suffixedName(file, "compressed", "jpg");
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(best,outName);
     const im=document.createElement("img"); im.src=url;
     const reached = best.size<=targetBytes;
-    setStatus(usedOriginal ? `This image is already efficiently encoded — we kept the original (${fmtSize(best.size)}).` : (reached?"Target reached":`Best possible result: ${fmtSize(best.size)}`), true);
+    setStatus(usedOriginal ? t("toolImgCompress.doneKeptOriginal", {size: fmtSize(best.size)}) : (reached ? t("toolImgCompress.doneTargetReached") : t("toolImgCompress.doneBestPossible", {size: fmtSize(best.size)})), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:`${fmtSize(best.size)} (target ${targetKb} KB)`, sizeGood:reached, previewNode:im, url, filename:outName}));
   }));
 };
 
 TOOLS.imgresize = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, loadToken=0;
   openPanel(`
-    <div class="panel-head"><h3>Resize Image</h3></div>
+    <div class="panel-head"><h3>${t("tools.imgresize")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgresizeBody">
       <div class="tool-hero" id="imgresizeHero">
-        <h2 class="tool-hero-title">Resize Image</h2>
-        <p class="tool-hero-desc">Change an image's dimensions, in your browser.</p>
+        <h2 class="tool-hero-title">${t("tools.imgresize")}</h2>
+        <p class="tool-hero-desc">${t("toolImgResize.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="imgresizeUploadWrap">
-        ${fileInputHTML("image/*", false, "Select image")}
+        ${fileInputHTML("image/*", false, t("workspace.selectImage"))}
       </div>
-      <p class="tool-privacy-hint" id="imgresizePrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="imgresizePrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="imgresizeWorkspace" style="display:none">
         <div class="tool-main-pane" id="imgresizePreviewPane"></div>
         <aside class="tool-side-panel">
-          <h3 class="tool-side-panel-title">Resize Image</h3>
+          <h3 class="tool-side-panel-title">${t("tools.imgresize")}</h3>
           <div id="imgresizeFileSlot"></div>
-          <div class="field"><label for="rw">Width (px)</label><input type="number" id="rw" placeholder="800"></div>
-          <div class="field"><label for="rh">Height (px)</label><input type="number" id="rh" placeholder="600"></div>
-          <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="keepRatio" checked> Maintain aspect ratio</label>
-          <button class="btn tool-toolbar-primary" id="go">Resize Image</button>
+          <div class="field"><label for="rw">${t("toolImgResize.widthLabel")}</label><input type="number" id="rw" placeholder="800"></div>
+          <div class="field"><label for="rh">${t("toolImgResize.heightLabel")}</label><input type="number" id="rh" placeholder="600"></div>
+          <label style="font-size:.85rem;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="keepRatio" checked> ${t("toolImgResize.maintainAspectRatio")}</label>
+          <button class="btn tool-toolbar-primary" id="go">${t("toolImgResize.resizeImage")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -195,7 +197,7 @@ TOOLS.imgresize = function(){
     try{ loadedImg = await loadImage(file); }
     catch(e){
       if(myToken !== loadToken) return;
-      toast(e.message || "Could not read this image file");
+      toast(e.message || t("workspace.errCouldNotReadImageGeneric"));
       file=null; imgRef=null; showEmptyState();
       return;
     }
@@ -211,18 +213,18 @@ TOOLS.imgresize = function(){
     }
   });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Resizing...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("toolImgResize.statusResizing"));
     const w=+document.getElementById("rw").value, h=+document.getElementById("rh").value;
     const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
     canvas.getContext("2d").drawImage(imgRef,0,0,w,h);
     const {mime, ext} = imgOutputFormat(file);
     const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
     const outName = suffixedName(file, "resized", ext);
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
   }));
@@ -239,6 +241,7 @@ TOOLS.imgresize = function(){
    screen), so cropping a 4000px photo never silently degrades it to
    whatever the editor's display width was capped at. */
 TOOLS.imgcrop = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, imgRef=null, objectUrl=null, loadToken=0;
   let normRect=null; // {x0,y0,x1,y1} 0..1, fractions of the displayed image box
   let zoom=1; // multiplier over the computed "fit" width
@@ -247,23 +250,23 @@ TOOLS.imgcrop = function(){
   const MIN_SIZE=0.02;
 
   openPanel(`
-    <div class="panel-head"><h3>Crop Image</h3></div>
+    <div class="panel-head"><h3>${t("tools.imgcrop")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgcropBody">
       <div class="tool-hero" id="imgcropHero">
-        <h2 class="tool-hero-title">Crop Image</h2>
-        <p class="tool-hero-desc">Click and drag to select the area you want to keep, then fine-tune it with the handles.</p>
+        <h2 class="tool-hero-title">${t("tools.imgcrop")}</h2>
+        <p class="tool-hero-desc">${t("toolImgCrop.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="imgcropUploadWrap">
-        ${fileInputHTML("image/*", false, "Select image")}
+        ${fileInputHTML("image/*", false, t("workspace.selectImage"))}
       </div>
-      <p class="tool-privacy-hint" id="imgcropPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="imgcropPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace imgcrop-app-workspace" id="imgcropWorkspace" style="display:none">
         <div class="tool-main-pane imgcrop-main-pane">
           <div class="imgcrop-zoom">
-            <button type="button" class="imgcrop-zoom-btn" id="imgZoomOut" aria-label="Zoom out">−</button>
+            <button type="button" class="imgcrop-zoom-btn" id="imgZoomOut" aria-label="${t("workspace.zoomOut")}">−</button>
             <span class="imgcrop-zoom-level" id="imgZoomLevel">100%</span>
-            <button type="button" class="imgcrop-zoom-btn" id="imgZoomIn" aria-label="Zoom in">+</button>
-            <button type="button" class="imgcrop-zoom-fit" id="imgZoomFit">Fit</button>
+            <button type="button" class="imgcrop-zoom-btn" id="imgZoomIn" aria-label="${t("workspace.zoomIn")}">+</button>
+            <button type="button" class="imgcrop-zoom-fit" id="imgZoomFit">${t("toolImgCrop.zoomFit")}</button>
           </div>
           <div class="imgcrop-viewport" id="imgcropViewport">
             <div class="imgcrop-canvas-wrap" id="imgcropCanvasWrap">
@@ -273,38 +276,38 @@ TOOLS.imgcrop = function(){
           </div>
         </div>
         <aside class="tool-side-panel imgcrop-side-panel">
-          <h3 class="tool-side-panel-title">Crop Image</h3>
+          <h3 class="tool-side-panel-title">${t("tools.imgcrop")}</h3>
           <div class="imgcrop-file-card">
             <div class="imgcrop-file-thumb" id="imgcropThumb"></div>
             <div class="imgcrop-file-meta">
               <div class="imgcrop-file-name" id="imgcropFileName"></div>
               <div class="imgcrop-file-dims" id="imgcropFileDims"></div>
             </div>
-            <button type="button" class="imgcrop-file-remove" id="imgcropRemove" aria-label="Remove image">✕</button>
+            <button type="button" class="imgcrop-file-remove" id="imgcropRemove" aria-label="${t("toolImgCrop.removeImage")}">✕</button>
           </div>
           <div class="imgcrop-instruction-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></svg>
             <div>
-              <strong>Click and drag to select the area you want to keep.</strong>
-              <p>Resize with its corner/edge handles, or drag inside it to move it.</p>
+              <strong>${t("toolImgCrop.instructionTitle")}</strong>
+              <p>${t("toolImgCrop.instructionDesc")}</p>
             </div>
           </div>
           <div>
-            <span class="tool-side-panel-section-label">Aspect ratio</span>
+            <span class="tool-side-panel-section-label">${t("toolImgCrop.aspectRatioLabel")}</span>
             <div class="imgcrop-ratio-grid" id="imgcropRatioGrid" style="margin-top:6px;">
-              <button type="button" class="imgcrop-ratio-btn active" data-ratio="free">Free</button>
+              <button type="button" class="imgcrop-ratio-btn active" data-ratio="free">${t("toolImgCrop.ratioFree")}</button>
               <button type="button" class="imgcrop-ratio-btn" data-ratio="1:1">1:1</button>
               <button type="button" class="imgcrop-ratio-btn" data-ratio="4:5">4:5</button>
               <button type="button" class="imgcrop-ratio-btn" data-ratio="16:9">16:9</button>
               <button type="button" class="imgcrop-ratio-btn" data-ratio="3:2">3:2</button>
-              <button type="button" class="imgcrop-ratio-btn" data-ratio="original">Original</button>
+              <button type="button" class="imgcrop-ratio-btn" data-ratio="original">${t("toolImgCrop.ratioOriginal")}</button>
             </div>
           </div>
-          <label class="imgcrop-lock-row"><input type="checkbox" id="imgcropLock"> Lock ratio while resizing</label>
+          <label class="imgcrop-lock-row"><input type="checkbox" id="imgcropLock"> ${t("toolImgCrop.lockRatio")}</label>
           <div class="split-error" id="imgcropError" hidden></div>
           <div class="imgcrop-side-actions">
-            <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
-            <button class="btn tool-toolbar-primary" id="go" disabled>Crop Image →</button>
+            <button class="btn secondary" id="resetCrop" type="button">${t("toolImgCrop.resetSelection")}</button>
+            <button class="btn tool-toolbar-primary" id="go" disabled>${t("toolImgCrop.cropImageArrow")}</button>
           </div>
         </aside>
       </div>
@@ -377,13 +380,13 @@ TOOLS.imgcrop = function(){
       loadedImg = await new Promise((res,rej)=>{
         const img=new Image();
         img.onload=()=>res(img);
-        img.onerror=()=>rej(new Error(`Could not read "${file.name}" as an image - it may be corrupt or an unsupported format.`));
+        img.onerror=()=>rej(new Error(T("workspace.errCouldNotReadImageNamed", {name: file.name})));
         img.src=newUrl;
       });
     }catch(e){
       if(newUrl) URL.revokeObjectURL(newUrl);
       if(myToken !== loadToken) return;
-      toast(e.message || "Could not read this image file");
+      toast(e.message || t("workspace.errCouldNotReadImageGeneric"));
       file=null;
       showEmptyState();
       return;
@@ -635,8 +638,8 @@ TOOLS.imgcrop = function(){
 
   goBtn.addEventListener("click", withToolOperation(goBtn, async (_event, operation)=>{
     if(!imgRef) return;
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Cropping...");
-    goBtn.disabled = true; const goLabel = goBtn.textContent; goBtn.textContent = "Cropping...";
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("toolImgCrop.statusCropping"));
+    goBtn.disabled = true; const goLabel = goBtn.textContent; goBtn.textContent = t("toolImgCrop.statusCropping");
     try{
       const nw = imgRef.naturalWidth, nh = imgRef.naturalHeight;
       const r = normRect || {x0:0, y0:0, x1:1, y1:1};
@@ -649,18 +652,18 @@ TOOLS.imgcrop = function(){
       const canvas = document.createElement("canvas"); canvas.width=sw; canvas.height=sh;
       canvas.getContext("2d").drawImage(imgRef, sx,sy,sw,sh, 0,0,sw,sh);
       const {mime, ext} = imgOutputFormat(file);
-      const blob = await new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Could not export the cropped image.")), mime, 0.92));
+      const blob = await new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error(t("toolImgCrop.errCouldNotExport"))), mime, 0.92));
       const outName = suffixedName(file, "cropped", ext);
-      setStatus("Preparing download...");
+      setStatus(T("workspace.statusPreparingDownload"));
       if(!operation.isCurrent()) return;
       const {url} = downloadBlob(blob, outName);
       const im = document.createElement("img"); im.src=url;
-      setStatus("Done", true);
+      setStatus(t("workspace.done"), true);
       if(!operation.isCurrent()) return;
       out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
     }catch(e){
       out.innerHTML = "";
-      showError("Something went wrong while cropping this image. Please try again.");
+      showError(t("toolImgCrop.errGenericFailed"));
     }finally{
       goBtn.textContent = goLabel; updateGoState();
     }
@@ -668,27 +671,28 @@ TOOLS.imgcrop = function(){
 };
 
 TOOLS.imgconvert = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null;
   openPanel(`
-    <div class="panel-head"><h3>Convert Image Format</h3></div>
+    <div class="panel-head"><h3>${t("tools.imgconvert")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgconvertBody">
       <div class="tool-hero" id="imgconvertHero">
-        <h2 class="tool-hero-title">Convert Image Format</h2>
-        <p class="tool-hero-desc">Convert an image between PNG, JPG, and WebP.</p>
+        <h2 class="tool-hero-title">${t("tools.imgconvert")}</h2>
+        <p class="tool-hero-desc">${t("toolImgConvert.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="imgconvertUploadWrap">
-        ${fileInputHTML("image/*", false, "Select image")}
+        ${fileInputHTML("image/*", false, t("workspace.selectImage"))}
       </div>
-      <p class="tool-privacy-hint" id="imgconvertPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="imgconvertPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="imgconvertWorkspace" style="display:none">
         <div class="tool-main-pane" id="imgconvertPreviewPane"></div>
         <aside class="tool-side-panel">
-          <h3 class="tool-side-panel-title">Convert Image Format</h3>
+          <h3 class="tool-side-panel-title">${t("tools.imgconvert")}</h3>
           <div id="imgconvertFileSlot"></div>
-          <div class="field"><label for="fmt">Target format</label>
+          <div class="field"><label for="fmt">${t("toolImgConvert.targetFormatLabel")}</label>
             <select id="fmt"><option value="image/png">PNG</option><option value="image/jpeg">JPG</option><option value="image/webp">WebP</option></select>
           </div>
-          <button class="btn tool-toolbar-primary" id="go">Convert Image</button>
+          <button class="btn tool-toolbar-primary" id="go">${t("toolImgConvert.convertImage")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -721,47 +725,48 @@ TOOLS.imgconvert = function(){
     showWorkspace();
   });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading image...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("workspace.statusReadingImage"));
     const img = await loadImage(file);
     const canvas=document.createElement("canvas"); canvas.width=img.width; canvas.height=img.height;
     canvas.getContext("2d").drawImage(img,0,0);
-    setStatus("Converting...");
+    setStatus(t("toolImgConvert.statusConverting"));
     const fmt = document.getElementById("fmt").value;
     const ext = fmt.split("/")[1];
     const blob = await new Promise(res=>canvas.toBlob(res, fmt, 0.92));
     const outName = suffixedName(file, "converted", ext);
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
   }));
 };
 
 TOOLS.imgwatermark = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, imgRef=null, loadToken=0;
   openPanel(`
-    <div class="panel-head"><h3>Add Watermark to Image</h3></div>
+    <div class="panel-head"><h3>${t("tools.imgwatermark")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imgwatermarkBody">
       <div class="tool-hero" id="imgwatermarkHero">
-        <h2 class="tool-hero-title">Add Watermark to Image</h2>
-        <p class="tool-hero-desc">Stamp diagonal text across an image, right in your browser.</p>
+        <h2 class="tool-hero-title">${t("tools.imgwatermark")}</h2>
+        <p class="tool-hero-desc">${t("toolImgWatermark.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="imgwatermarkUploadWrap">
-        ${fileInputHTML("image/*", false, "Select image")}
+        ${fileInputHTML("image/*", false, t("workspace.selectImage"))}
       </div>
-      <p class="tool-privacy-hint" id="imgwatermarkPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="imgwatermarkPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="imgwatermarkWorkspace" style="display:none">
         <div class="tool-main-pane" id="imgwatermarkPreviewPane"></div>
         <aside class="tool-side-panel">
-          <h3 class="tool-side-panel-title">Add Watermark</h3>
+          <h3 class="tool-side-panel-title">${t("toolImgWatermark.addWatermark")}</h3>
           <div id="imgwatermarkFileSlot"></div>
-          <div class="field"><label for="wtext">Watermark text</label><input type="text" id="wtext" placeholder="e.g. SAMPLE"></div>
-          <div class="field"><label for="opac">Opacity</label><input type="number" id="opac" value="0.4" step="0.05" min="0.05" max="1"></div>
-          <div class="field"><label for="fsize">Font size (px)</label><input type="number" id="fsize" value="36"></div>
-          <button class="btn tool-toolbar-primary" id="go">Add Watermark</button>
+          <div class="field"><label for="wtext">${t("toolImgWatermark.watermarkTextLabel")}</label><input type="text" id="wtext" placeholder="${t("toolImgWatermark.watermarkTextPlaceholder")}"></div>
+          <div class="field"><label for="opac">${t("toolImgWatermark.opacityLabel")}</label><input type="number" id="opac" value="0.4" step="0.05" min="0.05" max="1"></div>
+          <div class="field"><label for="fsize">${t("toolImgWatermark.fontSizeLabel")}</label><input type="number" id="fsize" value="36"></div>
+          <button class="btn tool-toolbar-primary" id="go">${t("toolImgWatermark.addWatermark")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -799,7 +804,7 @@ TOOLS.imgwatermark = function(){
     try{ loadedImg = await loadImage(file); }
     catch(e){
       if(myToken !== loadToken) return;
-      toast(e.message || "Could not read this image file");
+      toast(e.message || t("workspace.errCouldNotReadImageGeneric"));
       file=null; imgRef=null; showEmptyState();
       return;
     }
@@ -808,7 +813,7 @@ TOOLS.imgwatermark = function(){
     showWorkspace();
   });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing image...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("workspace.statusProcessingImage"));
     const canvas=document.createElement("canvas"); canvas.width=imgRef.width; canvas.height=imgRef.height;
     const ctx=canvas.getContext("2d"); ctx.drawImage(imgRef,0,0);
     const text = document.getElementById("wtext").value || "WATERMARK";
@@ -826,35 +831,36 @@ TOOLS.imgwatermark = function(){
     const {mime, ext} = imgOutputFormat(file);
     const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
     const outName = suffixedName(file, "watermarked", ext);
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
   }));
 };
 
 TOOLS.imginvert = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, imgRef=null, loadToken=0;
   openPanel(`
-    <div class="panel-head"><h3>Invert Image Colors</h3></div>
+    <div class="panel-head"><h3>${t("tools.imginvert")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="imginvertBody">
       <div class="tool-hero" id="imginvertHero">
-        <h2 class="tool-hero-title">Invert Image Colors</h2>
-        <p class="tool-hero-desc">Flip an image to its color negative.</p>
+        <h2 class="tool-hero-title">${t("tools.imginvert")}</h2>
+        <p class="tool-hero-desc">${t("toolImgInvert.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="imginvertUploadWrap">
-        ${fileInputHTML("image/*", false, "Select image")}
+        ${fileInputHTML("image/*", false, t("workspace.selectImage"))}
       </div>
-      <p class="tool-privacy-hint" id="imginvertPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="imginvertPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="imginvertWorkspace" style="display:none">
         <div class="tool-main-pane" id="imginvertPreviewPane"></div>
         <aside class="tool-side-panel">
-          <h3 class="tool-side-panel-title">Invert Image Colors</h3>
+          <h3 class="tool-side-panel-title">${t("tools.imginvert")}</h3>
           <div id="imginvertFileSlot"></div>
-          <button class="btn tool-toolbar-primary" id="go">Invert Image</button>
+          <button class="btn tool-toolbar-primary" id="go">${t("toolImgInvert.invertImage")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -892,7 +898,7 @@ TOOLS.imginvert = function(){
     try{ loadedImg = await loadImage(file); }
     catch(e){
       if(myToken !== loadToken) return;
-      toast(e.message || "Could not read this image file");
+      toast(e.message || t("workspace.errCouldNotReadImageGeneric"));
       file=null; imgRef=null; showEmptyState();
       return;
     }
@@ -901,7 +907,7 @@ TOOLS.imginvert = function(){
     showWorkspace();
   });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Processing image...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("workspace.statusProcessingImage"));
     const canvas=document.createElement("canvas"); canvas.width=imgRef.width; canvas.height=imgRef.height;
     const ctx=canvas.getContext("2d"); ctx.drawImage(imgRef,0,0);
     const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
@@ -911,11 +917,11 @@ TOOLS.imginvert = function(){
     const {mime, ext} = imgOutputFormat(file);
     const blob = await new Promise(res=>canvas.toBlob(res, mime, 0.92));
     const outName = suffixedName(file, "inverted", ext);
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const im=document.createElement("img"); im.src=url;
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:im, url, filename:outName}));
   }));

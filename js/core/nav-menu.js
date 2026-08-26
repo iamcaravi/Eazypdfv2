@@ -164,6 +164,12 @@ function inkForBg(hex){
   const luminance = 0.2126*r + 0.7152*g + 0.0722*b;
   return luminance > 0.5 ? "#0A0A0A" : "#fff";
 }
+/* i18n helpers: prefer the current language's translation, fall back to
+   the English name already in CATEGORIES/cat.title if I18N isn't loaded
+   yet or a key is missing - so this file works identically whether or
+   not js/core/i18n.js ran first. */
+function toolName(id, fallback){ return window.I18N ? I18N.t("tools."+id) : fallback; }
+function catName(cat){ return window.I18N ? I18N.t("categories."+cat.id) : cat.title; }
 function renderIcon(id, categoryColor){
   const b = TOOL_BADGES[id];
   if(b){
@@ -182,20 +188,22 @@ function cardHTML(id, name, color, catId, isPopular){
   return `
     <div class="card" data-tool="${id}" data-cat="${cats}">
       ${renderIcon(id, color)}
-      <div class="name">${name}</div>
-      <div class="desc">${DESCRIPTIONS[id]||""}</div>
+      <div class="name" data-i18n="tools.${id}">${name}</div>
+      <div class="desc" data-i18n="toolDesc.${id}">${DESCRIPTIONS[id]||""}</div>
     </div>`;
 }
 const toolCategoriesEl = document.getElementById("toolCategories");
 const POPULAR_SET = new Set(POPULAR_IDS);
 
 /* Single source of truth: each tool from CATEGORIES is rendered exactly once, tagged with its
-   real category (and "popular" too, if applicable) so filtering never has to duplicate a card. */
+   real category (and "popular" too, if applicable) so filtering never has to duplicate a card.
+   Names carry a data-i18n tag (see cardHTML) so I18N.applyAll() can relabel them on language
+   change without rebuilding the whole grid (which would drop scroll-reveal/hover-fx state). */
 let gridHtml = "";
 CATEGORIES.forEach(cat=>{
   const meta = CATEGORY_META[cat.id] || {color:"linear-gradient(135deg,#FF7A18,#E8291B)"};
   cat.tools.forEach(([id,name])=>{
-    gridHtml += cardHTML(id, name, meta.color, cat.id, POPULAR_SET.has(id));
+    gridHtml += cardHTML(id, toolName(id, name), meta.color, cat.id, POPULAR_SET.has(id));
   });
 });
 
@@ -249,6 +257,12 @@ const HERO_ORBIT_TOOLS = [
   {id:"organize",   cls:"hot-organize",   carrier:"oc-c"},
   {id:"invertpdf",  cls:"hot-invertpdf",  carrier:"oc-c"},
 ];
+// Local, dependency-free copy of pdf-processing-utils.js's escapeAttr():
+// buildHeroOrbitTools() now runs synchronously as soon as this (very
+// early, 3rd-loaded) script executes rather than waiting for
+// DOMContentLoaded, and pdf-processing-utils.js - loaded much later in
+// SCRIPT_ORDER - isn't defined yet at that point.
+function heroOrbitEscapeAttr(s){ return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function buildHeroOrbitTools(){
   const heroArt = document.querySelector(".hero-art");
   if(!heroArt) return; // hero markup isn't present on every generated page
@@ -276,16 +290,17 @@ function buildHeroOrbitTools(){
   const carriers = {a:[], b:[], c:[]};
   HERO_ORBIT_TOOLS.forEach(({id, cls, carrier})=>{
     const meta = idToCat[id];
-    if(!meta || typeof TOOLS === "undefined" || !TOOLS[id]) return; // only ever render a tool that actually exists
+    if(!meta) return; // only ever render a tool that actually exists in the registry
     const color = meta.color || "#9CFF00";
     // --hot-color is data only (per-tool color, used by dark theme's
     // colorful icons); CSS drives the actual background/color from it,
     // so light theme's CSS can override to a single uniform blue without
     // fighting an inline style (see [data-theme="light"] .hot-icon).
     const key = carrier.slice(-1); // "oc-a" -> "a"
-    carriers[key].push(`<button type="button" class="hero-orbit-tool ${cls}" data-tool="${id}" aria-label="Open ${escapeAttr(meta.name)}">
+    const localizedName = toolName(id, meta.name);
+    carriers[key].push(`<button type="button" class="hero-orbit-tool ${cls}" data-tool="${id}" aria-label="Open ${heroOrbitEscapeAttr(localizedName)}">
       <span class="hot-icon" style="--hot-color:${color}">${iconFor(id)}</span>
-      <span class="hot-tooltip" aria-hidden="true">${meta.name}</span>
+      <span class="hot-tooltip" data-i18n="tools.${id}" aria-hidden="true">${localizedName}</span>
     </button>`);
   });
   const orbitsHTML = Object.keys(carriers).map(k=>
@@ -298,15 +313,17 @@ function buildHeroOrbitTools(){
   orbitsWrap.innerHTML = orbitsHTML;
   heroArt.appendChild(orbitsWrap);
 }
-// nav-menu.js loads (and runs, as a `defer` script) BEFORE the tool-
-// implementation files (misc-tools.js, pdf-convert-tools.js, etc. - see
-// their <script> order in index.html), so `TOOLS.merge`/`TOOLS.rotate`/
-// etc. don't exist yet at this point in the file - same reason
-// initQuickDock in app.js (which runs LAST) is the one that already does
-// `TOOLS[id] && ...` checks successfully. DOMContentLoaded fires only
-// after every deferred script has finished executing in order, so
-// TOOLS is guaranteed fully populated by the time this actually runs.
-document.addEventListener("DOMContentLoaded", buildHeroOrbitTools);
+// Runs immediately, not on DOMContentLoaded: this is a `defer` script, so
+// the DOM (including .hero-art) is already fully parsed by the time it
+// executes - waiting for DOMContentLoaded instead would delay this until
+// every OTHER deferred script has also finished (on the homepage, that's
+// the full ~20-file runtime, tool implementations included), leaving a
+// visible gap where the hero paints without its orbit rings/buttons and
+// then they pop in a moment later. Since the tool metadata this needs
+// (name/color/icon via CATEGORIES/CATEGORY_META/iconFor/toolName) all
+// lives in this same file rather than in the not-yet-loaded tool
+// implementation files, there's nothing left to wait for.
+buildHeroOrbitTools();
 
 /* ---------------- Mega Menu ("All PDF Tools") — desktop hover panel + mobile accordion.
    Both are generated dynamically from CATEGORIES / AI_TOOLS, so any future tool added to the
@@ -318,10 +335,10 @@ function megaColumnHTML(cat){
     <div class="mega-col">
       <div class="mega-col-head">
         <span class="mega-col-icon" style="background:${meta.color}">${emoji}</span>
-        <h4>${cat.title}</h4>
+        <h4>${catName(cat)}</h4>
       </div>
       <div class="mega-col-list">
-        ${cat.tools.map(([id,name])=>`<button type="button" data-open="${id}"><span class="mega-tool-icon">${iconFor(id)}</span>${name}</button>`).join("")}
+        ${cat.tools.map(([id,name])=>`<button type="button" data-open="${id}"><span class="mega-tool-icon">${iconFor(id)}</span>${toolName(id,name)}</button>`).join("")}
       </div>
     </div>`;
 }
@@ -339,21 +356,23 @@ function megaAiColumnHTML(){
     </div>`;
 }
 const megaMenuEl = document.getElementById("megaMenu");
-if(megaMenuEl){
-  megaMenuEl.innerHTML = `<div class="mega-grid">${CATEGORIES.map(megaColumnHTML).join("")}${megaAiColumnHTML()}</div>`;
-}
-
-/* "Convert PDF" menu — sourced from the same CATEGORIES.convert list as the mega
-   menu, so adding a conversion tool there automatically shows up here too. */
 const convertMenuEl = document.getElementById("convertMenu");
-if(convertMenuEl){
-  const convertCat = CATEGORIES.find(c=>c.id==="convert");
-  if(convertCat){
-    convertMenuEl.innerHTML = convertCat.tools.map(([id,name])=>
-      `<button type="button" role="menuitem" data-open="${id}"><span class="mega-tool-icon">${iconFor(id)}</span>${name}</button>`
-    ).join("");
+function renderMegaAndConvertMenus(){
+  if(megaMenuEl){
+    megaMenuEl.innerHTML = `<div class="mega-grid">${CATEGORIES.map(megaColumnHTML).join("")}${megaAiColumnHTML()}</div>`;
+  }
+  /* "Convert PDF" menu — sourced from the same CATEGORIES.convert list as the mega
+     menu, so adding a conversion tool there automatically shows up here too. */
+  if(convertMenuEl){
+    const convertCat = CATEGORIES.find(c=>c.id==="convert");
+    if(convertCat){
+      convertMenuEl.innerHTML = convertCat.tools.map(([id,name])=>
+        `<button type="button" role="menuitem" data-open="${id}"><span class="mega-tool-icon">${iconFor(id)}</span>${toolName(id,name)}</button>`
+      ).join("");
+    }
   }
 }
+renderMegaAndConvertMenus();
 
 function mobileMegaCatHTML(cat){
   const meta = CATEGORY_META[cat.id] || {color:"linear-gradient(135deg,#FF7A18,#E8291B)"};
@@ -362,12 +381,12 @@ function mobileMegaCatHTML(cat){
     <div class="mm-cat" data-mm-cat="${cat.id}">
       <button type="button" class="mm-cat-head">
         <span class="mm-cat-icon" style="background:${meta.color}">${emoji}</span>
-        <span class="mm-cat-title">${cat.title}</span>
+        <span class="mm-cat-title">${catName(cat)}</span>
         <svg class="mm-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <div class="mm-cat-body">
         <div class="mm-cat-body-inner">
-          ${cat.tools.map(([id,name])=>`<button type="button" class="mm-tool" data-open="${id}"><span class="mm-tool-icon">${iconFor(id)}</span>${name}</button>`).join("")}
+          ${cat.tools.map(([id,name])=>`<button type="button" class="mm-tool" data-open="${id}"><span class="mm-tool-icon">${iconFor(id)}</span>${toolName(id,name)}</button>`).join("")}
         </div>
       </div>
     </div>`;
@@ -388,9 +407,24 @@ function mobileMegaAiHTML(){
     </div>`;
 }
 const mobileMegaEl = document.getElementById("mobileMega");
-if(mobileMegaEl){
-  mobileMegaEl.innerHTML = `<div class="mm-inner">${CATEGORIES.map(mobileMegaCatHTML).join("")}${mobileMegaAiHTML()}</div>`;
+function renderMobileMega(){
+  if(mobileMegaEl){
+    mobileMegaEl.innerHTML = `<div class="mm-inner">${CATEGORIES.map(mobileMegaCatHTML).join("")}${mobileMegaAiHTML()}</div>`;
+  }
 }
+renderMobileMega();
+
+/* Re-render every JS-built menu that embeds tool/category names as
+   literal text (mega menu, convert menu, mobile mega) when the language
+   changes. The homepage tool grid doesn't need this - its card names
+   carry data-i18n and are relabeled by I18N.applyAll() itself. Rebuilding
+   these three is safe because every click they handle is delegated
+   ([data-open] is caught globally in panel.js), so there are no
+   per-button listeners here to lose on innerHTML replacement. */
+document.addEventListener("yoyopdf:langchange", ()=>{
+  renderMegaAndConvertMenus();
+  renderMobileMega();
+});
 
 /* Top-level "All PDF Tools" accordion toggle (mobile) */
 document.getElementById("mobileAllToolsToggle")?.addEventListener("click", (e)=>{

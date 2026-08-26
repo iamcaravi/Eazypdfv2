@@ -85,7 +85,8 @@
     handle.setAttribute('tabindex', '0');
     handle.setAttribute('role', 'separator');
     handle.setAttribute('aria-orientation', 'vertical');
-    handle.setAttribute('aria-label', invert ? 'Resize inspector panel' : 'Resize sidebar panel');
+    const t = window.I18N ? window.I18N.t : (k) => k;
+    handle.setAttribute('aria-label', invert ? t('editor.resizeInspectorPanel') : t('editor.resizeSidebarPanel'));
     // Phase 12: a focusable (tabindex=0), interactively-resizable
     // role="separator" is an ARIA "window splitter," which the spec
     // requires aria-valuenow on (axe: aria-required-attr, critical) - a

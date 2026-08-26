@@ -30,6 +30,7 @@
    ========================================================================== */
 (function () {
   function init(root) {
+    const t = window.I18N ? window.I18N.t : (k) => k;
     const bar = root.querySelector('.editor-statusbar');
     if (!bar) return;
 
@@ -44,19 +45,19 @@
     let sizeHoldsError = false;
 
     window.addEventListener('editor:zoomChange', (e) => {
-      if (zoomEl) zoomEl.textContent = `Zoom: ${Math.round(e.detail.zoom * 100)}%`;
+      if (zoomEl) zoomEl.textContent = t('editor.statusZoom', { pct: Math.round(e.detail.zoom * 100) });
     });
     window.addEventListener('editor:pageChange', (e) => {
-      if (pageEl) pageEl.textContent = `Page ${e.detail.page} of ${e.detail.pageCount}`;
+      if (pageEl) pageEl.textContent = t('editor.statusPage', { page: e.detail.page, pageCount: e.detail.pageCount });
     });
     window.addEventListener('editor:documentError', () => {
       sizeHoldsError = true;
     });
     window.addEventListener('editor:canvasStateChange', (e) => {
-      if (selectionEl) selectionEl.textContent = 'No selection';
+      if (selectionEl) selectionEl.textContent = t('editor.statusNoSelection');
       if (e.detail.state !== 'page' && sizeEl) {
         if (sizeHoldsError) { sizeHoldsError = false; return; }
-        sizeEl.textContent = 'No document';
+        sizeEl.textContent = t('editor.statusNoDocument');
       }
     });
     window.addEventListener('editor:progressText', (e) => {

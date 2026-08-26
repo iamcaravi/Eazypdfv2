@@ -68,26 +68,25 @@
    ========================================================================== */
 (function () {
   const EMPTY = '—';
+  function t(key, vars) { return window.I18N ? window.I18N.t(key, vars) : key; }
 
-  const OTHER_SECTIONS = [
-    { id: 'future', title: 'Future tools', open: false, placeholder: 'Reserved for upcoming editing tools (text, drawing, signatures).' }
-  ];
+  function OTHER_SECTIONS() { return [
+    { id: 'future', title: t('editor.sectionFutureTools'), open: false, placeholder: t('editor.futureToolsPlaceholder') }
+  ]; }
 
-  const SELECTION_PLACEHOLDER = 'Nothing selected. Selection details will appear here once an object is selected.';
-  const PROPERTIES_PLACEHOLDER = 'Properties for the selected object will appear here.';
   const FONT_FAMILIES = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Courier New', 'Verdana'];
 
-  const DOC_FIELDS = [
-    { key: 'fileName', label: 'File name' },
-    { key: 'fileSize', label: 'File size' },
-    { key: 'totalPages', label: 'Total pages' },
-    { key: 'currentPage', label: 'Current page' },
-    { key: 'pageDimensions', label: 'Page dimensions' },
-    { key: 'orientation', label: 'Orientation' },
-    { key: 'pdfVersion', label: 'PDF version' },
-    { key: 'rotation', label: 'Rotation' },
-    { key: 'zoom', label: 'Zoom' }
-  ];
+  function DOC_FIELDS() { return [
+    { key: 'fileName', label: t('editor.fieldFileName') },
+    { key: 'fileSize', label: t('editor.fieldFileSize') },
+    { key: 'totalPages', label: t('editor.fieldTotalPages') },
+    { key: 'currentPage', label: t('editor.currentPageAria') },
+    { key: 'pageDimensions', label: t('editor.fieldPageDimensions') },
+    { key: 'orientation', label: t('editor.fieldOrientation') },
+    { key: 'pdfVersion', label: t('editor.fieldPdfVersion') },
+    { key: 'rotation', label: t('editor.fieldRotation') },
+    { key: 'zoom', label: t('editor.groupZoom') }
+  ]; }
 
   function init(root) {
     const inspector = root.querySelector('.editor-inspector');
@@ -96,7 +95,7 @@
     inspector.appendChild(renderDocumentSection());
     inspector.appendChild(renderSelectionSection());
     inspector.appendChild(renderPropertiesSection());
-    OTHER_SECTIONS.forEach((s) => inspector.appendChild(renderPlaceholderSection(s)));
+    OTHER_SECTIONS().forEach((s) => inspector.appendChild(renderPlaceholderSection(s)));
   }
 
   function sectionShell(id, title, open) {
@@ -141,20 +140,20 @@
    *  being removed out from under an active selection — see
    *  editor-objects.js's own file header for why that event exists. */
   function renderSelectionSection() {
-    const section = sectionShell('selection', 'Selection', true);
+    const section = sectionShell('selection', t('editor.sectionSelection'), true);
     const body = section.querySelector('.editor-inspector-section-body');
-    body.innerHTML = `<div class="editor-inspector-placeholder">${SELECTION_PLACEHOLDER}</div>`;
+    body.innerHTML = `<div class="editor-inspector-placeholder">${t('editor.selectionPlaceholder')}</div>`;
 
     function refresh() {
       if (!window.EditorObjects) return;
       const selected = window.EditorObjects.getAllObjects().find((o) => o.selected);
       if (!selected) {
-        body.innerHTML = `<div class="editor-inspector-placeholder">${SELECTION_PLACEHOLDER}</div>`;
+        body.innerHTML = `<div class="editor-inspector-placeholder">${t('editor.selectionPlaceholder')}</div>`;
         return;
       }
       body.innerHTML = `<div class="editor-inspector-doc-info">
         <div class="editor-inspector-row">
-          <span class="editor-inspector-row-label">Object type</span>
+          <span class="editor-inspector-row-label">${t('editor.objectType')}</span>
           <span class="editor-inspector-row-value">${capitalize(selected.type)}</span>
         </div>
       </div>`;
@@ -196,9 +195,9 @@
    *  branches, mirroring renderShapeContent()'s single-function approach
    *  in editor-objects.js for the same family of types. */
   function renderPropertiesSection() {
-    const section = sectionShell('properties', 'Properties', false);
+    const section = sectionShell('properties', t('editor.sectionProperties'), false);
     const body = section.querySelector('.editor-inspector-section-body');
-    body.innerHTML = `<div class="editor-inspector-placeholder">${PROPERTIES_PLACEHOLDER}</div>`;
+    body.innerHTML = `<div class="editor-inspector-placeholder">${t('editor.propertiesPlaceholder')}</div>`;
 
     function patchData(selected, patch) {
       window.EditorObjects.updateObject(selected.id, { data: Object.assign({}, selected.data, patch) });
@@ -211,7 +210,7 @@
       if (selected && selected.type === 'image') { renderImageProperties(selected); return; }
       if (selected && (selected.type === 'rectangle' || selected.type === 'ellipse' || selected.type === 'line')) { renderShapeProperties(selected); return; }
       if (selected && selected.type === 'whiteout') { renderWhiteoutProperties(selected); return; }
-      body.innerHTML = `<div class="editor-inspector-placeholder">${PROPERTIES_PLACEHOLDER}</div>`;
+      body.innerHTML = `<div class="editor-inspector-placeholder">${t('editor.propertiesPlaceholder')}</div>`;
     }
 
     // Phase 12: Whiteout has no adjustable data (editor-objects.js's
@@ -223,7 +222,7 @@
     function renderWhiteoutProperties(selected) {
       body.innerHTML = `
         <div class="editor-inspector-doc-info">
-          <div class="status" role="note">This covers the content beneath it with an opaque box — it does not remove or redact the underlying text or image. Exporting does not delete what's underneath; a PDF text/content extraction of the exported file could still recover it.</div>
+          <div class="status" role="note">${t('editor.whiteoutNote')}</div>
         </div>`;
     }
 
@@ -231,36 +230,36 @@
       const d = selected.data || {};
       body.innerHTML = `
         <div class="editor-inspector-doc-info">
-          <div class="editor-inspector-row"><span class="editor-inspector-row-label">Text</span></div>
-          <textarea aria-label="Text" data-prop="text" rows="2" style="width:100%;">${escapeHtml(d.text || 'Text')}</textarea>
+          <div class="editor-inspector-row"><span class="editor-inspector-row-label">${t('editor.propText')}</span></div>
+          <textarea aria-label="${t('editor.propText')}" data-prop="text" rows="2" style="width:100%;">${escapeHtml(d.text || 'Text')}</textarea>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Font Family</span>
-            <select aria-label="Font family" data-prop="fontFamily">${FONT_FAMILIES.map((f) =>
+            <span class="editor-inspector-row-label">${t('editor.propFontFamily')}</span>
+            <select aria-label="${t('editor.propFontFamily')}" data-prop="fontFamily">${FONT_FAMILIES.map((f) =>
               `<option value="${f}"${(d.fontFamily || 'Arial') === f ? ' selected' : ''}>${f}</option>`).join('')}</select>
           </div>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Font Size</span>
-            <input aria-label="Font size" data-prop="fontSize" type="number" min="6" max="200" value="${d.fontSize || 16}">
+            <span class="editor-inspector-row-label">${t('editor.propFontSize')}</span>
+            <input aria-label="${t('editor.propFontSize')}" data-prop="fontSize" type="number" min="6" max="200" value="${d.fontSize || 16}">
           </div>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Bold</span>
-            <input aria-label="Bold" data-prop="bold" type="checkbox" ${d.bold ? 'checked' : ''}>
+            <span class="editor-inspector-row-label">${t('editor.propBold')}</span>
+            <input aria-label="${t('editor.propBold')}" data-prop="bold" type="checkbox" ${d.bold ? 'checked' : ''}>
           </div>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Italic</span>
-            <input aria-label="Italic" data-prop="italic" type="checkbox" ${d.italic ? 'checked' : ''}>
+            <span class="editor-inspector-row-label">${t('editor.propItalic')}</span>
+            <input aria-label="${t('editor.propItalic')}" data-prop="italic" type="checkbox" ${d.italic ? 'checked' : ''}>
           </div>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Underline</span>
-            <input aria-label="Underline" data-prop="underline" type="checkbox" ${d.underline ? 'checked' : ''}>
+            <span class="editor-inspector-row-label">${t('editor.propUnderline')}</span>
+            <input aria-label="${t('editor.propUnderline')}" data-prop="underline" type="checkbox" ${d.underline ? 'checked' : ''}>
           </div>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Text Color</span>
-            <input aria-label="Text color" data-prop="color" type="color" value="${d.color || '#000000'}">
+            <span class="editor-inspector-row-label">${t('editor.propTextColor')}</span>
+            <input aria-label="${t('editor.propTextColor')}" data-prop="color" type="color" value="${d.color || '#000000'}">
           </div>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Alignment</span>
-            <select aria-label="Text alignment" data-prop="align">${['left', 'center', 'right'].map((a) =>
+            <span class="editor-inspector-row-label">${t('editor.propTextAlignment')}</span>
+            <select aria-label="${t('editor.propTextAlignment')}" data-prop="align">${['left', 'center', 'right'].map((a) =>
               `<option value="${a}"${(d.align || 'left') === a ? ' selected' : ''}>${capitalize(a)}</option>`).join('')}</select>
           </div>
         </div>`;
@@ -291,16 +290,16 @@
       body.innerHTML = `
         <div class="editor-inspector-doc-info">
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Width</span>
-            <input aria-label="Image width" data-prop="naturalWidth" type="number" min="1" value="${d.naturalWidth || ''}">
+            <span class="editor-inspector-row-label">${t('editor.propImageWidth')}</span>
+            <input aria-label="${t('editor.propImageWidth')}" data-prop="naturalWidth" type="number" min="1" value="${d.naturalWidth || ''}">
           </div>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Height</span>
-            <input aria-label="Image height" data-prop="naturalHeight" type="number" min="1" value="${d.naturalHeight || ''}">
+            <span class="editor-inspector-row-label">${t('editor.propImageHeight')}</span>
+            <input aria-label="${t('editor.propImageHeight')}" data-prop="naturalHeight" type="number" min="1" value="${d.naturalHeight || ''}">
           </div>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Keep Aspect Ratio</span>
-            <input aria-label="Keep aspect ratio" data-prop="keepAspectRatio" type="checkbox" ${d.keepAspectRatio !== false ? 'checked' : ''}>
+            <span class="editor-inspector-row-label">${t('editor.propKeepAspectRatio')}</span>
+            <input aria-label="${t('editor.propKeepAspectRatio')}" data-prop="keepAspectRatio" type="checkbox" ${d.keepAspectRatio !== false ? 'checked' : ''}>
           </div>
         </div>`;
 
@@ -329,20 +328,20 @@
       body.innerHTML = `
         <div class="editor-inspector-doc-info">
           ${showFill ? `<div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Fill Color</span>
-            <input aria-label="Fill color" data-prop="fill" type="color" value="${d.fill || '#ffffff'}">
+            <span class="editor-inspector-row-label">${t('editor.propFillColor')}</span>
+            <input aria-label="${t('editor.propFillColor')}" data-prop="fill" type="color" value="${d.fill || '#ffffff'}">
           </div>` : ''}
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Stroke Color</span>
-            <input aria-label="Stroke color" data-prop="stroke" type="color" value="${d.stroke || '#000000'}">
+            <span class="editor-inspector-row-label">${t('editor.propStrokeColor')}</span>
+            <input aria-label="${t('editor.propStrokeColor')}" data-prop="stroke" type="color" value="${d.stroke || '#000000'}">
           </div>
           <div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Stroke Width</span>
-            <input aria-label="Stroke width" data-prop="strokeWidth" type="number" min="0" max="50" value="${d.strokeWidth != null ? d.strokeWidth : 2}">
+            <span class="editor-inspector-row-label">${t('editor.propStrokeWidth')}</span>
+            <input aria-label="${t('editor.propStrokeWidth')}" data-prop="strokeWidth" type="number" min="0" max="50" value="${d.strokeWidth != null ? d.strokeWidth : 2}">
           </div>
           ${showRadius ? `<div class="editor-inspector-row">
-            <span class="editor-inspector-row-label">Radius</span>
-            <input aria-label="Corner radius" data-prop="radius" type="number" min="0" max="50" value="${d.radius || 0}">
+            <span class="editor-inspector-row-label">${t('editor.propCornerRadius')}</span>
+            <input aria-label="${t('editor.propCornerRadius')}" data-prop="radius" type="number" min="0" max="50" value="${d.radius || 0}">
           </div>` : ''}
         </div>`;
 
@@ -377,11 +376,11 @@
   }
 
   function renderDocumentSection() {
-    const section = sectionShell('document', 'Document', true);
+    const section = sectionShell('document', t('editor.sectionDocument'), true);
     const body = section.querySelector('.editor-inspector-section-body');
 
     body.innerHTML = `<div class="editor-inspector-doc-info">${
-      DOC_FIELDS.map((f) => `
+      DOC_FIELDS().map((f) => `
         <div class="editor-inspector-row">
           <span class="editor-inspector-row-label">${f.label}</span>
           <span class="editor-inspector-row-value" data-doc-field="${f.key}">${EMPTY}</span>
@@ -389,7 +388,7 @@
     }</div>`;
 
     const fieldEls = {};
-    DOC_FIELDS.forEach((f) => { fieldEls[f.key] = body.querySelector(`[data-doc-field="${f.key}"]`); });
+    DOC_FIELDS().forEach((f) => { fieldEls[f.key] = body.querySelector(`[data-doc-field="${f.key}"]`); });
     function setField(key, value) { if (fieldEls[key]) fieldEls[key].textContent = value; }
 
     // Zoom has a meaningful value even with no document open (the shell
@@ -399,14 +398,14 @@
 
     window.addEventListener('editor:documentLoaded', (e) => {
       const { fileName, fileSize, numPages, pdfVersion } = e.detail;
-      setField('fileName', fileName || 'Untitled');
+      setField('fileName', fileName || t('editor.untitled'));
       setField('fileSize', formatBytes(fileSize));
       setField('totalPages', String(numPages));
-      setField('pdfVersion', pdfVersion ? `PDF ${pdfVersion}` : 'Not available');
+      setField('pdfVersion', pdfVersion ? t('editor.pdfVersionPrefix', { version: pdfVersion }) : t('editor.notAvailable'));
     });
 
     window.addEventListener('editor:documentError', () => {
-      DOC_FIELDS.forEach((f) => { if (f.key !== 'zoom') setField(f.key, EMPTY); });
+      DOC_FIELDS().forEach((f) => { if (f.key !== 'zoom') setField(f.key, EMPTY); });
     });
 
     window.addEventListener('editor:pageChange', async (e) => {
@@ -421,7 +420,7 @@
       try {
         const info = await window.RenderEngine.getPageInfo(page);
         setField('pageDimensions', `${Math.round(info.width)} × ${Math.round(info.height)} pt`);
-        setField('orientation', info.width > info.height ? 'Landscape' : 'Portrait');
+        setField('orientation', info.width > info.height ? t('editor.landscape') : t('editor.portrait'));
         setField('rotation', `${info.rotation || 0}°`);
       } catch (_) {
         setField('pageDimensions', EMPTY);

@@ -47,6 +47,7 @@
   let documentGeneration = 0;
   let exportController = null;
   let fallbackExportPromise = null;
+  function t(key, vars) { return window.I18N ? window.I18N.t(key, vars) : key; }
 
   function init() {
     const exportButton = document.querySelector('[data-action="export"]');
@@ -151,14 +152,14 @@
 
   async function drawImageObject(page, obj, pdfDoc) {
     const d = obj.data || {};
-    if (!d.src) throw new Error('An image object has no source data.');
+    if (!d.src) throw new Error(t('editor.errNoImageSource'));
     const res = await fetch(d.src);
     const buf = new Uint8Array(await res.arrayBuffer());
     const kind = sniffImageType(buf);
     let embedded;
     if (kind === 'png') embedded = await pdfDoc.embedPng(buf);
     else if (kind === 'jpg') embedded = await pdfDoc.embedJpg(buf);
-    else throw new Error('An image object uses an unsupported format.');
+    else throw new Error(t('editor.errUnsupportedImageFormat'));
     const { x, y, w, h } = toPdfBox(obj, ...pageSize(page));
     page.drawImage(embedded, { x, y, width: w, height: h });
   }
@@ -263,14 +264,14 @@
   }
 
   async function performExport(operation) {
-    if (!window.RenderEngine) throw new Error('The PDF editor is not ready.');
+    if (!window.RenderEngine) throw new Error(t('editor.errNotReady'));
     const original = window.RenderEngine.getOriginalBytes();
-    if (!original) throw new Error('Open a PDF before exporting.');
+    if (!original) throw new Error(t('editor.errOpenBeforeExport'));
     const PDFLibNS = window.PDFLib;
-    if (!PDFLibNS) throw new Error('The PDF export library is unavailable.');
+    if (!PDFLibNS) throw new Error(t('editor.errExportLibUnavailable'));
     const { rgb } = PDFLibNS;
     const exportGeneration = documentGeneration;
-    exportStatus('Saving PDF...');
+    exportStatus(t('editor.statusSaving'));
 
     const pdfDoc = typeof window.loadPdfSafe === 'function'
       ? await window.loadPdfSafe(original)
@@ -282,7 +283,7 @@
     for (const obj of objectList) {
       operation.throwIfStale();
       const page = pages[obj.page - 1];
-      if (!page) throw new Error(`Object ${obj.id} points to a page that no longer exists.`);
+      if (!page) throw new Error(t('editor.errObjectPageGone', { id: obj.id }));
 
       if (obj.type === 'text') await drawTextObject(page, obj, pdfDoc, fontCache, rgb);
       else if (obj.type === 'image') await drawImageObject(page, obj, pdfDoc);
@@ -290,12 +291,12 @@
       else if (obj.type === 'draw') drawDrawObject(page, obj, rgb);
       else if (obj.type === 'highlight') drawHighlightObject(page, obj, rgb);
       else if (obj.type === 'whiteout') drawWhiteoutObject(page, obj, rgb);
-      else throw new Error(`Object ${obj.id} has an unsupported type: ${obj.type}.`);
+      else throw new Error(t('editor.errObjectUnsupportedType', { id: obj.id, type: obj.type }));
     }
 
     operation.throwIfStale();
     if(exportGeneration !== documentGeneration) {
-      const error = new Error('The document changed while it was being exported. Please save the current document again.');
+      const error = new Error(t('editor.errDocChangedDuringExport'));
       error.name = 'AbortError';
       throw error;
     }
@@ -312,20 +313,20 @@
       __fallbackExportUrl = URL.createObjectURL(blob);
       triggerDownload(__fallbackExportUrl, fileName);
     }
-    exportStatus('Saved ' + fileName);
+    exportStatus(t('editor.statusSaved', { name: fileName }));
     return { fileName, byteLength: outBytes.length };
   }
 
   function reportExportFailure(error) {
-    const message = error?.message || 'The edited PDF could not be exported.';
+    const message = error?.message || t('editor.errExportFailed');
     console.error('EditorExport:', error);
-    exportStatus('Export failed: ' + message);
+    exportStatus(t('editor.statusExportFailed', { message }));
     if(typeof window.toast === 'function') window.toast(message);
   }
 
   function exportCurrentDocument() {
     if(exportController){
-      return exportController.run(performExport, {busyLabel:'Saving...', timeoutMs:120000})
+      return exportController.run(performExport, {busyLabel:t('editor.busySaving'), timeoutMs:120000})
         .catch(reportExportFailure);
     }
     if(fallbackExportPromise) return fallbackExportPromise;

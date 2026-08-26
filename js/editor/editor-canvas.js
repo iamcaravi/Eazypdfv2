@@ -71,7 +71,8 @@
     if (!canvasEl) return;
     const el = canvasEl.querySelector('[data-canvas-empty-error]');
     if (!el) return;
-    el.textContent = `Couldn't open this file — ${message}`;
+    const t = window.I18N ? window.I18N.t : (k) => k;
+    el.textContent = t('editor.errCouldNotOpen', { message });
     el.hidden = false;
   }
 

@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "130";
+const VERSION = "143";
 
 const LIBRARIES = Object.freeze({
   pdfLib: Object.freeze({
@@ -24,6 +24,7 @@ const LIBRARIES = Object.freeze({
 // One master order preserves the classic-script global dependency contract.
 // Route profiles only filter this order; they can never reorder a dependency.
 const SCRIPT_ORDER = Object.freeze([
+  "js/core/i18n.js",
   "js/core/motion.js",
   "js/core/nav-menu.js",
   "js/core/hero-upload.js",
@@ -47,6 +48,7 @@ const SCRIPT_ORDER = Object.freeze([
 ]);
 
 const BASE_SCRIPTS = Object.freeze([
+  "js/core/i18n.js",
   "js/core/motion.js",
   "js/core/nav-menu.js",
   "js/core/hero-upload.js",

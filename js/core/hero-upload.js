@@ -18,14 +18,22 @@ function isPdfFile(f){ return !!f && (f.type==="application/pdf" || f.name.toLow
    actually drags/drops anything the real controller is already assigned. */
 let HeroDeviceFX = { onDragEnter(){}, onDragLeave(){}, onSuccess(){} };
 
+function heroT(key){ return window.I18N ? I18N.t(key) : ({
+  "hero.dropHere":"Drop your PDF here",
+  "hero.releaseToUpload":"Release to upload PDF",
+  "hero.preparingPdf":"Preparing your PDF…",
+  "hero.pdfReady":"PDF Ready",
+  "hero.pleaseUploadPdf":"Please upload a PDF file."
+})[key]; }
+
 function setHeroDzState(state){
   if(!heroDropzone) return;
   heroDropzone.classList.remove("drag-hover","state-uploading","state-success");
   if(heroDzOr) heroDzOr.style.display = "";
-  if(state==="idle"){ heroDzTitle.textContent = "Drop your PDF here"; HeroDeviceFX.onDragLeave(); }
-  else if(state==="hover"){ heroDropzone.classList.add("drag-hover"); heroDzTitle.textContent = "Release to upload PDF"; if(heroDzOr) heroDzOr.style.display="none"; HeroDeviceFX.onDragEnter(); }
-  else if(state==="uploading"){ heroDropzone.classList.add("state-uploading"); heroDzTitle.textContent = "Preparing your PDF…"; if(heroDzOr) heroDzOr.style.display="none"; }
-  else if(state==="success"){ heroDropzone.classList.add("state-success"); heroDzTitle.textContent = "PDF Ready"; if(heroDzOr) heroDzOr.style.display="none"; HeroDeviceFX.onSuccess(); }
+  if(state==="idle"){ heroDzTitle.textContent = heroT("hero.dropHere"); HeroDeviceFX.onDragLeave(); }
+  else if(state==="hover"){ heroDropzone.classList.add("drag-hover"); heroDzTitle.textContent = heroT("hero.releaseToUpload"); if(heroDzOr) heroDzOr.style.display="none"; HeroDeviceFX.onDragEnter(); }
+  else if(state==="uploading"){ heroDropzone.classList.add("state-uploading"); heroDzTitle.textContent = heroT("hero.preparingPdf"); if(heroDzOr) heroDzOr.style.display="none"; }
+  else if(state==="success"){ heroDropzone.classList.add("state-success"); heroDzTitle.textContent = heroT("hero.pdfReady"); if(heroDzOr) heroDzOr.style.display="none"; HeroDeviceFX.onSuccess(); }
 }
 
 if(heroDropzone && heroFileInput){
@@ -75,7 +83,7 @@ if(heroDropzone && heroFileInput){
 async function handleHeroFile(file){
   if(!isPdfFile(file)){
     setHeroDzState("idle");
-    toast("Please upload a PDF file.");
+    toast(heroT("hero.pleaseUploadPdf"));
     return;
   }
   setHeroDzState("uploading");

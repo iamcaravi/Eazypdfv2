@@ -16,28 +16,38 @@
   /* Was pure #FFFFFF/#F5FBF0 - a hair of blue keeps the page from
      reading as stark/clinical white while staying "mostly white" per
      the brief (section 18: subtle, not a blue page). */
-  --paper:#FAFCFF;
-  --paper-dim:#F4F8FF;
+  --paper:#FAFAFA;
+  --paper-dim:#F5F5F5;
   --panel-bg:#FFFFFF;
   --ink:#15171A;
   --ink-soft:#667085;
-  /* LIGHT THEME REBRAND (electric blue): --red/--brand-grad/
+  /* LIGHT THEME REBRAND (exact #0000FF): --red/--brand-grad/
      --brand-shadow-rgb/--btn-ink/--ochre/--glow-shadow were the site's
-     green identity here - same technique used for the two prior
-     rebrands of this exact block (red->green, now green->blue):
-     redefine what these EXISTING tokens resolve to, so every button/
-     card/focus-ring/glow already written as var(--red) or
-     var(--brand-grad) picks up the new blue brand for free, no hunting
-     down individual usages, no parallel color system. Values follow the
-     brief's own palette (#1677FF primary / #2F8CFF bright accent /
-     #0959C9 deep, for hover/pressed states). --rose (errors/destructive)
-     and --success (unrelated semantic green, e.g. checkmarks) are
-     SEPARATE tokens, untouched by this - confirmed via grep that no
-     destructive/success usage in this file reads var(--red). */
-  --red:#1677FF;
-  --red-rgb: 22,119,255;
+     electric-blue (#1677FF) identity here - same technique used for
+     every prior rebrand of this exact block (red->green->electric-blue,
+     now -> exact #0000FF): redefine what these EXISTING tokens resolve
+     to, so every button/card/focus-ring/glow already written as
+     var(--red) or var(--brand-grad) picks up the new brand for free, no
+     hunting down individual usages, no parallel color system. The brief
+     for this pass is explicit that the primary must be the literal hex
+     #0000FF everywhere it's the accent (not a nearby/gradient blue), so
+     --brand-grad - previously a two-stop gradient - is now a flat
+     #0000FF; hover/pressed states use a darker shade of the SAME hue
+     (#0000CC) rather than a second brand color. --paper/--paper-dim/
+     --line were also nudged back to neutral gray (were a hair blue-
+     tinted from the previous rebrand) per this brief's own "keep
+     backgrounds neutral, blue is an accent only" instruction. --rose
+     (errors/destructive) and --success (unrelated semantic green, e.g.
+     checkmarks) are SEPARATE tokens, untouched by this - confirmed via
+     grep that no destructive/success usage in this file reads var(--red).
+     --teal/--teal-rgb/--teal-deep (donate/support's own distinct accent,
+     kept different from the primary CTA color on purpose) are also left
+     untouched - a separate, pre-existing design decision unrelated to
+     the primary brand accent this brief is about. */
+  --red:#0000FF;
+  --red-rgb: 0,0,255;
   --orange:#FF6A3D;
-  --brand-grad: linear-gradient(135deg, #2F8CFF, #1677FF);
+  --brand-grad: #0000FF;
   /* Donate/support stays visually distinct from the primary CTA blue
      (same principle dark theme uses purple for) - the palette's own
      deep blue rather than a totally unrelated hue, so it still reads as
@@ -45,33 +55,32 @@
   --teal:#0959C9;
   --teal-rgb:9,89,201;
   --teal-deep:#063E85;
-  --ochre:#1677FF;
+  --ochre:#0000FF;
   --rose:#D63A3A;
   --success:#1E9E5A;
   --success-rgb: 30,158,90;
-  --line: #DCE5F2;
+  --line: #E2E4E8;
   --header-bg:#FFFFFF;
   --card-bg:#FFFFFF;
   --radius: 10px;
-  --glow-shadow: 0 0 0 1px rgba(22,119,255,0.28), 0 10px 30px -8px rgba(9,89,201,0.28);
+  --glow-shadow: 0 0 0 1px rgba(0,0,255,0.28), 0 10px 30px -8px rgba(0,0,255,0.22);
   /* Backs every hardcoded `rgba(var(--brand-shadow-rgb),...)` brand-color shadow across
      this file (buttons, cards, hero CTA, workspace actions - ~15 call
      sites) - one value the dark-theme remap below also corrects via the
      same variable instead of leaving mismatched glows around a
      different-colored button. --btn-ink is the primary-button TEXT
-     color - white reads correctly on the new electric-blue primary per
-     the brief (section 5: "white text"), flipped from the previous
-     near-black that assumed a bright-lime button. */
-  --brand-shadow-rgb: 22,119,255;
+     color - white reads correctly on the #0000FF primary per the brief
+     ("Button text: #FFFFFF"). */
+  --brand-shadow-rgb: 0,0,255;
   --btn-ink: #FFFFFF;
   /* Semantic aliases (brief section 21) for new/future code - point at
      the same decisions above rather than duplicating them, so both
      naming conventions stay in sync automatically. */
   --accent-primary: var(--red);
-  --accent-hover: #0959C9;
-  --accent-soft: #EAF3FF;
-  --accent-border: rgba(22,119,255,0.28);
-  --accent-glow: rgba(22,119,255,0.12);
+  --accent-hover: #0000CC;
+  --accent-soft: #EEEEFF;
+  --accent-border: rgba(0,0,255,0.28);
+  --accent-glow: rgba(0,0,255,0.12);
   --surface: var(--card-bg);
   --surface-muted: var(--paper-dim);
   --border: var(--line);
@@ -451,7 +460,7 @@ html.tool-preload{ visibility:hidden; }
 .qdm-item:hover, .qdm-item:focus-visible{ background:rgba(255,255,255,0.08); outline:none; }
 [data-theme="light"] .qdm-item{ color:var(--ink); }
 [data-theme="light"] .qdm-item:hover, [data-theme="light"] .qdm-item:focus-visible{ background:rgba(0,0,0,0.05); }
-.qdm-item.qd-active{ color:var(--accent-lime); }
+.qdm-item.qd-active{ color:var(--red); }
 .qdm-item .qdm-icon{ width:20px; height:20px; flex:none; display:flex; }
 .qdm-item .qdm-icon svg{ width:18px; height:18px; }
 @media(max-width:760px){
@@ -782,12 +791,12 @@ html.panel-open{ overflow:hidden; }
 .merge-workspace .file-card-name{ font-size:.82rem; white-space:normal; -webkit-line-clamp:2; -webkit-box-orient:vertical; display:-webkit-box; overflow:hidden; }
 .merge-workspace .file-card-meta{ font-size:.72rem; }
 .merge-workspace .file-card-remove{
-  position:absolute; top:8px; right:8px; opacity:0; margin-left:0;
+  position:absolute; top:8px; right:8px; opacity:1; margin-left:0;
   background:rgba(10,10,12,0.65); color:#fff; border:none; border-radius:50%;
-  width:26px; height:26px; transition:opacity var(--t-fast,180ms) ease;
+  width:26px; height:26px; transition:transform var(--t-fast,180ms) ease, background var(--t-fast,180ms) ease;
 }
 .merge-workspace .file-card{ position:relative; }
-.merge-workspace .file-card:hover .file-card-remove{ opacity:1; }
+.merge-workspace .file-card:hover .file-card-remove, .merge-workspace .file-card-remove:focus-visible{ transform:scale(1.1); }
 .merge-workspace .file-card-remove:hover{ background:var(--rose); }
 .merge-workspace .file-card-order{
   position:absolute; top:8px; left:8px; width:22px; height:22px; border-radius:50%;
@@ -910,11 +919,11 @@ html.panel-open{ overflow:hidden; }
 .compress-workspace .file-card-thumb{ width:100%; height:230px; flex:none; box-shadow:none; border:1px solid var(--line); background:#fff; }
 .compress-workspace .file-card-name{ font-size:.82rem; white-space:normal; -webkit-line-clamp:2; -webkit-box-orient:vertical; display:-webkit-box; overflow:hidden; }
 .compress-workspace .file-card-remove{
-  position:absolute; top:8px; right:8px; margin-left:0; opacity:0;
+  position:absolute; top:8px; right:8px; margin-left:0; opacity:1;
   background:rgba(10,10,12,0.65); color:#fff; border:none; border-radius:50%; width:26px; height:26px;
-  transition:opacity var(--t-fast,180ms) ease;
+  transition:transform var(--t-fast,180ms) ease, background var(--t-fast,180ms) ease;
 }
-.compress-workspace .file-card:hover .file-card-remove{ opacity:1; }
+.compress-workspace .file-card:hover .file-card-remove, .compress-workspace .file-card-remove:focus-visible{ transform:scale(1.1); }
 .compress-workspace .file-card-remove:hover{ background:var(--rose); }
 @media (max-width:640px){
   .compress-workspace .file-card{ width:130px; }
@@ -1627,9 +1636,10 @@ html.panel-open{ overflow:hidden; }
 .file-card-remove{
   position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:50%;
   background:var(--ink); color:var(--paper); border:none; display:flex; align-items:center; justify-content:center;
-  font-size:12px; cursor:pointer; opacity:0; transition:opacity var(--t-fast) ease; z-index:1;
+  font-size:12px; cursor:pointer; opacity:1; transition:opacity var(--t-fast) ease, transform var(--t-fast) ease; z-index:1;
 }
-.file-card:hover .file-card-remove, .file-card:focus-within .file-card-remove{ opacity:1; }
+.file-card:hover .file-card-remove, .file-card-remove:focus-visible{ transform:scale(1.12); }
+.file-card-remove:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
 .file-card-name{ font-size:.78rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .file-card-meta{ display:flex; align-items:center; gap:6px; }
 .file-card-size{ font-size:.7rem; color:var(--ink-soft); }
@@ -1678,9 +1688,11 @@ html.panel-open{ overflow:hidden; }
 .page-card .page-remove{
   position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%;
   background:var(--ink); color:var(--paper); border:none; display:flex; align-items:center; justify-content:center;
-  font-size:12px; line-height:1; cursor:pointer; opacity:0; transition:opacity var(--t-fast) ease;
+  font-size:12px; line-height:1; cursor:pointer; opacity:1; box-shadow:0 1px 3px rgba(0,0,0,.3);
+  transition:transform var(--t-fast) ease;
 }
-.page-card:hover .page-remove{ opacity:1; }
+.page-card:hover .page-remove, .page-card .page-remove:focus-visible{ transform:scale(1.12); }
+.page-card .page-remove:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
 .page-grid-hint{ margin:0 0 8px; color:var(--ink-soft); font-size:.82rem; }
 .page-card{ transition:transform var(--t-fast) ease, opacity var(--t-fast) ease; }
 .page-card.removing{ opacity:0; transform:scale(.85); }
@@ -1816,11 +1828,11 @@ html.panel-open{ overflow:hidden; }
 }
 .page-thumb-actions{
   position:absolute; left:0; right:0; bottom:0; display:flex; justify-content:center; gap:6px; padding:6px;
-  opacity:0; transition:opacity var(--t-fast) ease; background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,0) 90%);
+  opacity:1; transition:background var(--t-fast) ease; background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,0) 90%);
 }
-.page-card:hover .page-thumb-actions, .page-card:focus-within .page-thumb-actions{ opacity:1; }
+.page-card:hover .page-thumb-actions, .page-card:focus-within .page-thumb-actions{ background:linear-gradient(to top, rgba(0,0,0,.68), rgba(0,0,0,0) 90%); }
 .page-thumb-actions button{
-  width:24px; height:24px; border-radius:50%; border:none; background:rgba(255,255,255,.92); color:var(--ink);
+  width:24px; height:24px; border-radius:50%; border:none; background:rgba(255,255,255,.92); color:#15171A;
   display:flex; align-items:center; justify-content:center; font-size:12px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.3);
 }
 .page-thumb-actions button:hover, .page-thumb-actions button:focus-visible{ background:var(--red); color:var(--btn-ink); outline:2px solid var(--paper); outline-offset:1px; }
@@ -2314,6 +2326,69 @@ footer{
   background:var(--paper-dim); border:1px solid var(--line); border-radius:50%; width:36px; height:36px;
   font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
+
+/* ---- Language selector: compact button + popover, reuses the site's
+   existing card/border/radius/shadow tokens so it matches both themes
+   without any hardcoded colors of its own. ---- */
+.lang-select-mount{ position:relative; display:flex; }
+.lang-select{ position:relative; }
+.lang-select-trigger{
+  display:flex; align-items:center; gap:6px; height:36px; padding:0 12px;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:18px;
+  color:var(--ink); font-size:0.82rem; font-weight:600; cursor:pointer;
+  transition:border-color .15s ease, color .15s ease;
+  max-width:132px;
+}
+.lang-select-trigger:hover{ border-color:rgba(var(--brand-shadow-rgb),0.5); }
+.lang-select-trigger:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
+.lang-select-flag{ font-size:0.95rem; line-height:1; flex:none; }
+.lang-select-current{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lang-select-trigger svg{ flex:none; transition:transform .15s ease; }
+.lang-select.open .lang-select-trigger svg{ transform:rotate(180deg); }
+
+.lang-select-menu{
+  position:absolute; top:calc(100% + 8px); right:0; z-index:60; min-width:200px;
+  background:var(--panel-bg); border:1px solid var(--line); border-radius:14px;
+  box-shadow:0 20px 45px -18px rgba(0,0,0,0.35);
+  padding:6px; display:none; flex-direction:column; gap:1px;
+  max-height:min(70vh, 420px); overflow-y:auto;
+}
+.lang-select.open .lang-select-menu{ display:flex; }
+.lang-select-item{
+  display:flex; align-items:center; gap:10px; width:100%; padding:9px 10px; border-radius:9px;
+  background:none; border:none; color:var(--ink); font-size:0.86rem; font-weight:600; text-align:left;
+  cursor:pointer; transition:background .12s ease, color .12s ease;
+}
+.lang-select-item:hover, .lang-select-item:focus-visible{ background:var(--paper-dim); }
+.lang-select-item:focus-visible{ outline:2px solid var(--red); outline-offset:-2px; }
+.lang-select-item[aria-checked="true"]{ color:var(--red); }
+.lsi-flag{ font-size:1rem; flex:none; }
+.lsi-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lsi-check{ flex:none; color:var(--red); }
+
+.lang-select-mount-mobile{ margin:0 0 6px; }
+.lang-select-mount-mobile .lang-select-trigger{ width:100%; max-width:none; justify-content:space-between; }
+.lang-select-mount-mobile .lang-select-menu{ position:static; margin-top:6px; box-shadow:none; max-height:none; }
+
+@media(max-width:900px){
+  /* Desktop header selector is hidden below the breakpoint where the
+     whole nav collapses into the hamburger menu - the mobile mount
+     (#langSelectMobile, inside .mobile-menu) is the one that's visible
+     there, matching "place it inside the mobile navigation menu" from
+     the brief rather than crowding the narrow header. */
+  #langSelectDesktop{ display:none; }
+}
+
+/* ---- RTL (Arabic) ---- */
+[dir="rtl"] .lang-select-menu{ right:auto; left:0; }
+[dir="rtl"] .lang-select-item{ text-align:right; }
+[dir="rtl"] .nav-search-results,
+[dir="rtl"] .nav-dd-menu{ text-align:right; }
+[dir="rtl"] .privacy-nav a.active,
+[dir="rtl"] .terms-nav a.active{ border-left-color:transparent; border-right:2px solid var(--red); }
+[dir="rtl"] .legal-callout{ border-left:1px solid var(--line); border-right:3px solid var(--ochre); }
+[dir="rtl"] .terms-cta,
+[dir="rtl"] .cta-actions{ direction:rtl; }
 .btn-donate-nav{
   background:linear-gradient(135deg, var(--teal), var(--teal-deep)); color:#fff !important; padding:9px 18px; border-radius:22px;
   font-weight:700; font-size:0.85rem; text-decoration:none;
@@ -2602,7 +2677,7 @@ footer{
   opacity:0.55;
   background:
     radial-gradient(46% 46% at 50% 42%, rgba(var(--brand-shadow-rgb),0.10), transparent 70%),
-    radial-gradient(30% 30% at 62% 68%, rgba(9,89,201,0.06), transparent 72%);
+    radial-gradient(30% 30% at 62% 68%, rgba(0,0,255,0.06), transparent 72%);
 }
 [data-theme="light"] .hero-upload-device{
   background:var(--card-bg);
@@ -3247,10 +3322,21 @@ footer{
 }
 .footer-divider{ width:1px; background:var(--line); align-self:stretch; }
 @media(max-width:980px){
-  .footer-grid{ grid-template-columns:1fr 1fr 1fr; }
+  .footer-grid{ grid-template-columns:repeat(3, minmax(0,1fr)); }
   .footer-divider{ display:none; }
 }
-@media(max-width:600px){ .footer-grid{ grid-template-columns:1fr 1fr; } }
+@media(max-width:600px){ .footer-grid{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+/* min-width:0 lets a grid column actually shrink to its track's size
+   instead of being held open by its widest unbreakable child (a button's
+   own content width) - without it, longer translated strings (German,
+   etc) can force a column wider than its 1fr share and overflow the
+   viewport at mobile widths, even though English text never revealed
+   the same bug (confirmed live: this file's own i18n verification pass
+   caught it). button/a get min-width:0 too for the same reason - the
+   grid fix alone isn't enough while a flex/inline-block descendant still
+   refuses to shrink below its own text's width. */
+.footer-col{ min-width:0; }
+.footer-col button, .footer-col a{ min-width:0; white-space:normal; }
 .footer-col h4{ font-size:0.74rem; margin:0 0 12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink); font-weight:700; }
 .footer-col .fbrand{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
 .footer-col p{ font-size:0.82rem; color:var(--ink-soft); line-height:1.6; margin:0 0 10px; max-width:34ch; }
@@ -3278,7 +3364,7 @@ footer{
    .footer-grid's 2.1fr) for all three badges to sit on one row like the
    reference; flex-wrap was letting "Browser Based" drop to its own
    second row whenever the column ran a little narrow. */
-.footer-trust{ display:flex; flex-wrap:nowrap; gap:6px; margin-top:2px; }
+.footer-trust{ display:flex; flex-wrap:wrap; gap:6px; margin-top:2px; }
 .footer-trust-badge{
   display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:10px;
   background:var(--card-bg); border:1px solid var(--line); color:var(--ink-soft);
@@ -3403,29 +3489,99 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 .content-hero{ max-width:680px; margin:0 auto 40px; text-align:center; }
 .content-hero .section-eyebrow{ margin-bottom:16px; }
 .content-hero h1{ font-size:clamp(1.9rem, 3.6vw, 2.5rem); margin:0 0 14px; font-weight:800; letter-spacing:-0.01em; line-height:1.15; }
+.content-hero h1 .accent{ color:var(--ochre); }
 .content-hero p{ color:var(--ink-soft); font-size:1.02rem; line-height:1.65; margin:0 auto; max-width:56ch; }
+.content-hero p + p{ margin-top:8px; }
 
-/* Abstract "document + thin neon lines" visual for the About hero -
-   theme-independent like .hero-art (uses --accent-lime-rgb directly),
-   restrained: thin strokes + one soft blur glow, never a solid fill. */
-.about-visual{ display:flex; justify-content:center; margin:28px 0 8px; }
-.about-visual svg{ width:100%; max-width:280px; height:auto; filter:drop-shadow(0 18px 34px rgba(var(--accent-lime-rgb),0.16)); }
+/* ---- About "orbit" hero: two-column layout (orbit visual left, copy
+   right), matching the reference redesign. Theme-independent lime/orange/
+   blue/purple/red/teal node colors (like .hero-art) since this is meant
+   to always read as the same dark-glass-neon-green product shot regardless
+   of light/dark theme, same rationale as .hero-upload-device. */
+.about-hero-v2{ display:grid; grid-template-columns:minmax(300px,440px) 1fr; gap:48px; align-items:center; margin-bottom:40px; }
+.about-orbit{ position:relative; width:100%; max-width:440px; aspect-ratio:1/1; margin:0 auto; }
+.ao-spin-group{ position:absolute; inset:0; animation:aboutOrbitSpin 100s linear infinite; }
+.ao-ring{ position:absolute; border-radius:50%; border:1px dashed rgba(var(--brand-shadow-rgb),0.22); pointer-events:none; }
+.ao-ring-outer{ inset:2%; }
+.ao-ring-inner{ inset:19%; }
+.ao-doc{ position:absolute; inset:33%; display:flex; align-items:center; justify-content:center; }
+.ao-doc svg{ width:100%; height:100%; filter:drop-shadow(0 0 22px rgba(var(--brand-shadow-rgb),0.35)); }
+.ao-node{
+  position:absolute; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; flex:none;
+  background:var(--ao-bg); border:1.5px solid var(--ao-color); color:var(--ao-color);
+  box-shadow:0 0 16px -3px var(--ao-color); animation:aboutOrbitSpinReverse 100s linear infinite;
+}
+.ao-node-icon{ display:flex; width:22px; height:22px; }
+.ao-node-icon svg{ width:100%; height:100%; }
+@keyframes aboutOrbitSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+@keyframes aboutOrbitSpinReverse{ from{ transform:rotate(0deg); } to{ transform:rotate(-360deg); } }
+@media(prefers-reduced-motion: reduce){
+  .ao-spin-group, .ao-node{ animation:none; }
+}
 
-/* ---- "Why Yoyopdf?" principle strip ---- */
-.principles-section{ margin:8px 0 44px; }
-.principles-section h2{ text-align:center; font-size:1.4rem; margin:0 0 20px; font-weight:800; letter-spacing:-0.01em; }
-.principles-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
-@media(max-width:900px){ .principles-grid{ grid-template-columns:1fr 1fr; } }
-@media(max-width:520px){ .principles-grid{ grid-template-columns:1fr; } }
-.principle-item{
-  display:flex; align-items:center; gap:12px; padding:15px 16px;
-  background:var(--card-bg); border:1px solid var(--line); border-radius:14px;
+.about-hero-copy{ text-align:left; }
+.about-hero-copy .section-eyebrow{ margin-bottom:16px; }
+.about-hero-copy h1{ font-size:clamp(2rem, 3.4vw, 2.7rem); margin:0 0 16px; font-weight:800; letter-spacing:-0.01em; line-height:1.16; }
+.about-hero-copy h1 .accent{ color:var(--red); }
+.about-hero-copy p{ color:var(--ink-soft); font-size:1.02rem; line-height:1.65; margin:0 0 28px; max-width:52ch; }
+.about-inline-features{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; }
+.aif-icon{
+  width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:10px;
+  background:rgba(var(--brand-shadow-rgb),0.12); border:1.5px solid rgba(var(--brand-shadow-rgb),0.4); color:var(--red);
 }
-.principle-item .p-dot{
-  width:8px; height:8px; border-radius:50%; background:var(--ochre); flex:none;
-  box-shadow:0 0 10px rgba(var(--brand-shadow-rgb),0.65);
+.aif-icon svg{ width:17px; height:17px; }
+.aif h4{ margin:0 0 6px; font-size:0.88rem; font-weight:700; color:var(--ink); }
+.aif p{ margin:0; font-size:0.78rem; color:var(--ink-soft); line-height:1.5; max-width:none; }
+
+/* ---- Stats bar ---- */
+.about-stats{
+  display:flex; flex-wrap:wrap; justify-content:space-between; gap:20px;
+  background:var(--card-bg); border:1px solid var(--line); border-radius:18px;
+  padding:22px 30px; margin-bottom:40px;
 }
-.principle-item span{ font-size:0.88rem; font-weight:600; color:var(--ink); }
+.a-stat{ display:flex; align-items:center; gap:12px; }
+.a-stat-ico{ width:26px; height:26px; flex:none; color:var(--red); display:flex; }
+.a-stat-ico svg{ width:100%; height:100%; }
+.a-stat strong{ display:block; font-size:1.15rem; font-weight:800; color:var(--red); line-height:1.2; }
+.a-stat small{ display:block; font-size:0.78rem; color:var(--ink-soft); font-weight:600; margin-top:2px; }
+
+/* ---- "Why YOYOPDF?" box ---- */
+.about-why-box{
+  background:var(--card-bg); border:1px solid var(--line); border-radius:18px;
+  padding:32px; margin-bottom:44px;
+}
+.about-why-box h2{ text-align:center; font-size:1.4rem; margin:0 0 22px; font-weight:800; letter-spacing:-0.01em; }
+.why-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:14px; }
+.why-card{
+  background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px 16px;
+}
+[data-theme="dark"] .why-card{ background:rgba(255,255,255,0.02); }
+.why-icon{
+  width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:12px;
+  background:rgba(var(--brand-shadow-rgb),0.12); border:1.5px solid rgba(var(--brand-shadow-rgb),0.4); color:var(--red);
+}
+.why-icon svg{ width:16px; height:16px; }
+.why-card h4{ margin:0 0 6px; font-size:0.86rem; font-weight:700; color:var(--ink); }
+.why-card p{ margin:0; font-size:0.78rem; color:var(--ink-soft); line-height:1.5; }
+
+@media(max-width:980px){
+  .about-hero-v2{ grid-template-columns:1fr; text-align:center; }
+  .about-orbit{ max-width:340px; }
+  .about-hero-copy{ text-align:center; }
+  .about-hero-copy p{ margin-left:auto; margin-right:auto; }
+  .why-grid{ grid-template-columns:repeat(3,1fr); }
+}
+@media(max-width:760px){
+  .about-inline-features{ grid-template-columns:1fr 1fr; }
+  .about-stats{ justify-content:center; }
+  .why-grid{ grid-template-columns:1fr 1fr; }
+}
+@media(max-width:520px){
+  .about-inline-features{ grid-template-columns:1fr; }
+  .about-stats{ flex-direction:column; align-items:flex-start; }
+  .why-grid{ grid-template-columns:1fr; }
+}
 
 /* Compact CTA reuses .cta-card as-is; this only adds the two-button row
    under its copy, since the homepage's own .cta-card never needed one. */
@@ -3534,32 +3690,13 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 .donate-support-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; max-width:960px; margin:0 auto; }
 @media(max-width:760px){ .donate-support-grid{ grid-template-columns:1fr; } }
 
-/* ---- Privacy / Terms (shared legal-document layout) ---- */
-.legal-layout{
-  display:grid; grid-template-columns:210px 1fr; gap:48px; align-items:start;
-  max-width:1180px; margin:0 auto; padding:8px 28px 64px;
-}
-@media(max-width:900px){ .legal-layout{ grid-template-columns:1fr; gap:24px; } }
-.legal-header{ grid-column:1/-1; max-width:680px; margin:0 0 12px; }
-.legal-header .section-eyebrow{ margin-bottom:14px; }
-.legal-header h1{ font-size:clamp(1.8rem, 3.2vw, 2.3rem); margin:0 0 10px; font-weight:800; letter-spacing:-0.01em; }
+/* ---- Privacy / Terms shared content typography ----
+   .legal-layout/.legal-header/.legal-nav/.legal-intro-callout/.legal-visual
+   (the old shared sidebar/hero scaffolding) were removed once both Privacy
+   and Terms moved to their own dedicated redesigned structures
+   (.privacy-*/.terms-*) - nothing references them any more. Only the
+   generic document typography below stays shared between the two pages. */
 .legal-meta{ display:flex; align-items:center; gap:8px; color:var(--ink-soft); font-size:0.85rem; }
-.legal-intro-callout{ grid-column:1/-1; }
-.legal-nav{ position:sticky; top:16px; display:flex; flex-direction:column; gap:1px; }
-@media(max-width:900px){
-  .legal-nav{ position:static; flex-direction:row; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
-}
-.legal-nav a{
-  padding:8px 12px; border-radius:8px; font-size:0.84rem; font-weight:600; color:var(--ink-soft);
-  text-decoration:none; border-left:2px solid transparent;
-  transition:color .15s ease, background .15s ease, border-color .15s ease;
-}
-.legal-nav a:hover{ color:var(--ink); background:var(--paper-dim); }
-.legal-nav a.active{ color:var(--ochre); border-left-color:var(--ochre); background:rgba(var(--brand-shadow-rgb),0.08); }
-@media(max-width:900px){
-  .legal-nav a{ border-left:none; border-bottom:2px solid transparent; border-radius:20px; background:var(--card-bg); border:1px solid var(--line); }
-  .legal-nav a.active{ border-bottom-color:var(--ochre); border-color:rgba(var(--brand-shadow-rgb),0.5); }
-}
 .legal-content{ max-width:74ch; }
 .legal-content h2{ font-size:1.28rem; margin:36px 0 12px; font-weight:800; letter-spacing:-0.01em; scroll-margin-top:20px; color:var(--ink); }
 .legal-content > h2:first-child, .legal-content > section:first-child h2{ margin-top:0; }
@@ -3576,8 +3713,193 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   border-radius:12px; padding:16px 18px; margin:8px 0 24px; font-size:0.9rem; color:var(--ink); line-height:1.6;
 }
 .legal-callout svg{ width:16px; height:16px; flex:none; margin-top:3px; color:var(--ochre); }
-.legal-visual{ display:flex; justify-content:center; margin:0 0 4px; opacity:0.92; }
-.legal-visual svg{ filter:drop-shadow(0 14px 26px rgba(var(--accent-lime-rgb),0.14)); }
+
+/* ---- Privacy page redesign: sidebar + hero + orbit visual --------------
+   A dedicated structure (own .privacy-* classes, not the old shared
+   sidebar scaffolding) so this redesign can differ visually from Terms
+   without affecting it. .legal-content/.legal-callout/.legal-meta ARE
+   still reused for the actual section typography below the hero, since
+   that's generic legal-document styling both pages should share.
+   Uses the theme-flipped --red/--brand-shadow-rgb tokens (lime in dark,
+   exact #0000FF in light per the light-theme rebrand) rather than the
+   always-lime --accent-lime this originally shipped with - the hero
+   upload device stays deliberately theme-independent, but Privacy/
+   Terms/About's own accents are meant to track the site's primary
+   brand color per theme, per the light-theme rebrand's own explicit
+   "about pages... privacy pages... terms pages" scope. */
+.privacy-layout{
+  display:grid; grid-template-columns:220px 1fr; gap:40px; align-items:start;
+  max-width:1180px; margin:0 auto; padding:8px 28px 64px;
+}
+.privacy-sidebar{ position:sticky; top:16px; display:flex; flex-direction:column; gap:16px; }
+.privacy-nav-label{ font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); padding:0 12px; }
+.privacy-nav{ display:flex; flex-direction:column; gap:2px; }
+.privacy-nav a{
+  padding:9px 12px; border-radius:9px; font-size:0.85rem; font-weight:600; color:var(--ink-soft);
+  text-decoration:none; border:1px solid transparent;
+  transition:color .15s ease, background .15s ease, border-color .15s ease;
+}
+.privacy-nav a:hover{ color:var(--ink); background:var(--paper-dim); }
+.privacy-nav a.active{ color:var(--red); background:rgba(var(--brand-shadow-rgb),0.1); border-color:rgba(var(--brand-shadow-rgb),0.35); }
+.privacy-trust-card{
+  background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:14px;
+  padding:18px; text-align:center; box-shadow:0 0 24px -10px rgba(var(--brand-shadow-rgb),0.3);
+}
+.ptc-icon{
+  width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  margin:0 auto 10px; background:rgba(var(--brand-shadow-rgb),0.12); border:1.5px solid rgba(var(--brand-shadow-rgb),0.4); color:var(--red);
+}
+.ptc-icon svg{ width:16px; height:16px; }
+.privacy-trust-card strong{ display:block; color:var(--ink); font-size:0.85rem; margin-bottom:4px; }
+.privacy-trust-card span{ display:block; color:var(--ink-soft); font-size:0.76rem; line-height:1.4; }
+
+.privacy-main{ min-width:0; }
+.privacy-hero{ display:grid; grid-template-columns:1fr minmax(260px,380px); gap:40px; align-items:center; margin-bottom:32px; }
+.privacy-hero-copy h1{ font-size:clamp(2rem, 3.4vw, 2.6rem); margin:10px 0 14px; font-weight:800; letter-spacing:-0.01em; line-height:1.16; }
+.privacy-hero-copy h1 .accent{ color:var(--red); }
+.privacy-hero-copy > p{ color:var(--ink-soft); font-size:1.02rem; line-height:1.65; margin:0 0 26px; max-width:52ch; }
+.privacy-feature-row{ display:flex; gap:22px; flex-wrap:wrap; }
+.pf-item{ display:flex; align-items:flex-start; gap:10px; flex:1 1 160px; }
+.pf-item svg{ width:18px; height:18px; flex:none; margin-top:2px; color:var(--red); }
+.pf-item strong{ display:block; font-size:0.86rem; font-weight:700; color:var(--ink); margin-bottom:3px; }
+.pf-item span{ display:block; font-size:0.78rem; color:var(--ink-soft); line-height:1.45; }
+
+.privacy-visual{ position:relative; width:100%; max-width:340px; aspect-ratio:1/1; margin:0 auto; }
+.pv-spin-group{ position:absolute; inset:0; animation:privacyOrbitSpin 120s linear infinite; }
+.pv-ring{ position:absolute; border-radius:50%; border:1px dashed rgba(var(--brand-shadow-rgb),0.2); pointer-events:none; }
+.pv-ring-outer{ inset:0; }
+.pv-ring-inner{ inset:16%; }
+.pv-particle{
+  position:absolute; width:4px; height:4px; border-radius:50%; background:var(--red);
+  box-shadow:0 0 6px 1px rgba(var(--brand-shadow-rgb),0.6); opacity:0.6;
+}
+.pv-shield{ position:absolute; inset:24%; display:flex; align-items:center; justify-content:center; animation:privacyShieldBreathe 5s ease-in-out infinite; }
+.pv-shield svg{ width:100%; height:100%; filter:drop-shadow(0 0 26px rgba(var(--brand-shadow-rgb),0.4)); }
+.pv-node{ position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:6px; width:76px; }
+.pv-node-icon{
+  width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:rgba(var(--brand-shadow-rgb),0.1); border:1.5px solid rgba(var(--brand-shadow-rgb),0.4); color:var(--red);
+  box-shadow:0 0 14px -4px rgba(var(--brand-shadow-rgb),0.5);
+}
+.pv-node-icon svg{ width:18px; height:18px; }
+.pv-node small{ font-size:0.65rem; font-weight:700; color:var(--ink-soft); text-align:center; line-height:1.3; }
+@keyframes privacyOrbitSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+@keyframes privacyShieldBreathe{ 0%,100%{ opacity:0.85; transform:scale(1); } 50%{ opacity:1; transform:scale(1.035); } }
+@media(prefers-reduced-motion: reduce){
+  .pv-spin-group, .pv-shield{ animation:none; }
+}
+
+.privacy-principles{ display:flex; flex-wrap:wrap; gap:12px; margin-bottom:8px; }
+.pp-item{
+  display:flex; align-items:center; gap:8px; padding:10px 16px;
+  background:var(--card-bg); border:1px solid var(--line); border-radius:999px;
+  font-size:0.82rem; font-weight:600; color:var(--ink);
+}
+.pp-item svg{ width:15px; height:15px; color:var(--red); flex:none; }
+
+@media(max-width:1080px){
+  .privacy-hero{ grid-template-columns:1fr; }
+  .privacy-visual{ order:-1; max-width:260px; margin-bottom:8px; }
+}
+@media(max-width:900px){
+  .privacy-layout{ grid-template-columns:170px 1fr; gap:28px; }
+}
+@media(max-width:760px){
+  .privacy-layout{ grid-template-columns:1fr; gap:20px; }
+  .privacy-sidebar{ position:static; }
+  .privacy-nav{ flex-direction:row; flex-wrap:wrap; gap:8px; }
+  .privacy-nav a{ border:1px solid var(--line); border-radius:20px; padding:7px 14px; }
+  .privacy-nav a.active{ border-color:rgba(var(--brand-shadow-rgb),0.5); }
+}
+@media(max-width:520px){
+  .privacy-feature-row{ flex-direction:column; gap:14px; }
+  .privacy-principles{ justify-content:center; }
+}
+
+/* ---- Terms page redesign: hero + sidebar docs layout --------------
+   Same visual language/tokens as the Privacy redesign above (theme-
+   flipped --red/--brand-shadow-rgb, dashed rings, floating shapes) but
+   its own dedicated .terms-* classes - a distinct structure from
+   Privacy's orbit-and-shield hero, matching this page's own "premium
+   documentation" brief rather than reusing Privacy's exact composition. */
+.terms-page{ max-width:1220px; margin:0 auto; padding:8px 28px 64px; }
+.terms-hero{
+  display:grid; grid-template-columns:1fr minmax(180px,240px); gap:36px; align-items:center;
+  padding:28px 32px; margin-bottom:36px; border-radius:18px;
+  background:var(--card-bg); border:1px solid var(--line);
+}
+.terms-badge{
+  display:inline-flex; align-items:center; gap:7px; font-size:0.78rem; font-weight:700;
+  color:var(--red); background:rgba(var(--brand-shadow-rgb),0.1); border:1px solid rgba(var(--brand-shadow-rgb),0.3);
+  padding:6px 14px 6px 10px; border-radius:20px; margin-bottom:14px;
+}
+.terms-badge svg{ width:13px; height:13px; flex:none; }
+.terms-hero-copy h1{ font-size:clamp(1.9rem, 3.2vw, 2.4rem); margin:0 0 8px; font-weight:800; letter-spacing:-0.01em; }
+.terms-hero-copy > p{ color:var(--ink-soft); font-size:1rem; margin:0 0 14px; }
+.terms-visual{ position:relative; display:flex; align-items:center; justify-content:center; }
+.terms-visual svg{ width:100%; max-width:130px; height:auto; filter:drop-shadow(0 0 22px rgba(var(--brand-shadow-rgb),0.25)); }
+.tv-shape{ position:absolute; border-radius:50%; background:var(--red); opacity:0.5; animation:termsShapeFloat 5s ease-in-out infinite; }
+.tv-shape-circle{ width:6px; height:6px; top:10%; left:14%; box-shadow:0 0 8px 1px rgba(var(--brand-shadow-rgb),0.6); }
+.tv-shape-square{
+  width:14px; height:14px; border-radius:3px; background:none; border:1.5px solid rgba(var(--brand-shadow-rgb),0.45);
+  top:78%; left:78%; opacity:1; animation-delay:-2.4s; animation-duration:6s;
+}
+@keyframes termsShapeFloat{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-7px); } }
+@media(prefers-reduced-motion: reduce){ .tv-shape{ animation:none; } }
+
+.terms-layout{ display:grid; grid-template-columns:230px 1fr; gap:44px; align-items:start; }
+.terms-sidebar{ position:sticky; top:16px; }
+.terms-nav{ display:flex; flex-direction:column; gap:2px; }
+.terms-nav a{
+  padding:9px 12px; border-radius:9px; font-size:0.85rem; font-weight:600; color:var(--ink-soft);
+  text-decoration:none; border-left:2px solid transparent;
+  transition:color .15s ease, background .15s ease, border-color .15s ease;
+}
+.terms-nav a:hover{ color:var(--ink); background:var(--paper-dim); }
+.terms-nav a.active{ color:var(--red); background:rgba(var(--brand-shadow-rgb),0.1); border-left-color:var(--red); }
+.terms-main{ min-width:0; }
+
+.terms-cards{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:20px 0 8px; }
+.terms-card{
+  background:var(--card-bg); border:1px solid var(--line); border-radius:14px; padding:16px;
+  transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.terms-card:hover{ transform:translateY(-3px); border-color:rgba(var(--brand-shadow-rgb),0.4); box-shadow:0 14px 28px -18px rgba(var(--brand-shadow-rgb),0.35); }
+.tc-icon{
+  width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:10px;
+  background:rgba(var(--brand-shadow-rgb),0.1); border:1.5px solid rgba(var(--brand-shadow-rgb),0.35); color:var(--red);
+}
+.tc-icon svg{ width:16px; height:16px; }
+.terms-card h4{ margin:0 0 5px; font-size:0.86rem; font-weight:700; color:var(--ink); }
+.terms-card p{ margin:0; font-size:0.78rem; color:var(--ink-soft); line-height:1.5; }
+
+.terms-cta{
+  display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+  padding:18px 22px; margin:28px 0 4px;
+}
+.terms-cta strong{ display:block; color:var(--ink); font-size:0.95rem; margin-bottom:2px; }
+.terms-cta span{ display:block; color:var(--ink-soft); font-size:0.84rem; }
+.terms-cta .btn-cta-primary{ flex:none; padding:10px 20px; font-size:0.88rem; }
+
+@media(max-width:980px){
+  .terms-hero{ grid-template-columns:1fr; text-align:center; padding:26px 24px; }
+  .terms-badge{ margin-left:auto; margin-right:auto; }
+  .terms-visual{ order:-1; max-width:150px; margin:0 auto 12px; }
+}
+@media(max-width:900px){
+  .terms-layout{ grid-template-columns:180px 1fr; gap:28px; }
+}
+@media(max-width:760px){
+  .terms-layout{ grid-template-columns:1fr; gap:20px; }
+  .terms-sidebar{ position:static; }
+  .terms-nav{ flex-direction:row; flex-wrap:wrap; gap:8px; }
+  .terms-nav a{ border:1px solid var(--line); border-left:1px solid var(--line); border-radius:20px; padding:7px 14px; }
+  .terms-nav a.active{ border-color:rgba(var(--brand-shadow-rgb),0.5); }
+  .terms-cards{ grid-template-columns:1fr; }
+  .terms-cta{ flex-direction:column; align-items:flex-start; }
+  .terms-cta .btn-cta-primary{ width:100%; text-align:center; }
+}
 
 /* ============================================================
    GLOBAL FLOATING DOCK — one coherent dark-glass surface (not a loose

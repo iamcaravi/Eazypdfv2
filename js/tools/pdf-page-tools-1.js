@@ -1,30 +1,31 @@
 /* ---- MERGE ---- */
 TOOLS.merge = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let files=[];
   openPanel(`
-    <div class="panel-head"><h3>Merge PDF</h3></div>
+    <div class="panel-head"><h3>${t("nav.merge")}</h3></div>
     <div class="panel-body compact tool-workspace merge-workspace" id="mergeBody">
       <div class="tool-hero">
-        <h2 class="tool-hero-title">Merge PDF files</h2>
-        <p class="tool-hero-desc">Combine PDFs in the order you want with the easiest PDF merger available.</p>
+        <h2 class="tool-hero-title">${t("toolMerge.heroTitle")}</h2>
+        <p class="tool-hero-desc">${t("toolMerge.heroDesc")}</p>
       </div>
-      <p class="page-grid-hint" id="mergeHint" style="display:none">Add PDFs and drag them into the order you want to merge them.</p>
+      <p class="page-grid-hint" id="mergeHint" style="display:none">${t("toolMerge.hint")}</p>
       <div class="tool-upload-wrap workspace-host" id="mergeUploadWrap">
-        ${fileInputHTML("application/pdf", true, "Select PDF files")}
+        ${fileInputHTML("application/pdf", true, t("workspace.selectPdfFiles"))}
         <div class="workspace-action-stack" id="mergeFileToolbar" style="display:none">
-          <button type="button" class="workspace-action-btn workspace-action-primary" id="mergeAddFab" aria-label="Add more files" data-tip="Add more files">
+          <button type="button" class="workspace-action-btn workspace-action-primary" id="mergeAddFab" aria-label="${t("workspace.addMoreFiles")}" data-tip="${t("workspace.addMoreFiles")}">
             +<span class="workspace-action-badge" id="mergeFileCount" hidden></span>
           </button>
-          <button type="button" class="workspace-action-btn" id="mergeSortBtn" aria-label="Sort files alphabetically" data-tip="Sort files alphabetically">
+          <button type="button" class="workspace-action-btn" id="mergeSortBtn" aria-label="${t("toolMerge.sortAria")}" data-tip="${t("toolMerge.sortAria")}">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h6M3 12h9M3 18h12"/></svg>
           </button>
         </div>
       </div>
       <div class="tool-content-area merge-info-tip">
-        <span class="tip-icon" aria-hidden="true">ℹ️</span><span>To change the order of your PDFs, drag and drop the files as you want.</span>
+        <span class="tip-icon" aria-hidden="true">ℹ️</span><span>${t("toolMerge.tip")}</span>
       </div>
       <div class="tool-toolbar" id="mergeToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go" disabled>Merge PDFs <span aria-hidden="true">&rarr;</span></button>
+        <button class="btn tool-toolbar-primary" id="go" disabled>${t("toolMerge.goBtn")} <span aria-hidden="true">&rarr;</span></button>
       </div>
       <div id="out"></div>
     </div>`);
@@ -58,7 +59,7 @@ TOOLS.merge = function(){
   wireDropzone(fs=>{ files = files.concat(fs.filter(f=>f.type==="application/pdf"||f.name.endsWith(".pdf"))); refresh(); });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
     const out = document.getElementById("out");
-    out.innerHTML = statusEl("Merging...");
+    out.innerHTML = statusEl(t("toolMerge.statusMerging"));
     const merged = await PDFDocument.create();
     for(const f of files){
       const bytes = await f.arrayBuffer();
@@ -72,101 +73,102 @@ TOOLS.merge = function(){
     if(!operation.isCurrent()) return;
     const {url} = downloadBlob(blob, outName);
     const {canvas} = await pdfThumb(bytes);
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
-    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName, nextTool:{id:"compress", label:"Compress PDF", question:"Need to reduce the merged file's size?"}}));
+    out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName, nextTool:{id:"compress", label:t("nav.compress"), question:t("toolMerge.nextToolQuestion")}}));
   }));
 };
 
 /* ---- SPLIT ---- */
 TOOLS.split = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, gridApi=null, loadToken=0;
   openPanel(`
-    <div class="panel-head"><h3>Split PDF</h3></div>
+    <div class="panel-head"><h3>${t("nav.split")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="splitBody">
       <div class="tool-hero" id="splitHero">
-        <h2 class="tool-hero-title">Split PDF</h2>
-        <p class="tool-hero-desc">Separate a PDF into multiple files by page range, or break every page out into its own file.</p>
+        <h2 class="tool-hero-title">${t("nav.split")}</h2>
+        <p class="tool-hero-desc">${t("toolSplit.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="splitUploadWrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
+        ${fileInputHTML("application/pdf", false, t("toolSplit.selectPdfFile"))}
       </div>
       <div class="tool-app-workspace" id="splitWorkspace" style="display:none">
         <div class="tool-main-pane">
-          <p class="page-grid-hint" id="gridHint" style="display:none">Drag to reorder, hover a page to rotate or remove it, or click pages to select which ones go into one file.</p>
+          <p class="page-grid-hint" id="gridHint" style="display:none">${t("toolSplit.gridHint")}</p>
           <div class="page-grid tool-content-area" id="pageGrid"></div>
         </div>
         <aside class="tool-side-panel">
           <div id="splitFileSlot"></div>
-          <div class="mode-tabs" role="tablist" aria-label="Split mode">
+          <div class="mode-tabs" role="tablist" aria-label="${t("toolSplit.modeLabel")}">
             <button type="button" class="mode-tab active" data-mode="range" role="tab" aria-selected="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6v6H4zM14 14h6v6h-6z"/><path d="M10 7h4M17 10v4M7 17h4"/></svg>
-              Range
+              ${t("toolSplit.tabRange")}
             </button>
             <button type="button" class="mode-tab" data-mode="pages" role="tab" aria-selected="false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l3 3v15H6z"/><path d="M6 9h6M6 13h6M6 17h6"/></svg>
-              Pages
+              ${t("toolSplit.tabPages")}
             </button>
             <button type="button" class="mode-tab" data-mode="size" role="tab" aria-selected="false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg>
-              Size
+              ${t("toolSplit.tabSize")}
             </button>
           </div>
           <div class="mode-panel" data-mode-panel="range">
-            <div class="mode-seg" role="tablist" aria-label="Range mode">
-              <button type="button" class="mode-seg-btn active" data-rangemode="custom" role="tab" aria-selected="true">Custom</button>
-              <button type="button" class="mode-seg-btn" data-rangemode="fixed" role="tab" aria-selected="false">Fixed</button>
-              <button type="button" class="mode-seg-btn" data-rangemode="smart" role="tab" aria-selected="false">Smart</button>
+            <div class="mode-seg" role="tablist" aria-label="${t("toolSplit.rangeModeLabel")}">
+              <button type="button" class="mode-seg-btn active" data-rangemode="custom" role="tab" aria-selected="true">${t("toolSplit.rangeCustom")}</button>
+              <button type="button" class="mode-seg-btn" data-rangemode="fixed" role="tab" aria-selected="false">${t("toolSplit.rangeFixed")}</button>
+              <button type="button" class="mode-seg-btn" data-rangemode="smart" role="tab" aria-selected="false">${t("toolSplit.rangeSmart")}</button>
             </div>
             <div data-rangemode-panel="custom">
               <div class="range-rows" id="customRangesList"></div>
               <button type="button" class="add-range-btn" id="addRangeBtn">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                Add Range
+                ${t("toolSplit.addRange")}
               </button>
-              <label class="checkbox-row"><input type="checkbox" id="mergeRangesChk"> Merge all ranges in one PDF file.</label>
+              <label class="checkbox-row"><input type="checkbox" id="mergeRangesChk"> ${t("toolSplit.mergeRangesChk")}</label>
             </div>
             <div data-rangemode-panel="fixed" hidden>
-              <div class="field"><label for="splitEveryN">Split every</label>
-                <div class="row"><input type="number" id="splitEveryN" min="1" value="1"><span style="align-self:center;color:var(--ink-soft);font-size:.85rem;white-space:nowrap">page(s) per file</span></div>
+              <div class="field"><label for="splitEveryN">${t("toolSplit.splitEvery")}</label>
+                <div class="row"><input type="number" id="splitEveryN" min="1" value="1"><span style="align-self:center;color:var(--ink-soft);font-size:.85rem;white-space:nowrap">${t("toolSplit.pagesPerFile")}</span></div>
               </div>
             </div>
             <div data-rangemode-panel="smart" hidden>
-              <p class="mode-info">Detects mostly-blank separator pages and splits your PDF into one file per section — the blank separator pages themselves are dropped from the output.</p>
+              <p class="mode-info">${t("toolSplit.smartInfo")}</p>
               <div class="mode-info" id="smartSplitStatus" hidden></div>
               <div class="row" id="quickSelectRow" style="margin-top:8px">
-                <button type="button" class="btn secondary btn-sm" id="selOdd">Odd pages</button>
-                <button type="button" class="btn secondary btn-sm" id="selEven">Even pages</button>
-                <button type="button" class="btn secondary btn-sm" id="selClear">Clear</button>
+                <button type="button" class="btn secondary btn-sm" id="selOdd">${t("toolSplit.oddPages")}</button>
+                <button type="button" class="btn secondary btn-sm" id="selEven">${t("toolSplit.evenPages")}</button>
+                <button type="button" class="btn secondary btn-sm" id="selClear">${t("toolSplit.clear")}</button>
               </div>
             </div>
           </div>
           <div class="mode-panel" data-mode-panel="pages" hidden>
-            <div class="mode-seg" role="tablist" aria-label="Extract mode">
-              <button type="button" class="mode-seg-btn" data-extractmode="all" role="tab" aria-selected="false">Extract all pages</button>
-              <button type="button" class="mode-seg-btn active" data-extractmode="select" role="tab" aria-selected="true">Select pages</button>
+            <div class="mode-seg" role="tablist" aria-label="${t("toolSplit.extractModeLabel")}">
+              <button type="button" class="mode-seg-btn" data-extractmode="all" role="tab" aria-selected="false">${t("toolSplit.extractAll")}</button>
+              <button type="button" class="mode-seg-btn active" data-extractmode="select" role="tab" aria-selected="true">${t("toolSplit.extractSelect")}</button>
             </div>
             <div data-extractmode-panel="all" hidden>
-              <p class="mode-info">Every page in this PDF will be extracted.</p>
+              <p class="mode-info">${t("toolSplit.allExtractedInfo")}</p>
             </div>
             <div data-extractmode-panel="select">
-              <div class="field"><label for="pagesToExtract">Pages to extract</label><input type="text" id="pagesToExtract" placeholder="e.g. 1,5-8"></div>
-              <div class="mode-info" id="pagesSelectedCount">Click pages in the workspace, or type page numbers above.</div>
+              <div class="field"><label for="pagesToExtract">${t("toolSplit.pagesToExtract")}</label><input type="text" id="pagesToExtract" placeholder="e.g. 1,5-8"></div>
+              <div class="mode-info" id="pagesSelectedCount">${t("toolSplit.clickOrType")}</div>
             </div>
-            <label class="checkbox-row"><input type="checkbox" id="mergeExtractedChk"> Merge extracted pages into one PDF file.</label>
+            <label class="checkbox-row"><input type="checkbox" id="mergeExtractedChk"> ${t("toolSplit.mergeExtractedChk")}</label>
           </div>
           <div class="mode-panel" data-mode-panel="size" hidden>
             <div class="size-info-box" id="sizeInfoBox"></div>
-            <div class="field"><label for="splitMaxSize">Maximum size per file</label>
+            <div class="field"><label for="splitMaxSize">${t("toolSplit.maxSizePerFile")}</label>
               <div class="row">
                 <input type="number" id="splitMaxSize" min="1" value="1" step="0.1">
-                <select id="splitMaxSizeUnit" aria-label="Maximum size unit"><option value="KB">KB</option><option value="MB" selected>MB</option></select>
+                <select id="splitMaxSizeUnit" aria-label="${t("toolSplit.maxSizeUnit")}"><option value="KB">KB</option><option value="MB" selected>MB</option></select>
               </div>
             </div>
-            <p class="mode-info">Pages are packed together in order, starting a new file whenever the next page would push it over this limit.</p>
+            <p class="mode-info">${t("toolSplit.sizePackInfo")}</p>
           </div>
           <div class="split-error" id="splitError" hidden></div>
-          <button class="btn tool-toolbar-primary" id="go">Split PDF</button>
+          <button class="btn tool-toolbar-primary" id="go">${t("toolSplit.goBtnSplit")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -242,7 +244,7 @@ TOOLS.split = function(){
     });
     renderCustomRanges();
     document.getElementById("sizeInfoBox").innerHTML =
-      `<span><strong>Original file size:</strong> ${fmtSize(file.size)}</span><span><strong>Total pages:</strong> ${totalPages}</span>`;
+      `<span><strong>${t("toolSplit.originalFileSize")}</strong> ${fmtSize(file.size)}</span><span><strong>${t("toolSplit.totalPages")}</strong> ${totalPages}</span>`;
     showWorkspace();
     validate();
   });
@@ -254,12 +256,12 @@ TOOLS.split = function(){
       const invalid = !(r.from>=1 && r.to>=r.from && r.to<=totalPages);
       return `<div class="range-row${invalid?' invalid':''}" data-i="${i}">
         <div class="range-row-head">
-          <span class="range-row-label">Range ${i+1}</span>
-          ${customRanges.length>1 ? `<button type="button" class="range-row-remove" data-i="${i}" aria-label="Remove range ${i+1}">✕</button>` : ""}
+          <span class="range-row-label">${t("toolSplit.rangeN",{n:i+1})}</span>
+          ${customRanges.length>1 ? `<button type="button" class="range-row-remove" data-i="${i}" aria-label="${t("toolSplit.removeRangeN",{n:i+1})}">✕</button>` : ""}
         </div>
         <div class="range-row-fields">
-          <div class="range-field"><label for="rangeFrom${i}">from page</label><input type="number" id="rangeFrom${i}" class="range-from" data-i="${i}" min="1" max="${totalPages}" value="${r.from}"></div>
-          <div class="range-field"><label for="rangeTo${i}">to</label><input type="number" id="rangeTo${i}" class="range-to" data-i="${i}" min="1" max="${totalPages}" value="${r.to}"></div>
+          <div class="range-field"><label for="rangeFrom${i}">${t("toolSplit.fromPage")}</label><input type="number" id="rangeFrom${i}" class="range-from" data-i="${i}" min="1" max="${totalPages}" value="${r.from}"></div>
+          <div class="range-field"><label for="rangeTo${i}">${t("toolSplit.to")}</label><input type="number" id="rangeTo${i}" class="range-to" data-i="${i}" min="1" max="${totalPages}" value="${r.to}"></div>
         </div>
       </div>`;
     }).join("");
@@ -314,7 +316,7 @@ TOOLS.split = function(){
       group.className = "range-group";
       const label = document.createElement("span");
       label.className = "range-group-label";
-      label.textContent = "Range " + (i+1);
+      label.textContent = t("toolSplit.rangeN",{n:i+1});
       const cardsBox = document.createElement("div");
       cardsBox.className = "range-group-cards";
       members.forEach(c=>cardsBox.appendChild(c));
@@ -346,7 +348,7 @@ TOOLS.split = function(){
         if(splitMode!=="pages") gridApi.clearSelection();
         regroupSplitPages();
       }
-      goBtn.textContent = splitMode==="size" ? "Split by Size" : (splitMode==="pages" ? "Extract Pages" : "Split PDF");
+      goBtn.textContent = splitMode==="size" ? t("toolSplit.goBtnSize") : (splitMode==="pages" ? t("toolSplit.goBtnExtract") : t("toolSplit.goBtnSplit"));
       validate();
     });
   });
@@ -387,14 +389,14 @@ TOOLS.split = function(){
       if(rangeMode==="custom"){
         for(const r of customRanges){
           if(!(r.from>=1 && r.to>=r.from && r.to<=totalPages)){
-            return {ok:false, msg:`Each range needs "from" ≤ "to", both between 1 and ${totalPages}.`};
+            return {ok:false, msg:t("toolSplit.errRangeMinMax",{total:totalPages})};
           }
         }
         return {ok:true};
       }
       if(rangeMode==="fixed"){
         const n = parseInt(document.getElementById("splitEveryN").value);
-        if(!Number.isInteger(n) || n<1) return {ok:false, msg:"Enter how many pages should go in each file."};
+        if(!Number.isInteger(n) || n<1) return {ok:false, msg:t("toolSplit.errFixedCount")};
         return {ok:true};
       }
       // smart - always allowed to try; real validity is decided at split time
@@ -405,16 +407,16 @@ TOOLS.split = function(){
       const text = document.getElementById("pagesToExtract").value.trim();
       if(text){
         const parsed = parsePageList(text, totalPages);
-        if(!parsed) return {ok:false, msg:`Enter page numbers between 1 and ${totalPages}, e.g. 1,5-8.`};
+        if(!parsed) return {ok:false, msg:t("toolSplit.errPageNumbers",{total:totalPages})};
         return {ok:true};
       }
       const selected = gridApi ? gridApi.getSelectedPages().length : 0;
-      if(selected===0) return {ok:false, msg:"Click pages in the workspace, or type page numbers to extract."};
+      if(selected===0) return {ok:false, msg:t("toolSplit.clickOrTypeExtract")};
       return {ok:true};
     }
     if(splitMode==="size"){
       const raw = parseFloat(document.getElementById("splitMaxSize").value);
-      if(!(raw>0)) return {ok:false, msg:"Enter a maximum size greater than 0."};
+      if(!(raw>0)) return {ok:false, msg:t("toolSplit.errMaxSize")};
       return {ok:true};
     }
     return {ok:true};
@@ -426,7 +428,7 @@ TOOLS.split = function(){
     if(splitMode==="pages" && extractMode==="select" && gridApi){
       const n = gridApi.getSelectedPages().length;
       document.getElementById("pagesSelectedCount").textContent =
-        n>0 ? `${n} page${n>1?'s':''} selected in the workspace.` : "Click pages in the workspace, or type page numbers above.";
+        n>0 ? (n>1 ? t("toolSplit.pagesSelectedMany",{n}) : t("toolSplit.pagesSelectedOne")) : t("toolSplit.clickOrType");
     }
   }
   // Re-validate whenever the grid selection changes (Pages/Select relies on it).
@@ -489,7 +491,7 @@ TOOLS.split = function(){
     const {ok, msg} = validateConfig();
     if(!ok){ showError(msg); return; }
     const out = document.getElementById("out");
-    out.innerHTML = statusEl("Splitting...");
+    out.innerHTML = statusEl(t("toolSplit.statusSplitting"));
     const bytes = await file.arrayBuffer();
     const src = await loadPdfSafe(bytes);
     let groups;
@@ -518,8 +520,8 @@ TOOLS.split = function(){
         groups.push(liveOrdered.slice(i, i+n).map(index=>({index, rotation:liveIndexRotation.get(index)})));
       }
     } else if(splitMode==="range" && rangeMode==="smart"){
-      setStatus("Scanning pages for blank separators...", false, 0);
-      const blanks = await detectBlankPages(bytes, (done,total)=>setStatus("Scanning pages for blank separators...", false, Math.round((done/total)*100)));
+      setStatus(t("toolSplit.statusScanning"), false, 0);
+      const blanks = await detectBlankPages(bytes, (done,total)=>setStatus(t("toolSplit.statusScanning"), false, Math.round((done/total)*100)));
       groups = groupsFromBlanks(blanks)
         .map(g=>g.filter(p=>liveIndexRotation.has(p.index)).map(p=>({index:p.index, rotation:liveIndexRotation.get(p.index)})))
         .filter(g=>g.length>0);
@@ -527,7 +529,7 @@ TOOLS.split = function(){
       if(!blanks.some(Boolean)){
         const statusEl2 = document.getElementById("smartSplitStatus");
         statusEl2.hidden = false;
-        statusEl2.textContent = "No blank separator pages were detected — the whole document will be kept as one file.";
+        statusEl2.textContent = t("toolSplit.noBlankPages");
       }
     } else if(splitMode==="range"){ // custom
       groups = customRanges
@@ -538,8 +540,8 @@ TOOLS.split = function(){
       const rawSize = parseFloat(document.getElementById("splitMaxSize").value) || 1;
       const unit = document.getElementById("splitMaxSizeUnit").value;
       const maxBytes = Math.round(rawSize * (unit==="MB" ? 1024*1024 : 1024));
-      setStatus("Packing pages by size...", false, 0);
-      groups = await splitBySize(src, maxBytes, (done,total)=>setStatus("Packing pages by size...", false, Math.round((done/total)*100)), liveIndexRotation);
+      setStatus(t("toolSplit.statusPacking"), false, 0);
+      groups = await splitBySize(src, maxBytes, (done,total)=>setStatus(t("toolSplit.statusPacking"), false, Math.round((done/total)*100)), liveIndexRotation);
     } else { // pages
       let pageIndices;
       if(extractMode==="all"){
@@ -567,11 +569,11 @@ TOOLS.split = function(){
       groups = [groups.flat()];
     }
     if(!groups || groups.length===0 || groups.some(g=>g.length===0)){
-      toast("Nothing to split — check your ranges or page selection");
+      toast(t("toolSplit.nothingToSplit"));
       out.innerHTML="";
       return;
     }
-    setStatus("Splitting...", false, 0);
+    setStatus(t("toolSplit.statusSplitting"), false, 0);
     if(groups.length===1){
       const doc = await buildPdfFromPages(src, groups[0]);
       const b = await doc.save();
@@ -580,14 +582,14 @@ TOOLS.split = function(){
       if(!operation.isCurrent()) return;
       const {url} = downloadBlob(blob, outName);
       const {canvas} = await pdfThumb(b);
-      setStatus("Done", true);
+      setStatus(t("workspace.done"), true);
       if(!operation.isCurrent()) return;
-      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName, nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
+      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName, nextTool:{id:"organize", label:t("tools.organize"), question:t("toolSplit.nextToolQuestion")}}));
     } else {
       await ensureJSZip();
       const zip = new JSZip();
       for(let i=0;i<groups.length;i++){
-        setStatus("Splitting...", false, Math.round((i/groups.length)*100));
+        setStatus(t("toolSplit.statusSplitting"), false, Math.round((i/groups.length)*100));
         const doc = await buildPdfFromPages(src, groups[i]);
         const b = await doc.save();
         zip.file(`part_${i+1}.pdf`, b);
@@ -596,63 +598,64 @@ TOOLS.split = function(){
       const outName = suffixedName(file, "split_parts", "zip");
       if(!operation.isCurrent()) return;
       const {url} = downloadBlob(zipBlob, outName);
-      setStatus("Done — "+groups.length+" files", true);
+      setStatus(t("toolSplit.doneFiles",{n:groups.length}), true);
       if(!operation.isCurrent()) return;
-      out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:outName, nextTool:{id:"organize", label:"Organize PDF", question:"Need to organize the remaining pages?"}}));
+      out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:outName, nextTool:{id:"organize", label:t("tools.organize"), question:t("toolSplit.nextToolQuestion")}}));
     }
   }));
 };
 
 /* ---- COMPRESS (asks exact KB target) ---- */
 TOOLS.compress = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let files=[];
   openPanel(`
-    <div class="panel-head"><h3>Compress PDF</h3></div>
+    <div class="panel-head"><h3>${t("nav.compress")}</h3></div>
     <div class="panel-body compact tool-workspace compress-workspace" id="compressBody">
       <div class="tool-hero">
-        <h2 class="tool-hero-title">Compress PDF</h2>
-        <p class="tool-hero-desc">Reduce PDF file size while keeping quality as high as possible.</p>
+        <h2 class="tool-hero-title">${t("nav.compress")}</h2>
+        <p class="tool-hero-desc">${t("toolCompress.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap workspace-host" id="compressUploadWrap">
-        ${fileInputHTML("application/pdf", true, "Select PDF files")}
+        ${fileInputHTML("application/pdf", true, t("workspace.selectPdfFiles"))}
         <div class="workspace-action-stack" id="compressFileToolbar" style="display:none">
-          <button type="button" class="workspace-action-btn workspace-action-primary" id="compressAddFab" aria-label="Add more files" title="Add more files">
+          <button type="button" class="workspace-action-btn workspace-action-primary" id="compressAddFab" aria-label="${t("workspace.addMoreFiles")}" title="${t("workspace.addMoreFiles")}">
             +<span class="workspace-action-badge" id="compressFileCount" hidden></span>
           </button>
         </div>
       </div>
       <div class="tool-content-area tool-content-area--flat" id="compressOptions" style="display:none">
-        <div class="tool-content-area-label">Compression level</div>
-        <div class="level-picker" id="compressLevelPicker" role="radiogroup" aria-label="Compression level">
+        <div class="tool-content-area-label">${t("toolCompress.levelLabel")}</div>
+        <div class="level-picker" id="compressLevelPicker" role="radiogroup" aria-label="${t("toolCompress.levelLabel")}">
           <button type="button" class="level-row" data-preset="max" role="radio" aria-checked="false">
-            <span class="level-row-text"><span class="level-row-title">Extreme Compression</span><span class="level-row-desc">Less quality, high compression</span></span>
+            <span class="level-row-text"><span class="level-row-title">${t("toolCompress.level1Title")}</span><span class="level-row-desc">${t("toolCompress.level1Desc")}</span></span>
             <span class="level-row-check">✓</span>
           </button>
           <button type="button" class="level-row active" data-preset="recommended" role="radio" aria-checked="true">
-            <span class="level-row-text"><span class="level-row-title">Recommended Compression</span><span class="level-row-desc">Good quality, good compression</span></span>
+            <span class="level-row-text"><span class="level-row-title">${t("toolCompress.level2Title")}</span><span class="level-row-desc">${t("toolCompress.level2Desc")}</span></span>
             <span class="level-row-check">✓</span>
           </button>
           <button type="button" class="level-row" data-preset="high" role="radio" aria-checked="false">
-            <span class="level-row-text"><span class="level-row-title">Less Compression</span><span class="level-row-desc">High quality, less compression</span></span>
+            <span class="level-row-text"><span class="level-row-title">${t("toolCompress.level3Title")}</span><span class="level-row-desc">${t("toolCompress.level3Desc")}</span></span>
             <span class="level-row-check">✓</span>
           </button>
           <button type="button" class="level-row" data-preset="custom" role="radio" aria-checked="false">
-            <span class="level-row-text"><span class="level-row-title">Custom</span><span class="level-row-desc">Set your target PDF size</span></span>
+            <span class="level-row-text"><span class="level-row-title">${t("toolCompress.level4Title")}</span><span class="level-row-desc">${t("toolCompress.level4Desc")}</span></span>
             <span class="level-row-check">✓</span>
           </button>
         </div>
         <div id="customSizePanel" hidden>
-          <div class="field"><label for="customTargetKB">Target file size</label>
+          <div class="field"><label for="customTargetKB">${t("toolCompress.targetSizeLabel")}</label>
             <div class="row"><input type="number" id="customTargetKB" min="1" step="1" placeholder="e.g. 500"><span style="align-self:center;color:var(--ink-soft);font-size:.85rem;">KB</span></div>
           </div>
-          <p class="mode-info">Try to compress the PDF to approximately this size. Exact sizes can't always be guaranteed — we get as close as possible without destroying image quality.</p>
+          <p class="mode-info">${t("toolCompress.targetSizeHint")}</p>
         </div>
         <div class="split-error" id="compressError" hidden></div>
-        <p style="margin:10px 0 0;color:var(--ink-soft);font-size:.78rem;line-height:1.5">Only compresses the images inside your PDF — text stays exactly as sharp as the original at every level.</p>
+        <p style="margin:10px 0 0;color:var(--ink-soft);font-size:.78rem;line-height:1.5">${t("toolCompress.footnote")}</p>
       </div>
       <div class="tool-toolbar" id="compressToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Compress PDF <span aria-hidden="true">&rarr;</span></button>
-        <button class="btn secondary" id="cancelCompress" type="button" style="display:none">Cancel</button>
+        <button class="btn tool-toolbar-primary" id="go">${t("nav.compress")} <span aria-hidden="true">&rarr;</span></button>
+        <button class="btn secondary" id="cancelCompress" type="button" style="display:none">${t("common.cancel")}</button>
       </div>
       <div id="out"></div>
     </div>`);
@@ -671,7 +674,7 @@ TOOLS.compress = function(){
       const raw = document.getElementById("customTargetKB").value;
       const n = parseFloat(raw);
       if(raw.trim()==="" || !(n>0)){
-        showError("Enter a target size greater than 0 KB.");
+        showError(t("toolCompress.targetSizeError"));
         goBtn.disabled = true;
         return;
       }
@@ -774,19 +777,19 @@ TOOLS.compress = function(){
   });
   goBtn.addEventListener("click", withToolOperation(goBtn, async (_event, operation)=>{
     const out = document.getElementById("out");
-    out.innerHTML = statusEl("Analyzing PDF...");
+    out.innerHTML = statusEl(t("toolCompress.statusAnalyzing"));
     goBtn.disabled = true;
     cancelBtn.style.display = "";
     try {
       if(files.length===1){
         const file = files[0];
         const bytes = await file.arrayBuffer();
-        setStatus("Compressing images...", false, 5);
+        setStatus(t("toolCompress.statusCompressingImages"), false, 5);
         const onProgress = preset==="custom"
-          ? (step,total,size)=> setStatus(`Compressing toward target size... (attempt ${step}/${total}, currently ${fmtSize(size)})`, false, Math.round((step/total)*100))
-          : (step,total)=> total>1 && setStatus(`Compressing image ${step} of ${total}...`, false, Math.round((step/total)*90));
+          ? (step,total,size)=> setStatus(t("toolCompress.statusCompressingTowardTarget", {step, total, size: fmtSize(size)}), false, Math.round((step/total)*100))
+          : (step,total)=> total>1 && setStatus(t("toolCompress.statusCompressingImageN", {step, total}), false, Math.round((step/total)*90));
         const {finalBytes, usedOriginal, imagesRecompressed, targetMissed, alreadyUnderTarget, negligibleSavings} = await compressOne(bytes, onProgress);
-        setStatus("Finalizing...", false, 95);
+        setStatus(t("toolCompress.statusFinalizing"), false, 95);
         const blob = new Blob([finalBytes], {type:"application/pdf"});
         const outName = suffixedName(file, "compressed", "pdf");
         if(!operation.isCurrent()) return;
@@ -794,20 +797,20 @@ TOOLS.compress = function(){
         const {canvas} = await pdfThumb(finalBytes);
         const savedPct = Math.round((1 - blob.size/bytes.byteLength) * 100);
         if(alreadyUnderTarget){
-          setStatus(`This PDF is already smaller than your target size (${fmtSize(bytes.byteLength)}) — no compression was needed.`, true);
+          setStatus(t("toolCompress.doneAlreadyUnderTarget", {size: fmtSize(bytes.byteLength)}), true);
         } else if(negligibleSavings){
-          setStatus("Your PDF is already well optimized — further compression wouldn't meaningfully reduce its size, so the original quality was preserved.", true);
+          setStatus(t("toolCompress.doneNegligibleSavings"), true);
         } else if(usedOriginal){
           setStatus(imagesRecompressed===0
-            ? "No compressible images found in this PDF — kept the original file."
-            : "Compressing didn't reduce the size without hurting quality — kept the original file.", true);
+            ? t("toolCompress.doneNoImagesFound")
+            : t("toolCompress.doneNoReduction"), true);
         } else if(targetMissed){
-          setStatus(`Target size could not be reached without excessive quality loss — created the smallest practical version: ${fmtSize(blob.size)} (target was ${fmtSize(Math.round(parseFloat(document.getElementById("customTargetKB").value)*1024))}).`, true);
+          setStatus(t("toolCompress.doneTargetMissed", {size: fmtSize(blob.size), target: fmtSize(Math.round(parseFloat(document.getElementById("customTargetKB").value)*1024))}), true);
         } else {
-          setStatus(`Done — ${fmtSize(bytes.byteLength)} → ${fmtSize(blob.size)} (${savedPct}% smaller). Text and document quality preserved.`, true);
+          setStatus(t("toolCompress.doneSuccess", {from: fmtSize(bytes.byteLength), to: fmtSize(blob.size), pct: savedPct}), true);
         }
         if(!operation.isCurrent()) return;
-        out.appendChild(resultBox({sizeText:`${fmtSize(blob.size)}${usedOriginal?"":` (was ${fmtSize(bytes.byteLength)})`}`, sizeGood:!usedOriginal, previewNode:canvas, url, filename:outName, nextTool:{id:"edit", label:"Edit PDF", question:"Need to change the content before compressing?"}}));
+        out.appendChild(resultBox({sizeText:`${fmtSize(blob.size)}${usedOriginal?"":` (was ${fmtSize(bytes.byteLength)})`}`, sizeGood:!usedOriginal, previewNode:canvas, url, filename:outName, nextTool:{id:"edit", label:t("tools.edit"), question:t("toolCompress.nextToolQuestion")}}));
       } else {
         await ensureJSZip();
         const zip = new JSZip();
@@ -820,7 +823,7 @@ TOOLS.compress = function(){
         const perFileResults = [];
         let totalOriginal = 0, totalCompressed = 0;
         for(let i=0;i<files.length;i++){
-          setStatus(`Compressing ${files[i].name}...`, false, Math.round((i/files.length)*100));
+          setStatus(t("toolCompress.statusCompressingNamed", {name: files[i].name}), false, Math.round((i/files.length)*100));
           const bytes = await files[i].arrayBuffer();
           const {finalBytes, targetMissed, usedOriginal} = await compressOne(bytes);
           if(targetMissed) anyMissedTarget = true;
@@ -834,7 +837,7 @@ TOOLS.compress = function(){
         if(!operation.isCurrent()) return;
         const {url} = downloadBlob(zipBlob, outName);
         const totalSavedPct = totalOriginal>0 ? Math.round((1 - totalCompressed/totalOriginal) * 100) : 0;
-        setStatus(`Done — ${files.length} files compressed, ${fmtSize(totalOriginal)} → ${fmtSize(totalCompressed)} (${totalSavedPct}% smaller) total${anyMissedTarget ? " (some couldn't fully reach the target size without excessive quality loss)" : ""}`, true);
+        setStatus(t("toolCompress.doneBatch", {count: files.length, from: fmtSize(totalOriginal), to: fmtSize(totalCompressed), pct: totalSavedPct}) + (anyMissedTarget ? t("toolCompress.batchTargetNote") : ""), true);
         const box = resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:outName});
         const breakdown = document.createElement("div");
         breakdown.className = "compress-batch-breakdown";
@@ -842,7 +845,7 @@ TOOLS.compress = function(){
           const pct = r.originalSize>0 ? Math.round((1 - r.compressedSize/r.originalSize) * 100) : 0;
           return `<div class="compress-batch-row">
             <span class="compress-batch-name" title="${escapeAttr(r.name)}">${escapeAttr(r.name)}</span>
-            <span class="compress-batch-sizes mono">${r.usedOriginal ? "already optimized" : `${fmtSize(r.originalSize)} → ${fmtSize(r.compressedSize)} (${pct}% smaller)`}</span>
+            <span class="compress-batch-sizes mono">${r.usedOriginal ? t("toolCompress.alreadyOptimized") : t("toolCompress.batchRowSizes", {from: fmtSize(r.originalSize), to: fmtSize(r.compressedSize), pct})}</span>
           </div>`;
         }).join("");
         const dlLink = box.querySelector(".dl-link");
@@ -851,7 +854,7 @@ TOOLS.compress = function(){
       }
     } catch(e) {
       if(e && e.name === "CompressionCancelled"){
-        out.innerHTML = `<div class="status">Compression cancelled — your original file is untouched.</div>`;
+        out.innerHTML = `<div class="status">${t("toolCompress.errCancelled")}</div>`;
       } else {
         // Encrypted/password-protected input is the one specific, common
         // failure worth naming explicitly (pdf-lib throws EncryptedPDFError
@@ -862,8 +865,8 @@ TOOLS.compress = function(){
         const isEncrypted = /encrypt/i.test(e.name||"") || /encrypt/i.test(e.message||"");
         out.innerHTML = `<div class="status" style="color:var(--rose)">${
           isEncrypted
-            ? "This PDF is password-protected. Remove the password first, then try compressing again."
-            : `Could not compress this PDF (${escapeAttr(e.message)}).`
+            ? t("toolCompress.errEncrypted")
+            : t("toolCompress.errGenericFailed", {msg: escapeAttr(e.message)})
         }</div>`;
       }
     } finally {
@@ -875,29 +878,30 @@ TOOLS.compress = function(){
 
 /* ---- ROTATE ---- */
 TOOLS.rotate = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, gridApi=null, loadToken=0;
   openPanel(`
-    <div class="panel-head"><h3>Rotate PDF</h3></div>
+    <div class="panel-head"><h3>${t("tools.rotate")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="rotateBody">
       <div class="tool-hero" id="rotateHero">
-        <h2 class="tool-hero-title">Rotate PDF</h2>
-        <p class="tool-hero-desc">Rotate specific pages or the whole document, then download the corrected PDF.</p>
+        <h2 class="tool-hero-title">${t("tools.rotate")}</h2>
+        <p class="tool-hero-desc">${t("toolRotate.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="rotateUploadWrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
+        ${fileInputHTML("application/pdf", false, t("toolSplit.selectPdfFile"))}
       </div>
       <div class="tool-app-workspace" id="rotateWorkspace" style="display:none">
         <div class="tool-main-pane">
-          <p class="page-grid-hint" id="gridHint" style="display:none">Hover any page to rotate or remove it on its own, or select several pages and use "Apply to selected/all" below.</p>
+          <p class="page-grid-hint" id="gridHint" style="display:none">${t("toolRotate.gridHint")}</p>
           <div class="page-grid tool-content-area" id="pageGrid"></div>
         </div>
         <aside class="tool-side-panel">
           <div id="rotateFileSlot"></div>
-          <div class="field"><label for="deg">Rotation</label>
-            <select id="deg"><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">270° (90° counter-clockwise)</option></select>
+          <div class="field"><label for="deg">${t("toolRotate.rotationLabel")}</label>
+            <select id="deg"><option value="90">${t("toolRotate.deg90")}</option><option value="180">${t("toolRotate.deg180")}</option><option value="270">${t("toolRotate.deg270")}</option></select>
           </div>
-          <button type="button" class="btn secondary" id="rotAll">Apply Rotation</button>
-          <button class="btn tool-toolbar-primary" id="go">Rotate PDF</button>
+          <button type="button" class="btn secondary" id="rotAll">${t("toolRotate.applyBtn")}</button>
+          <button class="btn tool-toolbar-primary" id="go">${t("tools.rotate")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -964,7 +968,7 @@ TOOLS.rotate = function(){
     else gridApi.rotateAll(deg);
   });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Rotating...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("toolRotate.statusRotating"));
     const bytes=await file.arrayBuffer();
     const src=await loadPdfSafe(bytes);
     const pagesSpec = gridApi.getPages();
@@ -972,7 +976,7 @@ TOOLS.rotate = function(){
     // this phase's grid standardization) - same "don't let every page
     // get deleted out from under the export" guard Organize/Delete
     // Pages already use.
-    if(pagesSpec.length===0){ toast("At least one page must remain"); out.innerHTML=""; return; }
+    if(pagesSpec.length===0){ toast(t("toolRotate.errAtLeastOne")); out.innerHTML=""; return; }
     const newDoc = await buildPdfFromPages(src, pagesSpec);
     const outBytes=await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
@@ -980,7 +984,7 @@ TOOLS.rotate = function(){
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
-    setStatus("Done",true);
+    setStatus(t("workspace.done"),true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   }));
@@ -1012,7 +1016,7 @@ TOOLS.deletepages = function(){
       <div class="tool-upload-wrap" id="deleteUploadWrap">
         ${fileInputHTML("application/pdf", false, "Select PDF file")}
       </div>
-      <p class="tool-privacy-hint" id="deletePrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="deletePrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="deleteWorkspace" style="display:none">
         <div class="tool-main-pane">
           <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to delete, or use ✕ on a thumbnail.</p>
@@ -1217,7 +1221,7 @@ TOOLS.extractpages = function(){
       <div class="tool-upload-wrap" id="extractUploadWrap">
         ${fileInputHTML("application/pdf", false, "Select PDF file")}
       </div>
-      <p class="tool-privacy-hint" id="extractPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="extractPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="extractWorkspace" style="display:none">
         <div class="tool-main-pane">
           <p class="page-grid-hint" id="gridHint" style="display:none">Click the pages you want to keep.</p>
@@ -1365,7 +1369,7 @@ TOOLS.reorder = function(){
       <div class="tool-upload-wrap" id="reorderUploadWrap">
         ${fileInputHTML("application/pdf", false, "Select PDF file")}
       </div>
-      <p class="tool-privacy-hint" id="reorderPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="reorderPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="reorderWorkspace" style="display:none">
         <div class="tool-main-pane">
           <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages into the order you want.</p>
@@ -1467,7 +1471,7 @@ TOOLS.addblank = function(){
       <div class="tool-upload-wrap" id="addblankUploadWrap">
         ${fileInputHTML("application/pdf", false, "Select PDF file")}
       </div>
-      <p class="tool-privacy-hint" id="addblankPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="addblankPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="addblankWorkspace" style="display:none">
         <div class="tool-main-pane">
           <p class="page-grid-hint" id="addblankGridHint" style="display:none">Drag pages to reorder, or insert a blank page below.</p>
@@ -1592,7 +1596,7 @@ TOOLS.pagenumbers = function(){
       <div class="tool-upload-wrap" id="pnUploadWrap">
         ${fileInputHTML("application/pdf", false, "Select PDF file")}
       </div>
-      <p class="tool-privacy-hint" id="pnPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="pnPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="pnWorkspace" style="display:none">
         <div class="tool-main-pane">
           <div class="tool-content-area crop-stage" id="pnStage">
@@ -1760,7 +1764,7 @@ TOOLS.pagenumbers = function(){
   });
 
   goBtn.addEventListener("click", withToolOperation(goBtn, async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(T("workspace.statusReadingPdf"));
     const {vAlign, hAlign, format, startNumber, fontSize} = currentSettings();
     const pagesRaw = document.getElementById("pnpages").value.trim();
     const bytes=await file.arrayBuffer();
@@ -1788,7 +1792,7 @@ TOOLS.pagenumbers = function(){
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "numbered", "pdf");
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const {canvas:thumb}=await pdfThumb(outBytes);
@@ -1855,7 +1859,7 @@ TOOLS.watermark = function(){
       <div class="tool-upload-wrap" id="watermarkUploadWrap">
         ${fileInputHTML("application/pdf", false, "Select PDF file")}
       </div>
-      <p class="tool-privacy-hint" id="watermarkPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="watermarkPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="watermarkWorkspace" style="display:none">
         <div class="tool-main-pane">
           <div class="tool-content-area crop-stage" id="watermarkStage">
@@ -2006,7 +2010,7 @@ TOOLS.watermark = function(){
   });
 
   goBtn.addEventListener("click", withToolOperation(goBtn, async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(T("workspace.statusReadingPdf"));
     const {text, position, rotation, opacity, fontSize} = currentSettings();
     const safeText = winAnsiSafe(text);
     const pagesRaw = document.getElementById("wpages").value.trim();
@@ -2025,7 +2029,7 @@ TOOLS.watermark = function(){
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "watermarked", "pdf");
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const {canvas:thumb}=await pdfThumb(outBytes);

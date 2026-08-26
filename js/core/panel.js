@@ -89,7 +89,7 @@ function layoutTwoColumn(){
   footer.className = "tool-sidebar-footer";
   const tip = document.createElement("div");
   tip.className = "tool-sidebar-tip";
-  tip.innerHTML = `<span class="tip-icon" aria-hidden="true">🔒</span><span>Everything happens right here in your browser — your files are never uploaded or stored anywhere.</span>`;
+  tip.innerHTML = `<span class="tip-icon" aria-hidden="true">🔒</span><span>${window.T ? T("workspace.privacyHintFiles") : "Everything happens right here in your browser — your files are never uploaded or stored anywhere."}</span>`;
   footer.appendChild(tip);
   sidebarEls.forEach(el=>footer.appendChild(el));
   sidebar.appendChild(footer);
@@ -214,6 +214,50 @@ function openPanel(html){
   // being produced - a backgrounded/inactive tab can defer rAF
   // indefinitely, which would otherwise leave focus stuck on the trigger.
   (panel.querySelector(PANEL_FOCUSABLE) || panel).focus();
+}
+/* ---------------- Shared "page tail" for non-tool content panels ----
+   About/Contact/Donate/Privacy/Terms used to end abruptly right after
+   their own content - no SEO tool directory, no footer, unlike a real
+   page. Rather than hand-copy that markup into five templates (five
+   places to keep in sync forever), this clones the ONE real copy that
+   already lives in index.html (the "Explore YOYOPDF Tools" section +
+   the site footer, both already built and styled) and reuses it as-is.
+   Wrapped in .content-page-tail for the dock-clearance padding below -
+   otherwise #quickDock (position:fixed, bottom:20px) would sit on top
+   of the copyright bar exactly the way it doesn't for shorter panels,
+   which never scrolled that far anyway. */
+function contentPageTailHTML(){
+  const seo = document.querySelector(".seo-tool-directory");
+  const footer = document.querySelector(".site-footer");
+  if(!seo && !footer) return "";
+  let html = (seo ? seo.outerHTML : "") + (footer ? footer.outerHTML : "");
+  // Avoid a second #seo-tool-directory-title id fighting the homepage's
+  // own copy (aria-labelledby's only consumer of that id) while this
+  // clone is the one actually open.
+  html = html.replace(/seo-tool-directory-title/g, "panelSeoToolDirectoryTitle");
+  return `<div class="content-page-tail">${html}</div>`;
+}
+/* [data-open] buttons and real <a href> links inside the clone already
+   work unchanged (delegated / native navigation respectively - the
+   exact same reason the About page's existing "Contact Us ->" button
+   already works with zero extra wiring). [data-filter] and [data-share]
+   are NOT delegated, though - their only listeners were bound once, at
+   page load, directly to index.html's original elements (see
+   nav-menu.js/quick-actions.js), so a later clone needs its own. Call
+   once per openPanel() that appends contentPageTailHTML(). */
+function bindContentPageTail(root){
+  root.querySelectorAll(".content-page-tail [data-filter]").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      applyFilter(el.dataset.filter);
+      closePanel();
+      requestAnimationFrame(()=>{
+        document.getElementById("tools")?.scrollIntoView({behavior: MOTION.reduced ? "auto" : "smooth", block:"start"});
+      });
+    });
+  });
+  root.querySelectorAll(".content-page-tail [data-share]").forEach(btn=>{
+    btn.addEventListener("click", ()=>shareOn(btn.dataset.share));
+  });
 }
 /**
  * @param {boolean} [skipRoute] - true when a tool-to-tool transition

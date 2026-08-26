@@ -218,40 +218,43 @@
     whiteout: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 8h8v8H8z" fill="currentColor" stroke="none"/>'
   };
 
-  const GROUPS = [
-    { id: 'file', label: 'File', buttons: [
-      { icon: 'open', title: 'Open PDF', action: 'open' },
-      { icon: 'save', title: 'Save', action: 'export', reserved: true },
-      { icon: 'print', title: 'Print', reserved: true }
+  function t(key, vars) { return window.I18N ? window.I18N.t(key, vars) : key; }
+
+  function buildGroups() { return [
+    { id: 'file', label: t('editor.groupFile'), buttons: [
+      { icon: 'open', title: t('editor.btnOpenPdf'), action: 'open' },
+      { icon: 'save', title: t('editor.btnSave'), action: 'export', reserved: true },
+      { icon: 'print', title: t('editor.btnPrint'), reserved: true }
     ]},
-    { id: 'edit', label: 'Edit', buttons: [
-      { icon: 'undo', title: 'Undo', action: 'undo', reserved: true },
-      { icon: 'redo', title: 'Redo', action: 'redo', reserved: true }
+    { id: 'edit', label: t('editor.groupEdit'), buttons: [
+      { icon: 'undo', title: t('editor.btnUndo'), action: 'undo', reserved: true },
+      { icon: 'redo', title: t('editor.btnRedo'), action: 'redo', reserved: true }
     ]},
-    { id: 'view', label: 'View', buttons: [
-      { icon: 'sidebar', title: 'Toggle page panel', action: 'toggle-sidebar' },
-      { icon: 'inspector', title: 'Toggle inspector', action: 'toggle-inspector' },
-      { icon: 'grid', title: 'Toggle background grid', action: 'toggle-grid' }
+    { id: 'view', label: t('editor.groupView'), buttons: [
+      { icon: 'sidebar', title: t('editor.btnToggleSidebar'), action: 'toggle-sidebar' },
+      { icon: 'inspector', title: t('editor.btnToggleInspector'), action: 'toggle-inspector' },
+      { icon: 'grid', title: t('editor.btnToggleGrid'), action: 'toggle-grid' }
     ]},
-    { id: 'zoom', label: 'Zoom', custom: 'zoom' },
-    { id: 'page', label: 'Page', custom: 'page' },
-    { id: 'selection', label: 'Selection', reserved: true, buttons: [
-      { icon: 'select', title: 'Select' }, { icon: 'lasso', title: 'Lasso select' }, { icon: 'align', title: 'Align' }
+    { id: 'zoom', label: t('editor.groupZoom'), custom: 'zoom' },
+    { id: 'page', label: t('editor.groupPage'), custom: 'page' },
+    { id: 'selection', label: t('editor.groupSelection'), reserved: true, buttons: [
+      { icon: 'select', title: t('editor.btnSelect') }, { icon: 'lasso', title: t('editor.btnLasso') }, { icon: 'align', title: t('editor.btnAlign') }
     ]},
-    { id: 'future', label: 'Tools', buttons: [
-      { icon: 'text', title: 'Text', action: 'text-tool' },
-      { icon: 'image', title: 'Image', action: 'image-tool' },
-      { icon: 'rectangle', title: 'Rectangle', action: 'rectangle-tool' },
-      { icon: 'ellipse', title: 'Ellipse', action: 'ellipse-tool' },
-      { icon: 'line', title: 'Line', action: 'line-tool' },
-      { icon: 'draw', title: 'Draw', action: 'draw-tool' },
-      { icon: 'highlight', title: 'Highlight', action: 'highlight-tool' },
-      { icon: 'whiteout', title: 'Whiteout', action: 'whiteout-tool' },
-      { icon: 'sign', title: 'Sign', action: 'sign-tool' }
+    { id: 'future', label: t('editor.groupTools'), buttons: [
+      { icon: 'text', title: t('editor.btnText'), action: 'text-tool' },
+      { icon: 'image', title: t('editor.btnImage'), action: 'image-tool' },
+      { icon: 'rectangle', title: t('editor.btnRectangle'), action: 'rectangle-tool' },
+      { icon: 'ellipse', title: t('editor.btnEllipse'), action: 'ellipse-tool' },
+      { icon: 'line', title: t('editor.btnLine'), action: 'line-tool' },
+      { icon: 'draw', title: t('editor.btnDraw'), action: 'draw-tool' },
+      { icon: 'highlight', title: t('editor.btnHighlight'), action: 'highlight-tool' },
+      { icon: 'whiteout', title: t('editor.btnWhiteout'), action: 'whiteout-tool' },
+      { icon: 'sign', title: t('editor.btnSign'), action: 'sign-tool' }
     ]}
-  ];
+  ]; }
 
   function init(root) {
+    const GROUPS = buildGroups();
     const toolbar = root.querySelector('.editor-toolbar');
     if (!toolbar) return;
 
@@ -294,7 +297,7 @@
     function loadImageFile(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onerror = () => reject(new Error('Could not read the selected image.'));
+        reader.onerror = () => reject(new Error(t('editor.errCouldNotReadImage')));
         reader.onload = () => {
           const img = new Image();
           img.onload = () => {
@@ -304,12 +307,12 @@
             if (limits && (width > limits.maxImageDimension ||
                 height > limits.maxImageDimension ||
                 width * height > limits.maxImagePixels)) {
-              reject(new Error('This image has dimensions too large for safe in-browser editing.'));
+              reject(new Error(t('editor.errImageTooLarge')));
               return;
             }
             resolve(img);
           };
-          img.onerror = () => reject(new Error('Could not decode the selected image.'));
+          img.onerror = () => reject(new Error(t('editor.errCouldNotDecodeImage')));
           img.src = reader.result;
         };
         reader.readAsDataURL(file);
@@ -415,13 +418,13 @@
       overlay.innerHTML = `
         <div class="editor-sign-modal">
           <div class="editor-sign-modal-head">
-            <span>Draw your signature</span>
-            <button type="button" class="editor-sign-close" aria-label="Cancel">✕</button>
+            <span>${t('editor.drawYourSignature')}</span>
+            <button type="button" class="editor-sign-close" aria-label="${t('workspace.cancel')}">✕</button>
           </div>
           <canvas class="editor-sign-canvas" width="480" height="180"></canvas>
           <div class="editor-sign-modal-actions">
-            <button type="button" class="editor-sign-clear">Clear</button>
-            <button type="button" class="editor-sign-done">Use Signature</button>
+            <button type="button" class="editor-sign-clear">${t('toolSign.clear')}</button>
+            <button type="button" class="editor-sign-done">${t('toolSign.useSignature')}</button>
           </div>
         </div>`;
       document.body.appendChild(overlay);
@@ -505,25 +508,25 @@
       groupEl.appendChild(label);
 
       if (group.custom === 'zoom') {
-        groupEl.appendChild(iconButton('zoomOut', 'Zoom out', () => window.ZoomManager.zoomOut()));
+        groupEl.appendChild(iconButton('zoomOut', t('editor.btnZoomOut'), () => window.ZoomManager.zoomOut()));
         const val = document.createElement('span');
         val.className = 'editor-zoom-value';
         val.dataset.zoomValue = 'true';
         val.textContent = '100%';
         groupEl.appendChild(val);
-        groupEl.appendChild(iconButton('zoomIn', 'Zoom in', () => window.ZoomManager.zoomIn()));
-        groupEl.appendChild(iconButton('actualSize', 'Actual size (100%)', () => window.ZoomManager.setZoom(100)));
-        groupEl.appendChild(iconButton('fitWidth', 'Fit width', () => window.ZoomManager.fitWidth()));
-        groupEl.appendChild(iconButton('fitPage', 'Fit page', () => window.ZoomManager.fitPage()));
+        groupEl.appendChild(iconButton('zoomIn', t('editor.btnZoomIn'), () => window.ZoomManager.zoomIn()));
+        groupEl.appendChild(iconButton('actualSize', t('editor.btnActualSize'), () => window.ZoomManager.setZoom(100)));
+        groupEl.appendChild(iconButton('fitWidth', t('editor.btnFitWidth'), () => window.ZoomManager.fitWidth()));
+        groupEl.appendChild(iconButton('fitPage', t('editor.btnFitPage'), () => window.ZoomManager.fitPage()));
       } else if (group.custom === 'page') {
-        const firstBtn = iconButton('firstPage', 'First page', () => window.ViewportManager.scrollToPage(1), true);
-        const prevBtn = iconButton('prevPage', 'Previous page', () => window.ViewportManager.scrollToPage(Math.max(1, pageState.current - 1)), true);
+        const firstBtn = iconButton('firstPage', t('editor.btnFirstPage'), () => window.ViewportManager.scrollToPage(1), true);
+        const prevBtn = iconButton('prevPage', t('editor.btnPrevPage'), () => window.ViewportManager.scrollToPage(Math.max(1, pageState.current - 1)), true);
 
         const input = document.createElement('input');
         input.type = 'text';
         input.inputMode = 'numeric';
         input.className = 'editor-page-input';
-        input.setAttribute('aria-label', 'Current page');
+        input.setAttribute('aria-label', t('editor.currentPageAria'));
         input.value = '1';
         input.disabled = true;
         input.addEventListener('change', () => commitPageInput(input));
@@ -534,8 +537,8 @@
         total.dataset.pageTotal = 'true';
         total.textContent = '/ 0';
 
-        const nextBtn = iconButton('nextPage', 'Next page', () => window.ViewportManager.scrollToPage(Math.min(pageState.total, pageState.current + 1)), true);
-        const lastBtn = iconButton('lastPage', 'Last page', () => window.ViewportManager.scrollToPage(pageState.total), true);
+        const nextBtn = iconButton('nextPage', t('editor.btnNextPage'), () => window.ViewportManager.scrollToPage(Math.min(pageState.total, pageState.current + 1)), true);
+        const lastBtn = iconButton('lastPage', t('editor.btnLastPage'), () => window.ViewportManager.scrollToPage(pageState.total), true);
 
         [firstBtn, prevBtn, input, total, nextBtn, lastBtn].forEach((el) => groupEl.appendChild(el));
         pageControls = { firstBtn, prevBtn, input, total, nextBtn, lastBtn };
@@ -556,8 +559,8 @@
     // this GROUPS entry already created, keep read-only references to
     // drive their disabled state from editor:historyChange.
     const editGroupEl = toolbar.querySelector('.editor-toolbar-group[data-group="edit"]');
-    const undoBtn = editGroupEl ? Array.from(editGroupEl.querySelectorAll('button')).find((b) => b.title === 'Undo') : null;
-    const redoBtn = editGroupEl ? Array.from(editGroupEl.querySelectorAll('button')).find((b) => b.title === 'Redo') : null;
+    const undoBtn = editGroupEl ? editGroupEl.querySelector('[data-action="undo"]') : null;
+    const redoBtn = editGroupEl ? editGroupEl.querySelector('[data-action="redo"]') : null;
     window.addEventListener('editor:historyChange', (e) => {
       if (undoBtn) undoBtn.disabled = !e.detail.canUndo;
       if (redoBtn) redoBtn.disabled = !e.detail.canRedo;
@@ -565,11 +568,11 @@
 
     // Priority 5B — same reference-capture pattern as Undo/Redo above.
     const fileGroupEl = toolbar.querySelector('.editor-toolbar-group[data-group="file"]');
-    const saveBtn = fileGroupEl ? Array.from(fileGroupEl.querySelectorAll('button')).find((b) => b.title === 'Save') : null;
+    const saveBtn = fileGroupEl ? fileGroupEl.querySelector('[data-action="export"]') : null;
 
     const docTitle = document.createElement('span');
     docTitle.className = 'editor-doc-title';
-    docTitle.textContent = 'No document loaded';
+    docTitle.textContent = t('editor.noDocumentLoaded');
     docTitle.dataset.docTitle = 'true';
     toolbar.appendChild(docTitle);
 
@@ -577,7 +580,8 @@
       toolbar.querySelectorAll('[data-zoom-value]').forEach((el) => { el.textContent = Math.round(e.detail.zoom * 100) + '%'; });
     });
     window.addEventListener('editor:documentLoaded', (e) => {
-      docTitle.textContent = `${e.detail.fileName || 'Untitled'} (${e.detail.numPages} page${e.detail.numPages === 1 ? '' : 's'})`;
+      const name = e.detail.fileName || t('editor.untitled');
+      docTitle.textContent = e.detail.numPages === 1 ? t('editor.docTitleOne', { name }) : t('editor.docTitleMany', { name, n: e.detail.numPages });
     });
     // Same event editor-statusbar.js already listens to for its "Page X of
     // Y" text — this just also drives the Page group's button/input state.

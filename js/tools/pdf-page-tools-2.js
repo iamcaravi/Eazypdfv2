@@ -12,40 +12,41 @@
 // resultBox() move to pdf-processing-utils.js for the equivalent
 // image-tools.js/"image"-profile gap.
 TOOLS.headerfooter = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, pdoc=null, loadToken=0;
   openPanel(`
-    <div class="panel-head"><h3>Add Header & Footer</h3></div>
+    <div class="panel-head"><h3>${t("tools.headerfooter")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="headerfooterBody">
       <div class="tool-hero" id="hfHero">
-        <h2 class="tool-hero-title">Add Header & Footer</h2>
-        <p class="tool-hero-desc">Add repeating text to the top and/or bottom of every page - see it before you download.</p>
+        <h2 class="tool-hero-title">${t("tools.headerfooter")}</h2>
+        <p class="tool-hero-desc">${t("toolHeaderFooter.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="hfUploadWrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
+        ${fileInputHTML("application/pdf", false, t("workspace.selectPdfFiles"))}
       </div>
-      <p class="tool-privacy-hint" id="hfPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="hfPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="hfWorkspace" style="display:none">
         <div class="tool-main-pane">
           <div class="tool-content-area crop-stage" id="hfStage">
             <canvas id="hfCanvas"></canvas>
           </div>
-          <div class="mono" id="hfReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;">Preview of page 1 - every page gets the same header/footer.</div>
+          <div class="mono" id="hfReadout" style="font-size:.78rem;color:var(--ink-soft);text-align:center;margin:6px 0;">${t("toolHeaderFooter.previewNote")}</div>
         </div>
         <aside class="tool-side-panel">
-          <h3 class="tool-side-panel-title">Add Header & Footer</h3>
+          <h3 class="tool-side-panel-title">${t("tools.headerfooter")}</h3>
           <div id="hfFileSlot"></div>
-          <div class="field"><label for="htext">Header text (optional)</label><input type="text" id="htext"></div>
-          <div class="field"><label for="halign">Header alignment</label>
-            <select id="halign"><option value="left" selected>Left</option><option value="center">Center</option><option value="right">Right</option></select>
+          <div class="field"><label for="htext">${t("toolHeaderFooter.headerTextLabel")}</label><input type="text" id="htext"></div>
+          <div class="field"><label for="halign">${t("toolHeaderFooter.headerAlignLabel")}</label>
+            <select id="halign"><option value="left" selected>${t("toolHeaderFooter.alignLeft")}</option><option value="center">${t("toolHeaderFooter.alignCenter")}</option><option value="right">${t("toolHeaderFooter.alignRight")}</option></select>
           </div>
-          <div class="field"><label for="ftext">Footer text (optional)</label><input type="text" id="ftext"></div>
-          <div class="field"><label for="falign">Footer alignment</label>
-            <select id="falign"><option value="left" selected>Left</option><option value="center">Center</option><option value="right">Right</option></select>
+          <div class="field"><label for="ftext">${t("toolHeaderFooter.footerTextLabel")}</label><input type="text" id="ftext"></div>
+          <div class="field"><label for="falign">${t("toolHeaderFooter.footerAlignLabel")}</label>
+            <select id="falign"><option value="left" selected>${t("toolHeaderFooter.alignLeft")}</option><option value="center">${t("toolHeaderFooter.alignCenter")}</option><option value="right">${t("toolHeaderFooter.alignRight")}</option></select>
           </div>
-          <div class="field"><label for="hfsize">Font size</label><input type="number" id="hfsize" value="9" min="6" max="24"></div>
-          <div class="field"><label for="hfpages">Pages (optional)</label><input type="text" id="hfpages" placeholder="e.g. 1,3-5 - leave blank for all pages"></div>
+          <div class="field"><label for="hfsize">${t("toolHeaderFooter.fontSizeLabel")}</label><input type="number" id="hfsize" value="9" min="6" max="24"></div>
+          <div class="field"><label for="hfpages">${t("toolHeaderFooter.pagesLabel")}</label><input type="text" id="hfpages" placeholder="${t("toolHeaderFooter.pagesPlaceholder")}"></div>
           <div class="split-error" id="hfError" hidden></div>
-          <button class="btn tool-toolbar-primary" id="go">Add Header & Footer</button>
+          <button class="btn tool-toolbar-primary" id="go">${t("tools.headerfooter")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -91,7 +92,7 @@ TOOLS.headerfooter = function(){
     if(!file){ goBtn.disabled = true; return; }
     const pagesRaw = document.getElementById("hfpages").value.trim();
     if(pagesRaw && pdoc && !parsePageList(pagesRaw, pdoc.numPages)){
-      showError(`Enter page numbers between 1 and ${pdoc.numPages}, e.g. 1,3-5.`);
+      showError(t("toolHeaderFooter.errPageRange", {n: pdoc.numPages}));
       goBtn.disabled = true;
       return;
     }
@@ -165,13 +166,13 @@ TOOLS.headerfooter = function(){
       pageBgImageData = canvas.getContext("2d").getImageData(0,0,canvas.width,canvas.height);
       redrawPreview();
     }catch(e){
-      readout.textContent = "Couldn't render a preview, but the header/footer will still apply correctly on download.";
+      readout.textContent = t("toolHeaderFooter.errPreviewFailed");
     }
     validate();
   });
 
   goBtn.addEventListener("click", withToolOperation(goBtn, async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(T("workspace.statusReadingPdf"));
     const {headerText, footerText, headerAlign, footerAlign, fontSize} = currentSettings();
     const h = winAnsiSafe(headerText);
     const f = winAnsiSafe(footerText);
@@ -180,7 +181,7 @@ TOOLS.headerfooter = function(){
     const doc=await loadPdfSafe(bytes);
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const targetIndices = pagesRaw ? parsePageList(pagesRaw, doc.getPageCount()) : null;
-    setStatus("Applying header & footer...");
+    setStatus(t("toolHeaderFooter.statusApplying"));
     doc.getPages().forEach((p,i)=>{
       if(targetIndices && !targetIndices.includes(i)) return;
       const {width, height} = p.getSize();
@@ -196,11 +197,11 @@ TOOLS.headerfooter = function(){
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "header_footer", "pdf");
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const {canvas:thumb}=await pdfThumb(outBytes);
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:thumb, url, filename:outName}));
   }));
@@ -234,6 +235,7 @@ TOOLS.headerfooter = function(){
    scope, behave correctly on documents that mix page sizes, with no
    special-case warning needed. */
 TOOLS.crop = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null, fileBytesCache=null, loadToken=0;
   let numPages=0;
   let pagesMeta=[]; // {index, widthPt, heightPt, wrapEl, canvasEl, layerEl, rectEl, rect, rendered, rendering}
@@ -246,53 +248,53 @@ TOOLS.crop = function(){
   const MIN_SIZE=0.02;
 
   openPanel(`
-    <div class="panel-head"><h3>Crop PDF</h3></div>
+    <div class="panel-head"><h3>${t("tools.crop")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell" id="cropBody">
       <div class="tool-hero" id="cropHero">
-        <h2 class="tool-hero-title">Crop PDF</h2>
-        <p class="tool-hero-desc">Scroll through every page, then click and drag to draw the area you want to keep.</p>
+        <h2 class="tool-hero-title">${t("tools.crop")}</h2>
+        <p class="tool-hero-desc">${t("toolCrop.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="cropUploadWrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
+        ${fileInputHTML("application/pdf", false, t("workspace.selectPdfFiles"))}
       </div>
-      <p class="tool-privacy-hint" id="cropPrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="cropPrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace crop-app-workspace" id="cropWorkspace" style="display:none">
         <div class="tool-main-pane crop-main-pane">
           <div class="crop-zoom">
-            <button type="button" class="crop-zoom-btn" id="cropZoomOut" aria-label="Zoom out">−</button>
+            <button type="button" class="crop-zoom-btn" id="cropZoomOut" aria-label="${t("workspace.zoomOut")}">−</button>
             <span class="crop-zoom-level" id="cropZoomLevel">100%</span>
-            <button type="button" class="crop-zoom-btn" id="cropZoomIn" aria-label="Zoom in">+</button>
+            <button type="button" class="crop-zoom-btn" id="cropZoomIn" aria-label="${t("workspace.zoomIn")}">+</button>
           </div>
           <div class="crop-document-viewport" id="cropDocViewport">
             <div class="crop-document" id="cropDocument"></div>
           </div>
-          <div class="crop-page-indicator" id="cropPageIndicator">Page 1 / 1</div>
+          <div class="crop-page-indicator" id="cropPageIndicator">${t("toolCrop.pageIndicator",{n:1,total:1})}</div>
         </div>
         <aside class="tool-side-panel crop-side-panel">
-          <h3 class="tool-side-panel-title">Crop PDF</h3>
+          <h3 class="tool-side-panel-title">${t("tools.crop")}</h3>
           <div id="cropFileSlot"></div>
           <div class="crop-instruction-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></svg>
             <div>
-              <strong>Click and drag to select the area you want to keep.</strong>
-              <p>Resize the selection with its corner/edge handles, or drag inside it to move it.</p>
+              <strong>${t("toolCrop.instructionTitle")}</strong>
+              <p>${t("toolCrop.instructionDesc")}</p>
             </div>
           </div>
           <div class="crop-scope">
-            <span class="tool-side-panel-section-label">Selection</span>
-            <label class="crop-scope-option"><input type="radio" name="cropSelectionMode" value="custom" checked> Custom selection per page</label>
-            <label class="crop-scope-option"><input type="radio" name="cropSelectionMode" value="same"> Apply same selection to all pages</label>
+            <span class="tool-side-panel-section-label">${t("toolCrop.selectionLabel")}</span>
+            <label class="crop-scope-option"><input type="radio" name="cropSelectionMode" value="custom" checked> ${t("toolCrop.customPerPage")}</label>
+            <label class="crop-scope-option"><input type="radio" name="cropSelectionMode" value="same"> ${t("toolCrop.sameForAllPages")}</label>
           </div>
           <div class="crop-scope">
-            <span class="tool-side-panel-section-label">Pages</span>
-            <label class="crop-scope-option"><input type="radio" name="cropScope" value="all" checked> All pages</label>
-            <label class="crop-scope-option"><input type="radio" name="cropScope" value="current"> Current page</label>
+            <span class="tool-side-panel-section-label">${t("toolCrop.pagesLabel")}</span>
+            <label class="crop-scope-option"><input type="radio" name="cropScope" value="all" checked> ${t("toolCrop.allPages")}</label>
+            <label class="crop-scope-option"><input type="radio" name="cropScope" value="current"> ${t("toolCrop.currentPage")}</label>
           </div>
           <div class="split-error" id="cropError" hidden></div>
           <div class="crop-side-actions">
-            <button class="btn secondary" id="resetCrop" type="button">Reset Selection</button>
-            <button class="btn secondary" id="resetAllCrop" type="button">Reset all selections</button>
-            <button class="btn tool-toolbar-primary" id="go" disabled>Crop PDF →</button>
+            <button class="btn secondary" id="resetCrop" type="button">${t("toolCrop.resetSelection")}</button>
+            <button class="btn secondary" id="resetAllCrop" type="button">${t("toolCrop.resetAllSelections")}</button>
+            <button class="btn tool-toolbar-primary" id="go" disabled>${t("toolCrop.cropPdfArrow")}</button>
           </div>
         </aside>
       </div>
@@ -383,7 +385,7 @@ TOOLS.crop = function(){
     }catch(e){
       if(myToken !== loadToken) return;
       showWorkspace();
-      showError("Could not read this PDF. Try a different file.");
+      showError(t("toolCrop.errCouldNotReadPdf"));
       return;
     }
     if(myToken !== loadToken) return;
@@ -398,7 +400,7 @@ TOOLS.crop = function(){
       await buildDocument(pdoc, myToken);
     }catch(e){
       if(myToken !== loadToken) return;
-      showError("Could not render this PDF's pages. Try a different file.");
+      showError(t("toolCrop.errCouldNotRenderPdf"));
     }
     if(myToken !== loadToken) return;
     updateGoState();
@@ -422,7 +424,7 @@ TOOLS.crop = function(){
       wrap.style.aspectRatio = `${vp.width} / ${vp.height}`;
       wrap.innerHTML = `
         <canvas class="crop-page-canvas"></canvas>
-        <div class="crop-page-loading">Loading page ${i}…</div>
+        <div class="crop-page-loading">${t("toolCrop.loadingPageN",{n:i})}</div>
         <div class="crop-select-layer"></div>
         <div class="crop-page-num">${i} / ${numPages}</div>`;
       const meta = {
@@ -511,7 +513,7 @@ TOOLS.crop = function(){
     }catch(e){
       if(myToken !== loadToken) return;
       const loading = meta.wrapEl.querySelector(".crop-page-loading");
-      if(loading) loading.textContent = "Couldn't render this page.";
+      if(loading) loading.textContent = t("toolCrop.errCouldNotRenderPage");
     }finally{
       meta.rendering = false;
     }
@@ -561,7 +563,7 @@ TOOLS.crop = function(){
   }
   window.addEventListener("resize", resizeHandler);
 
-  function updatePageIndicator(){ pageIndicator.textContent = `Page ${currentPageIndex+1} / ${Math.max(numPages,1)}`; }
+  function updatePageIndicator(){ pageIndicator.textContent = t("toolCrop.pageIndicator",{n:currentPageIndex+1, total:Math.max(numPages,1)}); }
 
   function localPos(meta, clientX, clientY){
     const r = meta.wrapEl.getBoundingClientRect();
@@ -791,8 +793,8 @@ TOOLS.crop = function(){
   document.addEventListener("keydown", cropKeyHandler, true);
 
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Cropping PDF...");
-    goBtn.disabled = true; const goLabel = goBtn.textContent; goBtn.textContent = "Cropping PDF...";
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("toolCrop.statusCropping"));
+    goBtn.disabled = true; const goLabel = goBtn.textContent; goBtn.textContent = t("toolCrop.statusCropping");
     const scope = (panel.querySelector('input[name="cropScope"]:checked') || {}).value || "all";
     try{
       const doc = await loadPdfSafe(fileBytesCache);
@@ -810,16 +812,16 @@ TOOLS.crop = function(){
       const outBytes=await doc.save();
       const blob=new Blob([outBytes],{type:"application/pdf"});
       const outName = suffixedName(file, "cropped", "pdf");
-      setStatus("Preparing download...");
+      setStatus(T("workspace.statusPreparingDownload"));
       if(!operation.isCurrent()) return;
       const {url}=downloadBlob(blob,outName);
       const {canvas:thumb}=await pdfThumb(outBytes);
-      setStatus("Done", true);
+      setStatus(t("workspace.done"), true);
       if(!operation.isCurrent()) return;
       out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:thumb, url, filename:outName}));
     }catch(e){
       out.innerHTML = "";
-      showError("Something went wrong while cropping this PDF. Please try again.");
+      showError(t("toolCrop.errGenericFailed"));
     }finally{
       goBtn.textContent = goLabel; updateGoState();
     }
@@ -828,20 +830,21 @@ TOOLS.crop = function(){
 
 /* ---- INVERT PDF COLORS ---- */
 TOOLS.invertpdf = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null;
   openPanel(`
-    <div class="panel-head"><h3>Invert PDF Colors</h3></div>
+    <div class="panel-head"><h3>${t("tools.invertpdf")}</h3></div>
     <div class="panel-body compact tool-workspace" id="invertpdfBody">
       <div class="tool-hero">
-        <h2 class="tool-hero-title">Invert PDF Colors</h2>
-        <p class="tool-hero-desc">Renders each page and inverts its colors — useful for a dark-mode / negative version of a document.</p>
+        <h2 class="tool-hero-title">${t("tools.invertpdf")}</h2>
+        <p class="tool-hero-desc">${t("toolInvert.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
+        ${fileInputHTML("application/pdf", false, t("workspace.selectPdfFiles"))}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-toolbar" id="invertpdfToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Invert Colors</button>
+        <button class="btn tool-toolbar-primary" id="go">${t("toolInvert.invertColors")}</button>
       </div>
       <div id="out"></div>
     </div>`);
@@ -852,14 +855,14 @@ TOOLS.invertpdf = function(){
     document.getElementById("invertpdfBody").classList.add("is-loaded");
   });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(T("workspace.statusReadingPdf"));
     const bytes=await file.arrayBuffer();
     const pdoc = operation.track(await loadPdfJsSafe({data:bytes}));
     const outDoc = await PDFDocument.create();
     const scale = 1.6;
     try{
       for(let i=1;i<=pdoc.numPages;i++){
-        setStatus("Inverting pages...", false, Math.round((i/pdoc.numPages)*100));
+        setStatus(t("toolInvert.statusInverting"), false, Math.round((i/pdoc.numPages)*100));
         // renderPdfPageCanvas(), not a raw page.render() call - every page
         // has to succeed for the output's page count/order to be correct
         // (unlike e.g. PDF to Word's best-effort per-page fallback), so a
@@ -882,17 +885,17 @@ TOOLS.invertpdf = function(){
         pageDoc.drawImage(img, {x:0,y:0,width:canvas.width/scale, height:canvas.height/scale});
       }
     }catch(e){
-      out.innerHTML = `<div class="status" style="color:var(--rose)">Could not invert this PDF (${escapeAttr(e.message)}). Try a different file.</div>`;
+      out.innerHTML = `<div class="status" style="color:var(--rose)">${t("toolInvert.errCouldNotInvert", {msg: escapeAttr(e.message)})}</div>`;
       return;
     }
     const outBytes = await outDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "inverted", "pdf");
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   }));
@@ -917,30 +920,31 @@ TOOLS.invertpdf = function(){
 // Pages does.
 const ORGANIZE_FILE_COLORS = ["#3B82F6","#8B5CF6","#F5B22D","#EC4899","#06B6D4","#F97316","#6366F1","#F43F5E"];
 TOOLS.organize = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   const entries = []; // {file, color, removed}
   let gridApi=null;
   openPanel(`
-    <div class="panel-head"><h3>Organize PDF</h3></div>
+    <div class="panel-head"><h3>${t("tools.organize")}</h3></div>
     <div class="panel-body compact no-auto-layout tool-workspace tool-app-shell page-workspace" id="organizeBody">
       <div class="tool-hero" id="organizeHero">
-        <h2 class="tool-hero-title">Organize PDF</h2>
-        <p class="tool-hero-desc">Reorder, rotate, duplicate, or remove pages across one or more PDFs.</p>
+        <h2 class="tool-hero-title">${t("tools.organize")}</h2>
+        <p class="tool-hero-desc">${t("toolOrganize.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap" id="organizeUploadWrap">
-        ${fileInputHTML("application/pdf", true, "Select PDF files")}
+        ${fileInputHTML("application/pdf", true, t("workspace.selectPdfFiles"))}
       </div>
-      <p class="tool-privacy-hint" id="organizePrivacyHint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint" id="organizePrivacyHint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-app-workspace" id="organizeWorkspace" style="display:none">
         <div class="tool-main-pane">
-          <p class="page-grid-hint" id="gridHint" style="display:none">Drag pages to reorder — even across files. Hover a page to rotate, duplicate, or remove it. Click to multi-select (Ctrl/Cmd+A select all, Delete to remove, Esc to clear).</p>
+          <p class="page-grid-hint" id="gridHint" style="display:none">${t("toolOrganize.gridHint")}</p>
           <div class="page-grid tool-content-area" id="pageGrid"></div>
         </div>
         <aside class="tool-side-panel">
-          <h3 class="tool-side-panel-title">Organize PDF</h3>
+          <h3 class="tool-side-panel-title">${t("tools.organize")}</h3>
           <div class="organize-files" id="organizeFilesList"></div>
           <input type="file" id="organizeAddInput" class="hidden" accept="application/pdf" multiple>
-          <button type="button" class="organize-add-btn" id="organizeAddBtn">+ Add more files</button>
-          <button class="btn tool-toolbar-primary" id="go">Organize PDF</button>
+          <button type="button" class="organize-add-btn" id="organizeAddBtn">${t("toolOrganize.addMoreFilesBtn")}</button>
+          <button class="btn tool-toolbar-primary" id="go">${t("tools.organize")}</button>
         </aside>
       </div>
       <div id="out"></div>
@@ -981,7 +985,7 @@ TOOLS.organize = function(){
       return `<div class="organize-file-row" data-doc-index="${i}">
         <span class="organize-file-swatch"${swatchStyle}>${letter}</span>
         <span class="organize-file-name" title="${escapeAttr(e.file.name)}">${escapeAttr(e.file.name)}</span>
-        <button type="button" class="organize-file-remove" data-doc-index="${i}" aria-label="Remove ${escapeAttr(e.file.name)}">✕</button>
+        <button type="button" class="organize-file-remove" data-doc-index="${i}" aria-label="${escapeAttr(T("workspace.removeFile"))} ${escapeAttr(e.file.name)}">✕</button>
       </div>`;
     }).join("");
     filesListEl.querySelectorAll(".organize-file-remove").forEach(btn=>{
@@ -1046,9 +1050,9 @@ TOOLS.organize = function(){
   });
 
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Applying...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("toolOrganize.statusApplying"));
     const pagesSpec = gridApi.getPages();
-    if(pagesSpec.length===0){ toast("At least one page must remain"); out.innerHTML=""; return; }
+    if(pagesSpec.length===0){ toast(t("toolOrganize.errAtLeastOne")); out.innerHTML=""; return; }
     const usedDocIndexes = [...new Set(pagesSpec.map(p=>p.docIndex))];
     const srcDocs = [];
     for(const idx of usedDocIndexes){
@@ -1065,7 +1069,7 @@ TOOLS.organize = function(){
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   }));
@@ -1073,20 +1077,21 @@ TOOLS.organize = function(){
 
 /* ---- FLATTEN ---- */
 TOOLS.flatten = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null;
   openPanel(`
-    <div class="panel-head"><h3>Flatten PDF</h3></div>
+    <div class="panel-head"><h3>${t("tools.flatten")}</h3></div>
     <div class="panel-body compact tool-workspace" id="flattenBody">
       <div class="tool-hero">
-        <h2 class="tool-hero-title">Flatten PDF</h2>
-        <p class="tool-hero-desc">Any form fields present will be permanently flattened into the page content.</p>
+        <h2 class="tool-hero-title">${t("tools.flatten")}</h2>
+        <p class="tool-hero-desc">${t("toolFlatten.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
+        ${fileInputHTML("application/pdf", false, t("workspace.selectPdfFiles"))}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-toolbar" id="flattenToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Flatten PDF</button>
+        <button class="btn tool-toolbar-primary" id="go">${t("tools.flatten")}</button>
       </div>
       <div id="out"></div>
     </div>`);
@@ -1097,19 +1102,19 @@ TOOLS.flatten = function(){
     document.getElementById("flattenBody").classList.add("is-loaded");
   });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading PDF...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(T("workspace.statusReadingPdf"));
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
-    setStatus("Flattening document...");
+    setStatus(t("toolFlatten.statusFlattening"));
     try{ const form = doc.getForm(); form.flatten(); }catch(e){}
     const outBytes=await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "flattened", "pdf");
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);
     const {canvas}=await pdfThumb(outBytes);
-    setStatus("Done", true);
+    setStatus(t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
   }));
@@ -1117,20 +1122,21 @@ TOOLS.flatten = function(){
 
 /* ---- PDF to JPG ---- */
 TOOLS.pdf2jpg = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let file=null;
   openPanel(`
-    <div class="panel-head"><h3>PDF to JPG</h3></div>
+    <div class="panel-head"><h3>${t("tools.pdf2jpg")}</h3></div>
     <div class="panel-body compact tool-workspace" id="pdf2jpgBody">
       <div class="tool-hero">
-        <h2 class="tool-hero-title">PDF to JPG</h2>
-        <p class="tool-hero-desc">Turn every page of a PDF into a high-quality JPG image.</p>
+        <h2 class="tool-hero-title">${t("tools.pdf2jpg")}</h2>
+        <p class="tool-hero-desc">${t("toolPdf2jpg.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap">
-        ${fileInputHTML("application/pdf", false, "Select PDF file")}
+        ${fileInputHTML("application/pdf", false, t("workspace.selectPdfFiles"))}
       </div>
-      <p class="tool-privacy-hint">🔒 Everything happens right here in your browser — your files are never uploaded or stored anywhere.</p>
+      <p class="tool-privacy-hint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-toolbar" id="pdf2jpgToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go">Convert to JPG</button>
+        <button class="btn tool-toolbar-primary" id="go">${t("toolPdf2jpg.convertToJpg")}</button>
       </div>
       <div id="out"></div>
     </div>`);
@@ -1141,7 +1147,7 @@ TOOLS.pdf2jpg = function(){
     document.getElementById("pdf2jpgBody").classList.add("is-loaded");
   });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Rendering PDF pages...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("toolPdf2jpg.statusRenderingPages"));
     await ensureJSZip();
     const bytes=await file.arrayBuffer();
     const pdoc = operation.track(await loadPdfJsSafe({data:bytes}));
@@ -1149,7 +1155,7 @@ TOOLS.pdf2jpg = function(){
     let firstBlob=null;
     try{
       for(let i=1;i<=pdoc.numPages;i++){
-        setStatus("Rendering PDF pages...", false, Math.round((i/pdoc.numPages)*100));
+        setStatus(t("toolPdf2jpg.statusRenderingPages"), false, Math.round((i/pdoc.numPages)*100));
         // renderPdfPageCanvas(), not a raw page.render() - see Invert PDF
         // Colors' identical comment for why a hang here must reject
         // instead of freezing this loop forever.
@@ -1159,16 +1165,16 @@ TOOLS.pdf2jpg = function(){
         zip.file(`page_${i}.jpg`, blob);
       }
     }catch(e){
-      out.innerHTML = `<div class="status" style="color:var(--rose)">Could not render this PDF (${escapeAttr(e.message)}). Try a different file.</div>`;
+      out.innerHTML = `<div class="status" style="color:var(--rose)">${t("toolPdf2jpg.errCouldNotRender", {msg: escapeAttr(e.message)})}</div>`;
       return;
     }
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     if(pdoc.numPages===1){
       const outName = suffixedName(file, "page1", "jpg");
       if(!operation.isCurrent()) return;
       const {url}=downloadBlob(firstBlob,outName);
       const img=document.createElement("img"); img.src=url;
-      setStatus("Done", true);
+      setStatus(t("workspace.done"), true);
       if(!operation.isCurrent()) return;
       out.appendChild(resultBox({sizeText:fmtSize(firstBlob.size), sizeGood:true, previewNode:img, url, filename:outName}));
     } else {
@@ -1176,7 +1182,7 @@ TOOLS.pdf2jpg = function(){
       const outName = suffixedName(file, "pages", "zip");
       if(!operation.isCurrent()) return;
       const {url}=downloadBlob(zipBlob,outName);
-      setStatus("Done", true);
+      setStatus(t("workspace.done"), true);
       if(!operation.isCurrent()) return;
       out.appendChild(resultBox({sizeText:fmtSize(zipBlob.size), sizeGood:true, url, filename:outName}));
     }
@@ -1185,19 +1191,20 @@ TOOLS.pdf2jpg = function(){
 
 /* ---- JPG/Image to PDF ---- */
 TOOLS.jpg2pdf = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
   let files=[];
   openPanel(`
-    <div class="panel-head"><h3>JPG to PDF</h3></div>
+    <div class="panel-head"><h3>${t("tools.jpg2pdf")}</h3></div>
     <div class="panel-body compact tool-workspace keep-upload" id="jpg2pdfBody">
       <div class="tool-hero">
-        <h2 class="tool-hero-title">JPG to PDF</h2>
-        <p class="tool-hero-desc">Combine one or more images into a single PDF, in the order you add them.</p>
+        <h2 class="tool-hero-title">${t("tools.jpg2pdf")}</h2>
+        <p class="tool-hero-desc">${t("toolJpg2pdf.heroDesc")}</p>
       </div>
       <div class="tool-upload-wrap">
-        ${fileInputHTML("image/*", true, "Select images")}
+        ${fileInputHTML("image/*", true, t("toolJpg2pdf.selectImages"))}
       </div>
       <div class="tool-toolbar" id="jpg2pdfToolbar" style="display:none">
-        <button class="btn tool-toolbar-primary" id="go" disabled>JPG to PDF</button>
+        <button class="btn tool-toolbar-primary" id="go" disabled>${t("tools.jpg2pdf")}</button>
       </div>
       <div id="out"></div>
     </div>`);
@@ -1237,11 +1244,11 @@ TOOLS.jpg2pdf = function(){
     return doc.embedPng(new Uint8Array(await pngBlob.arrayBuffer()));
   }
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out=document.getElementById("out"); out.innerHTML=statusEl("Reading images...");
+    const out=document.getElementById("out"); out.innerHTML=statusEl(t("toolJpg2pdf.statusReadingImages"));
     const doc = await PDFDocument.create();
     const failed = [];
     for(let i=0;i<files.length;i++){
-      setStatus("Building PDF...", false, Math.round(((i+1)/files.length)*100));
+      setStatus(t("toolJpg2pdf.statusBuildingPdf"), false, Math.round(((i+1)/files.length)*100));
       const f = files[i];
       try{
         const img = await embedImageFile(doc, f);
@@ -1255,16 +1262,16 @@ TOOLS.jpg2pdf = function(){
       }
     }
     if(doc.getPageCount()===0){
-      out.innerHTML = `<div class="status" style="color:var(--rose)">None of the selected files could be read as images. Try a different file.</div>`;
+      out.innerHTML = `<div class="status" style="color:var(--rose)">${t("toolJpg2pdf.errNoneReadable")}</div>`;
       return;
     }
-    setStatus("Preparing download...");
+    setStatus(T("workspace.statusPreparingDownload"));
     const outBytes = await doc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,"images.pdf");
     const {canvas}=await pdfThumb(outBytes);
-    setStatus(failed.length ? `Done — couldn't read: ${failed.join(", ")}` : "Done", true);
+    setStatus(failed.length ? t("toolJpg2pdf.doneWithFailed", {names: failed.join(", ")}) : t("workspace.done"), true);
     if(!operation.isCurrent()) return;
     out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:"images.pdf"}));
   }));

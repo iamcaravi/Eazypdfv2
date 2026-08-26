@@ -726,24 +726,30 @@ window.addEventListener("unhandledrejection", (event) => {
   const idToMeta = {};
   CATEGORIES.forEach(cat=>{
     const color = (CATEGORY_META[cat.id]||{}).color || "#112B5C";
-    cat.tools.forEach(([id,name])=>{ idToMeta[id] = {name, color}; });
+    cat.tools.forEach(([id,name])=>{ idToMeta[id] = {rawName:name, color}; });
   });
-  const items = QUICK_DOCK_IDS.filter(id=>TOOLS[id] && idToMeta[id]).map(id=>({id, ...idToMeta[id]}));
+  // toolName() (nav-menu.js) looks up the existing "tools.<id>" i18n key
+  // with the raw registry name as its fallback - same localization the
+  // hero orbit tools already use, so dock tooltips/aria-labels follow the
+  // selected language too instead of always reading in English. Kept as
+  // a function (not baked into idToMeta once) so refreshLabels() below
+  // can re-derive it after a live language switch.
+  function localizedName(id){ return toolName(id, idToMeta[id].rawName); }
+  // Deliberately NOT gated on TOOLS[id]: only a subset of tool scripts
+  // loads per page (build/runtime-manifest.js's per-profile bundles), so
+  // e.g. rotate-pdf.html never defines TOOLS.sign locally. openTool()
+  // navigates to that tool's own page via a real URL in that case, which
+  // doesn't need TOOLS[id] to exist here - CATEGORIES/CATEGORY_META
+  // (nav-menu.js) are loaded on every page unconditionally, so this list
+  // is already complete everywhere without needing the tool's own module.
+  const items = QUICK_DOCK_IDS.filter(id=>idToMeta[id]).map(id=>({id, name: localizedName(id), color: idToMeta[id].color}));
   if(!items.length) return;
 
   const moreIconSvg = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>`;
   const homeIconSvg = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/></svg>`;
-  // Docs isn't a PDF-processing tool, so - like Home/More above - it's
-  // hand-built here rather than routed through CATEGORIES/CATEGORY_META
-  // (which only describe actual PDF tools) or QUICK_DOCK_IDS. It still
-  // uses TOOLS.docs()/data-open="docs" underneath, so it gets the exact
-  // same click-delegation, active-state sync (data-tool-id, matched
-  // below by the shared syncActiveState()) and hover physics as every
-  // other .qd-icon - no new plumbing, just one more of these buttons.
-  const docsIconSvg = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4"/><path d="M9.5 12h5M9.5 15.5h5M9.5 8.5h2"/></svg>`;
 
   // ---- Desktop/tablet vertical rail ----
-  dock.innerHTML = `<button type="button" class="qd-icon qd-home" id="qdHomeBtn" aria-label="Home" style="color:var(--accent-lime)">${homeIconSvg}<span class="qd-tooltip">Home</span></button>
+  dock.innerHTML = `<button type="button" class="qd-icon qd-home" id="qdHomeBtn" aria-label="Home">${homeIconSvg}<span class="qd-tooltip">Home</span></button>
     <div class="qd-divider" aria-hidden="true"></div>`
     + items.map(t=>`
     <button type="button" class="qd-icon" data-open="${t.id}" data-tool-id="${t.id}" aria-label="Open ${escapeAttr(t.name)}" style="background:${t.color}22;color:${t.color}">
@@ -751,7 +757,6 @@ window.addEventListener("unhandledrejection", (event) => {
       <span class="qd-tooltip">${t.name}</span>
     </button>`).join("")
     + `<div class="qd-divider" aria-hidden="true"></div>
-    <button type="button" class="qd-icon qd-more" data-open="docs" data-tool-id="docs" aria-label="Open Docs">${docsIconSvg}<span class="qd-tooltip">Docs</span></button>
     <button type="button" class="qd-icon qd-more" id="qdMoreBtn" aria-label="More tools">${moreIconSvg}<span class="qd-tooltip">More tools</span></button>`;
   const icons = [...dock.querySelectorAll(".qd-icon")];
   document.getElementById("qdHomeBtn")?.addEventListener("click", ()=>goHome());
@@ -759,15 +764,39 @@ window.addEventListener("unhandledrejection", (event) => {
   // ---- Mobile/tablet: compact FAB + tap-open tool list (not a shrunk
   // rail - see the CSS comment for why) ----
   if(menu){
-    menu.innerHTML = `<button type="button" class="qdm-item" id="qdHomeBtnMobile" role="menuitem"><span class="qdm-icon" style="color:var(--accent-lime)">${homeIconSvg}</span>Home</button>`
+    menu.innerHTML = `<button type="button" class="qdm-item" id="qdHomeBtnMobile" role="menuitem"><span class="qdm-icon">${homeIconSvg}</span>Home</button>`
       + items.map(t=>`
       <button type="button" class="qdm-item" data-open="${t.id}" data-tool-id="${t.id}" role="menuitem">
         <span class="qdm-icon" style="color:${t.color}">${iconFor(t.id)}</span>${t.name}
       </button>`).join("")
-      + `<button type="button" class="qdm-item" data-open="docs" data-tool-id="docs" role="menuitem"><span class="qdm-icon">${docsIconSvg}</span>Docs</button>`
       + `<button type="button" class="qdm-item" id="qdMoreBtnMobile" role="menuitem"><span class="qdm-icon">${moreIconSvg}</span>More tools</button>`;
   }
   const menuItems = menu ? [...menu.querySelectorAll(".qdm-item")] : [];
+  // Text-only refresh on a live language switch (I18N.setLang() applies
+  // instantly, no reload - see i18n.js) - updates tooltip/aria-label/menu
+  // text in place rather than rebuilding the dock's DOM, since the dock
+  // is deliberately one persistent node whose GSAP-owned transforms must
+  // never be re-initialized (see this IIFE's own header comment).
+  function refreshLabels(){
+    icons.forEach(el=>{
+      const id = el.dataset.toolId;
+      if(!id) return;
+      const name = localizedName(id);
+      el.setAttribute("aria-label", "Open " + name);
+      const tip = el.querySelector(".qd-tooltip");
+      if(tip) tip.textContent = name;
+    });
+    menuItems.forEach(el=>{
+      const id = el.dataset.toolId;
+      if(!id) return;
+      const name = localizedName(id);
+      const icon = el.querySelector(".qdm-icon");
+      el.textContent = "";
+      if(icon) el.appendChild(icon);
+      el.appendChild(document.createTextNode(name));
+    });
+  }
+  document.addEventListener("yoyopdf:langchange", refreshLabels);
   function closeMobileMenu(){
     if(!menu) return;
     menu.classList.remove("open");
@@ -1008,4 +1037,60 @@ window.addEventListener("unhandledrejection", (event) => {
     setTooltip(nearestDist < TOOLTIP_DIST ? icons[nearestI] : null);
   }
   window.addEventListener("pointermove", onPointerMove, {passive:true});
+})();
+
+/* ---------------- i18n: live re-render of the currently open panel ----------------
+   Switching language must update visible text immediately without losing the
+   user's current page/tool state (brief requirement). For the informational
+   panels (About/Privacy/Terms/Contact/Donate) - static content with nothing
+   the user could lose - simply re-invoking the same TOOLS[id]() function is
+   the update: it rebuilds that panel's markup from the same openPanel() shell
+   using the new language's strings. Real tool workspaces (merge/split/sign/
+   etc, anything with loaded files or in-progress work) are deliberately NOT
+   re-invoked here - their own internal UI isn't translated yet (see i18n.js's
+   own "Phase 1 scope" note), and blowing away an open workspace on a language
+   switch would be exactly the state loss the brief says not to cause. */
+(function(){
+  const REBUILDABLE_INFO_PANELS = new Set(["about", "privacy", "terms", "contact", "donate"]);
+  document.addEventListener("yoyopdf:langchange", ()=>{
+    const openId = window.__currentToolId;
+    if(openId && REBUILDABLE_INFO_PANELS.has(openId) && typeof TOOLS !== "undefined" && TOOLS[openId]){
+      TOOLS[openId]();
+    }
+  });
+})();
+
+/* Homepage-only hero H1 first line ("All-in-One PDF Tools.") - not a plain
+   data-i18n target because "PDF" sits inside its own accent-colored <span>;
+   I18N.applyAll() sets textContent (deliberately, to keep every other
+   data-i18n element safe from arbitrary HTML), which would silently drop
+   that inner span. "PDF" itself is never translated (every tool name in
+   every supported language keeps the literal string "PDF"), so it's passed
+   through {{pdf}} interpolation and re-wrapped in the accent span here
+   instead. No-ops on any page without #heroTitle1 (every non-homepage
+   route). */
+(function(){
+  const heroTitle1El = document.getElementById("heroTitle1");
+  if(!heroTitle1El) return;
+  function render(){
+    const t = window.I18N ? I18N.t : (k)=>k;
+    heroTitle1El.innerHTML = t("hero.title1", {pdf: '<span class="accent">PDF</span>'});
+  }
+  render();
+  document.addEventListener("yoyopdf:langchange", render);
+})();
+
+/* Homepage-only cta-section H2 ("Everything You Need. All in One Place.") -
+   same reasoning/pattern as #heroTitle1 above: "All in One Place." lives in
+   its own accent-colored <span>, which a plain data-i18n/textContent
+   assignment would flatten. No-ops on any page without #ctaSectionTitle. */
+(function(){
+  const ctaTitleEl = document.getElementById("ctaSectionTitle");
+  if(!ctaTitleEl) return;
+  function render(){
+    const t = window.I18N ? I18N.t : (k)=>k;
+    ctaTitleEl.innerHTML = t("home.ctaTitle", {allInOnePlace: '<span class="accent">' + t("home.ctaAllInOnePlace") + '</span>'});
+  }
+  render();
+  document.addEventListener("yoyopdf:langchange", render);
 })();

@@ -122,8 +122,9 @@
 
       if (generation !== loadGeneration) throw staleLoadError();
       const maxBytes = window.YOYO_RUNTIME?.limits?.maxBytes?.pdf || (200 * 1024 * 1024);
-      if (!nextFileSize) throw new Error('This PDF is empty. Choose a non-empty PDF file.');
-      if (nextFileSize > maxBytes) throw new Error('This PDF is too large for reliable in-browser editing (maximum 200 MB).');
+      const t = window.I18N ? window.I18N.t : (k) => k;
+      if (!nextFileSize) throw new Error(t('editor.errPdfEmpty'));
+      if (nextFileSize > maxBytes) throw new Error(t('editor.errPdfTooLarge'));
 
       // Retain a separate copy before pdf.js can transfer/detach its input.
       const retainedBytes = (data && typeof data.slice === 'function') ? data.slice(0) : null;
@@ -134,9 +135,9 @@
       if (generation !== loadGeneration) throw staleLoadError();
 
       const maxPages = window.YOYO_RUNTIME?.limits?.maxPdfPages || 1500;
-      if (!candidateDoc.numPages) throw new Error('This PDF does not contain any readable pages.');
+      if (!candidateDoc.numPages) throw new Error(t('editor.errPdfNoPages'));
       if (candidateDoc.numPages > maxPages) {
-        throw new Error(`This PDF has ${candidateDoc.numPages} pages; the browser editor supports up to ${maxPages}.`);
+        throw new Error(t('editor.errPdfTooManyPages', { n: candidateDoc.numPages, max: maxPages }));
       }
 
       pdfDoc = candidateDoc;
