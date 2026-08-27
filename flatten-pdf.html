@@ -6,6 +6,35 @@
   try { __savedTheme = localStorage.getItem("yoyopdf-theme") || "dark"; } catch(e) {}
   document.documentElement.setAttribute("data-theme", __savedTheme);
 </script>
+<style>
+  /* Critical, render-blocking-free copy of the two css/site.css rules
+     that actually matter before first paint: html.tool-preload's hide
+     (see the tool-preload script further down + css/site.css's own
+     copy of this rule) and the themed root background (see html{} in
+     css/site.css). This exists ONLY because those rules previously
+     lived exclusively in the EXTERNAL stylesheet - fine for a normal
+     navigation (external stylesheets are render-blocking, so nothing
+     paints before they're ready), but NOT fine for a cross-document
+     View Transition: confirmed via a screen recording plus a
+     MutationObserver diagnostic (logging data-theme with
+     performance.now() timestamps into sessionStorage across the actual
+     navigation) that data-theme is ALWAYS correct ("dark") the entire
+     time - the flash was never a wrong theme value, it was the correct
+     dark page rendering with browser-default (unstyled, white) UA
+     styles for the brief window before css/site.css finished
+     downloading, because the transition can reveal the new document
+     before that external stylesheet's render-block resolves. Inlining
+     just these two rules (same values as their site.css originals, one
+     small source of truth each - not a second theme system) closes
+     that window: the destination page is hideable and correctly
+     backgrounded from the very first parsed byte, with zero network
+     dependency. The external site.css copies stay - once loaded they
+     just re-apply the same values, and every other component's
+     styling still needs that full stylesheet regardless. */
+  html.tool-preload{ visibility:hidden; }
+  html{ background:#050505; }
+  html[data-theme="light"]{ background:#FAFAFA; }
+</style>
 <script>
   /* Pre-paint language/dir (same technique as the theme script above) -
      avoids a flash of English/LTR before js/core/i18n.js finishes
