@@ -5,36 +5,26 @@
   var __savedTheme = "dark";
   try { __savedTheme = localStorage.getItem("yoyopdf-theme") || "dark"; } catch(e) {}
   document.documentElement.setAttribute("data-theme", __savedTheme);
-</script>
-<style>
-  /* Critical, render-blocking-free copy of the two css/site.css rules
-     that actually matter before first paint: html.tool-preload's hide
-     (see the tool-preload script further down + css/site.css's own
-     copy of this rule) and the themed root background (see html{} in
-     css/site.css). This exists ONLY because those rules previously
-     lived exclusively in the EXTERNAL stylesheet - fine for a normal
-     navigation (external stylesheets are render-blocking, so nothing
-     paints before they're ready), but NOT fine for a cross-document
-     View Transition: confirmed via a screen recording plus a
+  /* Same root-background value css/site.css's html{} rule already sets,
+     applied here too as a plain inline style PROPERTY on the element
+     (not a stylesheet block - build/verify-dist.js's production check
+     forbids any inline STYLE element, one hashed external stylesheet
+     only) so it's active from the very first parsed byte, with zero
+     network dependency.
+     Needed specifically because this site's cross-document View
+     Transitions (@view-transition{navigation:auto} in css/site.css) can
+     reveal a destination page before its external stylesheet's render-
+     block resolves - confirmed via a screen recording plus a
      MutationObserver diagnostic (logging data-theme with
-     performance.now() timestamps into sessionStorage across the actual
-     navigation) that data-theme is ALWAYS correct ("dark") the entire
-     time - the flash was never a wrong theme value, it was the correct
-     dark page rendering with browser-default (unstyled, white) UA
-     styles for the brief window before css/site.css finished
-     downloading, because the transition can reveal the new document
-     before that external stylesheet's render-block resolves. Inlining
-     just these two rules (same values as their site.css originals, one
-     small source of truth each - not a second theme system) closes
-     that window: the destination page is hideable and correctly
-     backgrounded from the very first parsed byte, with zero network
-     dependency. The external site.css copies stay - once loaded they
-     just re-apply the same values, and every other component's
-     styling still needs that full stylesheet regardless. */
-  html.tool-preload{ visibility:hidden; }
-  html{ background:#050505; }
-  html[data-theme="light"]{ background:#FAFAFA; }
-</style>
+     performance.now() timestamps into sessionStorage across a real
+     navigation) that data-theme is ALWAYS correct the entire time; the
+     flash was never a wrong theme value, it was the correctly-themed
+     page rendering with default browser (white) styling because
+     css/site.css hadn't loaded yet. Once that stylesheet does load, its
+     own html{background:var(--paper)} rule re-applies the same value -
+     one source of truth, this is just available sooner. */
+  document.documentElement.style.background = (__savedTheme === "light") ? "#FAFAFA" : "#050505";
+</script>
 <script>
   /* Pre-paint language/dir (same technique as the theme script above) -
      avoids a flash of English/LTR before js/core/i18n.js finishes
@@ -75,10 +65,26 @@
      landing page with no matching TOOLS[id] handler, or a blocked
      script - never the primary reveal mechanism. Never applies on the
      homepage itself (bare "/" or "/index.html"), which has no
-     auto-opening tool and always shows its grid immediately. */
+     auto-opening tool and always shows its grid immediately.
+
+     The inline style.visibility set alongside the class (not just the
+     class) exists for the same reason the background above is now also
+     inline: css/site.css's own html.tool-preload{visibility:hidden}
+     rule needs that external stylesheet loaded to take effect, which a
+     cross-document View Transition can't always guarantee before
+     revealing this page (see the theme script's comment above for the
+     full diagnosis) - build/verify-dist.js forbids an inline STYLE
+     element as the fix, so the same guarantee is expressed as a plain
+     inline style property instead. js/core/panel.js's real reveal and
+     the setTimeout fallback below both clear it the same way they
+     already clear the class. */
   if(location.pathname !== "/" && !/\/index\.html$/i.test(location.pathname) && location.pathname !== ""){
     document.documentElement.classList.add("tool-preload");
-    setTimeout(function(){ document.documentElement.classList.remove("tool-preload"); }, 2500);
+    document.documentElement.style.visibility = "hidden";
+    setTimeout(function(){
+      document.documentElement.classList.remove("tool-preload");
+      document.documentElement.style.visibility = "";
+    }, 2500);
   }
 </script>
 <meta charset="UTF-8">
@@ -675,23 +681,23 @@ function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : lo
      to sit at the very top and very bottom of the original file, and
      must stay loaded last. -->
 <!-- RUNTIME_SCRIPTS_START -->
-<script defer src="js/core/i18n.js?v=144"></script>
-<script defer src="js/core/motion.js?v=144"></script>
-<script defer src="js/core/nav-menu.js?v=144"></script>
-<script defer src="js/core/hero-upload.js?v=144"></script>
-<script defer src="js/core/routing.js?v=144"></script>
-<script defer src="js/core/quick-actions.js?v=144"></script>
-<script defer src="js/core/panel.js?v=144"></script>
-<script defer src="js/core/pdf-processing-utils.js?v=144"></script>
-<script defer src="js/core/pptx-export.js?v=144"></script>
-<script defer src="js/core/pdf-canvas-widgets.js?v=144"></script>
-<script defer src="js/tools/misc-tools.js?v=144"></script>
-<script defer src="js/core/doc-export-builders.js?v=144"></script>
-<script defer src="js/core/xlsx-merge.js?v=144"></script>
-<script defer src="js/core/krutidev-to-unicode.js?v=144"></script>
-<script defer src="js/core/docx-reader.js?v=144"></script>
-<script defer src="js/tools/pdf-convert-tools.js?v=144"></script>
-<script defer src="js/app.js?v=144"></script>
+<script defer src="js/core/i18n.js?v=145"></script>
+<script defer src="js/core/motion.js?v=145"></script>
+<script defer src="js/core/nav-menu.js?v=145"></script>
+<script defer src="js/core/hero-upload.js?v=145"></script>
+<script defer src="js/core/routing.js?v=145"></script>
+<script defer src="js/core/quick-actions.js?v=145"></script>
+<script defer src="js/core/panel.js?v=145"></script>
+<script defer src="js/core/pdf-processing-utils.js?v=145"></script>
+<script defer src="js/core/pptx-export.js?v=145"></script>
+<script defer src="js/core/pdf-canvas-widgets.js?v=145"></script>
+<script defer src="js/tools/misc-tools.js?v=145"></script>
+<script defer src="js/core/doc-export-builders.js?v=145"></script>
+<script defer src="js/core/xlsx-merge.js?v=145"></script>
+<script defer src="js/core/krutidev-to-unicode.js?v=145"></script>
+<script defer src="js/core/docx-reader.js?v=145"></script>
+<script defer src="js/tools/pdf-convert-tools.js?v=145"></script>
+<script defer src="js/app.js?v=145"></script>
 <!-- RUNTIME_SCRIPTS_END -->
 </body>
 </html>

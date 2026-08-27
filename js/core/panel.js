@@ -190,8 +190,12 @@ function openPanel(html){
   // <head> script + css/site.css's html.tool-preload rule) - the instant
   // the tool workspace is actually open, not a timer. No-op (harmless)
   // when this class was never added, e.g. the homepage's own Quick
-  // Action/tool-card clicks.
+  // Action/tool-card clicks. Also clears the matching inline
+  // style.visibility the same head script sets (see its own comment) -
+  // that inline property, not just the class, is what actually keeps
+  // the page hidden pre-stylesheet-load, so it has to be cleared here too.
   document.documentElement.classList.remove("tool-preload");
+  document.documentElement.style.visibility = "";
   if(isPageLoadReveal){
     void overlay.offsetWidth; // force the transition:none to actually apply before restoring it
     overlay.style.transition = "";

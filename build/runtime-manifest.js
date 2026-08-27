@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "144";
+const VERSION = "145";
 
 const LIBRARIES = Object.freeze({
   pdfLib: Object.freeze({
