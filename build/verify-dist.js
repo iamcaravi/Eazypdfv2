@@ -146,6 +146,25 @@ if (hashedSiteCss.length !== 1) {
 
 for (const page of expectedHtmlPages) verifyHtmlReferences(page);
 
+// Phase 13: pretheme.js/prelanguage.js/tool-preload.js/lazy-loaders.js are
+// synchronous, unversioned, always-present pre-paint scripts moved out of
+// index.html's inline <script> blocks - production's CSP (_headers)
+// script-src has no 'unsafe-inline'/nonce/hash, which silently blocked
+// those as inline blocks (data-theme never set before first paint, and
+// loadScriptOnce/ensurePDFLib/etc. never defined at all). They're plain
+// <script src> tags on every page but are NOT part of the versioned,
+// per-tool RUNTIME_LIBRARIES/RUNTIME_SCRIPTS profile runtime-manifest.js
+// governs, so they're checked directly here instead of via that profile.
+const PREPAINT_SCRIPTS = ["js/core/pretheme.js", "js/core/prelanguage.js", "js/core/tool-preload.js"];
+const LAZY_LOADER_SCRIPT = "js/core/lazy-loaders.js";
+const lazyLoaderSource = fs.existsSync(path.join(DIST, LAZY_LOADER_SCRIPT))
+  ? fs.readFileSync(path.join(DIST, LAZY_LOADER_SCRIPT), "utf8")
+  : null;
+if (!lazyLoaderSource) fail("Missing " + LAZY_LOADER_SCRIPT + " in dist");
+else if (!/s\.integrity\s*=\s*integrity/.test(lazyLoaderSource) || !/s\.crossOrigin\s*=\s*["']anonymous["']/.test(lazyLoaderSource)) {
+  fail(LAZY_LOADER_SCRIPT + " does not preserve SRI/crossOrigin assignment for lazy Phase 8 CDN scripts");
+}
+
 for (const page of appPages) {
   const html = fs.readFileSync(path.join(DIST, page), "utf8");
   const runtime = page === "index.html"
@@ -155,7 +174,15 @@ for (const page of appPages) {
   const localScripts = tags.filter((tag) => !/^https?:\/\//.test(tag.src)).map((tag) => tag.src);
   const externalScripts = tags.filter((tag) => /^https?:\/\//.test(tag.src));
 
-  if (JSON.stringify(localScripts) !== JSON.stringify(runtime.scripts)) {
+  for (const script of PREPAINT_SCRIPTS) {
+    if (!localScripts.includes(script)) fail(page + " is missing the pre-paint script " + script);
+  }
+  if (!localScripts.includes(LAZY_LOADER_SCRIPT)) fail(page + " is missing " + LAZY_LOADER_SCRIPT);
+  const runtimeManagedScripts = localScripts.filter(
+    (src) => !PREPAINT_SCRIPTS.includes(src) && src !== LAZY_LOADER_SCRIPT
+  );
+
+  if (JSON.stringify(runtimeManagedScripts) !== JSON.stringify(runtime.scripts)) {
     fail(page + " does not match its generated local runtime profile");
   }
   if (JSON.stringify(externalScripts.map((tag) => tag.src)) !== JSON.stringify(runtime.libraries.map((library) => library.src))) {
@@ -172,9 +199,6 @@ for (const page of appPages) {
     if (!tag || !tag.attributes.includes('crossorigin="anonymous"')) {
       fail(page + " is missing crossorigin=anonymous for " + library.src);
     }
-  }
-  if (!/s\.integrity\s*=\s*integrity/.test(html) || !/s\.crossOrigin\s*=\s*["']anonymous["']/.test(html)) {
-    fail(page + " does not preserve SRI/crossOrigin assignment for lazy Phase 8 CDN scripts");
   }
   if (!html.includes('<meta name="robots" content="index,follow,max-image-preview:large">')) {
     fail(page + " is missing the Phase 9 index directive");

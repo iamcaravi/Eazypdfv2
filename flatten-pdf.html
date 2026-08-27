@@ -1,98 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>
-  var __savedTheme = "dark";
-  try { __savedTheme = localStorage.getItem("yoyopdf-theme") || "dark"; } catch(e) {}
-  document.documentElement.setAttribute("data-theme", __savedTheme);
-  /* Same root-background value css/site.css's html{} rule already sets,
-     applied here too as a plain inline style PROPERTY on the element
-     (not a stylesheet block - build/verify-dist.js's production check
-     forbids any inline STYLE element, one hashed external stylesheet
-     only) so it's active from the very first parsed byte, with zero
-     network dependency.
-     This used to be load-bearing because this site's cross-document View
-     Transitions (@view-transition{navigation:auto}, since REMOVED from
-     css/site.css) could reveal a destination page before its external
-     stylesheet's render-block resolves - confirmed via a screen
-     recording plus a MutationObserver diagnostic (logging data-theme
-     with performance.now() timestamps into sessionStorage across a real
-     navigation) that data-theme was ALWAYS correct the entire time; the
-     flash was never a wrong theme value, it was the correctly-themed
-     page rendering with default browser (white) styling because
-     css/site.css hadn't loaded yet. Removing cross-document VT means
-     ordinary navigation now render-blocks on css/site.css before
-     painting anything, so that race no longer exists - this line is kept
-     anyway as harmless, zero-network-dependency defense-in-depth (once
-     css/site.css does load, its own html{background:var(--paper)} rule
-     re-applies the same value - one source of truth either way). */
-  document.documentElement.style.background = (__savedTheme === "light") ? "#FAFAFA" : "#050505";
-</script>
-<script>
-  /* Pre-paint language/dir (same technique as the theme script above) -
-     avoids a flash of English/LTR before js/core/i18n.js finishes
-     loading and running its own full I18N.init(). Kept in sync with
-     I18N_SUPPORTED_CODES/detect() in i18n.js - duplicated here only
-     because this must run before any other script has loaded. */
-  try {
-    var __supportedLangs = ["en","hi","es","fr","de","pt","ja","zh","ko","ar"];
-    var __rtlLangs = ["ar"];
-    var __savedLang = localStorage.getItem("yoyopdf-lang");
-    if(!__savedLang || __supportedLangs.indexOf(__savedLang) === -1){
-      var __navLang = ((navigator.language || "en").toLowerCase().slice(0,2));
-      __savedLang = __supportedLangs.indexOf(__navLang) !== -1 ? __navLang : "en";
-    }
-    document.documentElement.setAttribute("lang", __savedLang);
-    document.documentElement.setAttribute("dir", __rtlLangs.indexOf(__savedLang) !== -1 ? "rtl" : "ltr");
-  } catch(e) {}
-</script>
-<script>
-  /* Every generated tool page (this same template, re-rendered per tool
-     by build/generate-landing.js) ships the identical static hero + tool-
-     grid markup as the homepage, for SEO/no-JS. On a real tool page,
-     app.js's own bottom IIFE synchronously calls TOOLS[pathToolId]() on
-     load, which opens the #overlay tool workspace - but that only
-     happens once the page has parsed and every deferred <script> (see
-     RUNTIME_LIBRARIES/RUNTIME_SCRIPTS below, all `defer`) has run, so
-     without this, the browser paints the raw static hero/grid first and
-     THEN swaps to the tool workspace: a visible flash of the "wrong"
-     page content. Fixed the same way the theme is - a synchronous
-     inline script, before first paint, that hides the static content up
-     front instead of letting JS reveal the right content after a
-     visible wrong-content frame. Paired with css/site.css's
-     html.tool-preload rule and openPanel()'s removal of this class in
-     js/core/panel.js (the actual reveal, the instant the real tool
-     workspace is ready - not a delay). The setTimeout below is a safety
-     net only (same "never stuck forever" pattern as motionEnter's own
-     guard in js/core/motion.js), for the edge case of a future SEO-only
-     landing page with no matching TOOLS[id] handler, or a blocked
-     script - never the primary reveal mechanism. Never applies on the
-     homepage itself (bare "/" or "/index.html"), which has no
-     auto-opening tool and always shows its grid immediately.
-
-     The inline style.visibility set alongside the class (not just the
-     class) exists for the same reason the background above is now also
-     inline: css/site.css's own html.tool-preload{visibility:hidden}
-     rule needs that external stylesheet loaded to take effect, which -
-     back when this site still used a cross-document View Transition
-     (see the theme script's comment above; that at-rule is now removed)
-     - wasn't always guaranteed before revealing this page. Ordinary
-     navigation render-blocks on css/site.css regardless, so the class
-     alone is sufficient now, but the inline property is kept as the same
-     harmless, zero-network-dependency defense-in-depth - build/
-     verify-dist.js forbids an inline STYLE element as the fix, so the
-     guarantee is expressed as a plain inline style property instead.
-     js/core/panel.js's real reveal and the setTimeout fallback below
-     both clear it the same way they already clear the class. */
-  if(location.pathname !== "/" && !/\/index\.html$/i.test(location.pathname) && location.pathname !== ""){
-    document.documentElement.classList.add("tool-preload");
-    document.documentElement.style.visibility = "hidden";
-    setTimeout(function(){
-      document.documentElement.classList.remove("tool-preload");
-      document.documentElement.style.visibility = "";
-    }, 2500);
-  }
-</script>
+<!-- Plain synchronous <script src> tags (no defer/async - order and
+     timing must stay exactly as before), not inline <script> blocks:
+     production's Content-Security-Policy (_headers) sets script-src
+     'self' https://cdnjs.cloudflare.com with no 'unsafe-inline' and no
+     nonce/hash, which silently blocks inline <script> execution. That
+     never showed up locally (local dev servers send no CSP header at
+     all), but in production it meant data-theme was never set before
+     first paint (a real light/dark flash) and the tool-preload hide-
+     until-ready script never ran either. See each file's own header
+     comment for the full explanation. -->
+<script src="js/core/pretheme.js"></script>
+<script src="js/core/prelanguage.js"></script>
+<script src="js/core/tool-preload.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Flatten PDF Form Fields Free Online | YOYOPDF</title>
@@ -227,45 +148,11 @@
      tools (Split/Extract Pages, PDF to Word, PDF<->Excel)
      - loaded on demand via ensureJSZip()/ensureMammoth()/ensureXLSX()
      instead of on every single page load regardless of which tool (if
-     any) the visitor actually uses. -->
-<script>
-function loadScriptOnce(src, integrity){
-  window.__scriptLoadPromises = window.__scriptLoadPromises || {};
-  if(window.__scriptLoadPromises[src]) return window.__scriptLoadPromises[src];
-  window.__scriptLoadPromises[src] = new Promise((resolve, reject)=>{
-    const s = document.createElement("script");
-    s.src = src;
-    // Same SRI reasoning as the route-selected eager CDN scripts above -
-    // these dependencies are fetched later, at tool-use time, but trust the CDN
-    // exactly as much.
-    if(integrity){ s.integrity = integrity; s.crossOrigin = "anonymous"; }
-    s.onload = resolve;
-    s.onerror = () => reject(new Error("Failed to load " + src));
-    document.head.appendChild(s);
-  });
-  return window.__scriptLoadPromises[src];
-}
-function ensurePDFLib(){ return typeof PDFLib!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js", "sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI"); }
-function ensurePDFJS(){
-  if(typeof pdfjsLib!=="undefined") return Promise.resolve();
-  return loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js", "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e").then(()=>{
-    if(window.YOYO_VENDOR_ASSETS) pdfjsLib.GlobalWorkerOptions.workerSrc = window.YOYO_VENDOR_ASSETS.pdfjsWorker;
-  });
-}
-function ensureJSZip(){ return typeof JSZip!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js", "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"); }
-function ensureMammoth(){ return typeof mammoth!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js", "sha384-nFoSjZIoH3CCp8W639jJyQkuPHinJ2NHe7on1xvlUA7SuGfJAfvMldrsoAVm6ECz"); }
-/* Word to PDF Hindi/Devanagari fix: pdf-lib's StandardFonts (Helvetica etc)
-   only support WinAnsi encoding, which cannot represent Devanagari at all -
-   these two are only loaded when word2pdf actually embeds a custom Unicode
-   font (see embedUnicodeFont() in pdf-convert-tools.js), never on plain-
-   English conversions. @pdf-lib/fontkit's UMD build calls a Babel-generator
-   -compiled function during complex-script shaping without bundling its own
-   regeneratorRuntime helper, so that polyfill must load first or shaping
-   throws a ReferenceError mid-conversion. */
-function ensureRegeneratorRuntime(){ return typeof regeneratorRuntime!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdn.jsdelivr.net/npm/regenerator-runtime@0.14.1/runtime.js", "sha384-OUN/6TBQWJ0V9kHVpZgUpqrgWENHMWqIBFHq8UEwg41L3EKbh39nX+5wiDPH29A5"); }
-function ensureFontkit(){ return typeof fontkit!=="undefined" ? Promise.resolve() : ensureRegeneratorRuntime().then(()=>loadScriptOnce("https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js", "sha384-2p6U+1mmqF10USehFeRiyG2ESG9FwIqN+jxULn5w9jjQIihSn9Pt13dVCn/Hawjn")); }
-function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js", "sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw"); }
-</script>
+     any) the visitor actually uses. Plain synchronous <script src>, not
+     an inline block, for the same CSP reason as the pre-paint scripts
+     above (see js/core/lazy-loaders.js's own header comment) - kept in
+     this exact position so load order/timing are unchanged. -->
+<script src="js/core/lazy-loaders.js"></script>
 <link rel="stylesheet" href="css/site.css?v=72">
 </head>
 <body>
