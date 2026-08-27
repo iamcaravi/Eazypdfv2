@@ -11,18 +11,21 @@
      forbids any inline STYLE element, one hashed external stylesheet
      only) so it's active from the very first parsed byte, with zero
      network dependency.
-     Needed specifically because this site's cross-document View
-     Transitions (@view-transition{navigation:auto} in css/site.css) can
-     reveal a destination page before its external stylesheet's render-
-     block resolves - confirmed via a screen recording plus a
-     MutationObserver diagnostic (logging data-theme with
-     performance.now() timestamps into sessionStorage across a real
-     navigation) that data-theme is ALWAYS correct the entire time; the
+     This used to be load-bearing because this site's cross-document View
+     Transitions (@view-transition{navigation:auto}, since REMOVED from
+     css/site.css) could reveal a destination page before its external
+     stylesheet's render-block resolves - confirmed via a screen
+     recording plus a MutationObserver diagnostic (logging data-theme
+     with performance.now() timestamps into sessionStorage across a real
+     navigation) that data-theme was ALWAYS correct the entire time; the
      flash was never a wrong theme value, it was the correctly-themed
      page rendering with default browser (white) styling because
-     css/site.css hadn't loaded yet. Once that stylesheet does load, its
-     own html{background:var(--paper)} rule re-applies the same value -
-     one source of truth, this is just available sooner. */
+     css/site.css hadn't loaded yet. Removing cross-document VT means
+     ordinary navigation now render-blocks on css/site.css before
+     painting anything, so that race no longer exists - this line is kept
+     anyway as harmless, zero-network-dependency defense-in-depth (once
+     css/site.css does load, its own html{background:var(--paper)} rule
+     re-applies the same value - one source of truth either way). */
   document.documentElement.style.background = (__savedTheme === "light") ? "#FAFAFA" : "#050505";
 </script>
 <script>
@@ -70,14 +73,17 @@
      The inline style.visibility set alongside the class (not just the
      class) exists for the same reason the background above is now also
      inline: css/site.css's own html.tool-preload{visibility:hidden}
-     rule needs that external stylesheet loaded to take effect, which a
-     cross-document View Transition can't always guarantee before
-     revealing this page (see the theme script's comment above for the
-     full diagnosis) - build/verify-dist.js forbids an inline STYLE
-     element as the fix, so the same guarantee is expressed as a plain
-     inline style property instead. js/core/panel.js's real reveal and
-     the setTimeout fallback below both clear it the same way they
-     already clear the class. */
+     rule needs that external stylesheet loaded to take effect, which -
+     back when this site still used a cross-document View Transition
+     (see the theme script's comment above; that at-rule is now removed)
+     - wasn't always guaranteed before revealing this page. Ordinary
+     navigation render-blocks on css/site.css regardless, so the class
+     alone is sufficient now, but the inline property is kept as the same
+     harmless, zero-network-dependency defense-in-depth - build/
+     verify-dist.js forbids an inline STYLE element as the fix, so the
+     guarantee is expressed as a plain inline style property instead.
+     js/core/panel.js's real reveal and the setTimeout fallback below
+     both clear it the same way they already clear the class. */
   if(location.pathname !== "/" && !/\/index\.html$/i.test(location.pathname) && location.pathname !== ""){
     document.documentElement.classList.add("tool-preload");
     document.documentElement.style.visibility = "hidden";

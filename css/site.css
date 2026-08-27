@@ -1,17 +1,29 @@
-/* Every tool open/close is a REAL cross-document navigation (see
-   openTool()/goHome() in app.js - each tool has its own physical page,
-   deliberately, for direct-URL/SEO correctness), which browsers
-   otherwise hard-cut between with a blank flash. @view-transition
-   opts every same-origin navigation on this site into the browser's
-   native cross-document View Transition, which automatically
-   crossfades old->new instead - zero JS, zero added latency, and a
-   complete no-op (falls back to the exact previous hard-cut behavior)
-   in any browser that doesn't support it yet. Not a redesign: it
-   doesn't change what renders, only how the browser paints the
-   transition between two already-correct pages. */
-@view-transition {
-  navigation: auto;
-}
+/* REMOVED: @view-transition{navigation:auto}. Every tool open/close is a
+   REAL cross-document navigation (see openTool()/goHome() in app.js -
+   each tool has its own physical page, deliberately, for direct-URL/SEO
+   correctness). This at-rule opted every such navigation into the
+   browser's native cross-document View Transition for a crossfade
+   instead of a hard cut - but that API snapshots the destination
+   document for its ::view-transition-new(root) paint as soon as it can,
+   which is not guaranteed to be after this file (an external, separately
+   fetched stylesheet) has finished applying. On a throttled connection
+   the destination's pre-paint theme script (index.html's inline
+   data-theme + background) had already run correctly, but the snapshot
+   could still be taken before --paper/--ink etc. resolved, painting a
+   real frame of the wrong (default browser light/unstyled) theme before
+   the correct one appeared - confirmed via frame-by-frame pixel
+   inspection of a throttled navigation, not just DOM state (data-theme
+   was correct the whole time; the compositor's painted frame wasn't).
+   No delay/background/visibility hack closes that race, because the race
+   is inside the browser's own VT snapshot timing, not this site's code.
+   Removing the at-rule removes cross-document VT entirely, which makes
+   every tool-opening navigation a plain hard navigation again: the
+   browser render-blocks on this stylesheet before painting anything, the
+   same guarantee any ordinary multi-page site relies on, so the wrong-
+   theme frame has nothing to attach to. Trade-off: navigations are a
+   hard cut again instead of a crossfade - accepted deliberately, because
+   a correct hard cut beats a wrong-theme crossfade. See
+   tests/browser/pixel-verify-navigation.mjs for the regression test. */
 :root{
   /* Was pure #FFFFFF/#F5FBF0 - a hair of blue keeps the page from
      reading as stark/clinical white while staying "mostly white" per
@@ -165,19 +177,16 @@
    only ever animates `scale`, and without a centered origin the icon
    would visibly grow off to one side instead of swelling in place. */
 .magnetic, .dock-item{ transform-origin:center; will-change:transform; }
-/* background here (not just on body below) matters specifically for
-   cross-document navigations: the browser's View Transition API (see
-   @view-transition at the top of this file) snapshots the ROOT element
-   (html), not body, for its ::view-transition-old/new(root) crossfade.
-   html previously had no background of its own - fully transparent -
-   so any moment the root's snapshot is taken before body's own paint
-   has "shown through" it (confirmed via a screen recording: a brief
-   flash of the browser's default white canvas during navigation to a
-   tool page, between the outgoing dark frame and the incoming themed
-   content) fell back to the browser's default white canvas instead of
-   staying dark. Same token body already uses, so both layers agree in
-   both themes - this doesn't change what the page looks like once
-   fully painted, only what's behind it during that root-level snapshot. */
+/* html previously had no background of its own - fully transparent -
+   which mattered while this site still used a cross-document View
+   Transition (see the removed @view-transition rule above): that API
+   snapshots the ROOT element (html), not body, and any moment the
+   snapshot was taken before body's own paint had "shown through" it
+   fell back to the browser's default white canvas instead of staying
+   themed. Cross-document VT is gone now, so ordinary render-blocking on
+   this stylesheet is what keeps that from happening - this rule is kept
+   anyway as harmless, correct-either-way defense-in-depth (same token
+   body already uses, so both layers always agree in both themes). */
 html{scroll-behavior:smooth; font-size:17.5px; background:var(--paper);}
 body{
   margin:0;
