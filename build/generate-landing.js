@@ -147,8 +147,8 @@ function renderToolDirectory() {
     '<section class="seo-tool-directory" aria-labelledby="seo-tool-directory-title">',
     '  <div class="seo-tool-directory-inner">',
     '    <div class="seo-tool-directory-head">',
-    '      <h2 id="seo-tool-directory-title">Explore YOYOPDF Tools</h2>',
-    '      <a class="seo-tool-directory-viewall" href="#tools">View all tools &rarr;</a>',
+    '      <h2 id="seo-tool-directory-title" data-i18n="home.exploreYoyopdfTools">Explore YOYOPDF Tools</h2>',
+    '      <a class="seo-tool-directory-viewall" href="#tools" data-i18n="home.viewAllToolsArrow">View all tools &rarr;</a>',
     "    </div>",
     '    <nav class="seo-tool-directory-groups" aria-label="All YOYOPDF tools">',
     groups,
@@ -379,8 +379,8 @@ function renderTool(tool) {
   out = replaceRequired(out, /<meta property="og:description" content="[^"]*">/, '<meta property="og:description" content="' + esc(tool.description) + '">', tool.slug + " og:description");
   out = replaceRequired(out, /<meta name="twitter:title" content="[^"]*">/, '<meta name="twitter:title" content="' + esc(tool.title) + '">', tool.slug + " twitter:title");
   out = replaceRequired(out, /<meta name="twitter:description" content="[^"]*">/, '<meta name="twitter:description" content="' + esc(tool.description) + '">', tool.slug + " twitter:description");
-  out = replaceRequired(out, /<h1><span class="hero-line1">[\s\S]*?<\/h1>/, "<h1>" + esc(h1) + "</h1>", tool.slug + " h1");
-  out = replaceRequired(out, /<p class="tagline">[\s\S]*?<\/p>/, '<p class="tagline">' + esc(valueProp) + "</p>", tool.slug + " tagline");
+  out = replaceRequired(out, /<h1><span class="hero-line1"[^>]*>[\s\S]*?<\/h1>/, "<h1>" + esc(h1) + "</h1>", tool.slug + " h1");
+  out = replaceRequired(out, /<p class="tagline"[^>]*>[\s\S]*?<\/p>/, '<p class="tagline">' + esc(valueProp) + "</p>", tool.slug + " tagline");
 
   out = replaceRequired(out, SOFTWAREAPP_JSONLD_RE, "<!-- TOOL_SCHEMA_INSERT -->\n", tool.slug + " homepage schema removal");
   out = replaceRequired(out, FAQPAGE_JSONLD_RE, "", tool.slug + " homepage FAQ schema removal");
