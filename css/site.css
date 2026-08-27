@@ -3649,32 +3649,101 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 }
 .contact-privacy-note svg{ width:14px; height:14px; flex:none; margin-top:2px; color:var(--ochre); }
 
-/* ---- Donate ---- */
-.donate-page-hero{ max-width:640px; }
+/* ---- Donate ----
+   .donate-card/.donate-amount-*/.donate-qr-wrap/.upi-badge are the
+   pre-existing premium-redesign tokens (glow via --brand-shadow-rgb,
+   already theme-correct: blue glow+CTA in light, lime in dark).
+   .donate-hero-grid is a TRUE 3-column row - copy (left) / donation
+   card (center) / heart illustration (right), all real grid siblings
+   (see TOOLS.donate in misc-tools.js) so align-items:center vertically
+   centers all three against each other in one pass, instead of the
+   card sitting in its own full-width block below a 2-column hero.
+   Restyles the benefit row into icon+title+subtitle cards and tightens
+   vertical spacing so the whole section reads as a compact premium
+   card row rather than a full landing page - without touching the
+   working amount-selection/QR/UPI logic those tokens back. */
+.donate-page{ padding-bottom:32px; }
+.donate-hero-grid{
+  display:grid; grid-template-columns:30fr 45fr 25fr; align-items:center; gap:24px;
+  max-width:1180px; margin:0 auto 28px; text-align:left;
+}
+/* Small heart mark above the heading - reuses the exact same heart path
+   already drawn for the CTA button and the thank-you line (no new
+   asset/icon), just sized down and given its own soft chip background
+   so it reads as a subtle brand accent, not a duplicate of the larger
+   illustration on the right. */
+.donate-hero-mark{
+  width:34px; height:34px; padding:8px; box-sizing:border-box; border-radius:12px;
+  background:rgba(var(--brand-shadow-rgb),0.12); color:var(--ochre); margin-bottom:10px;
+}
+.donate-hero-copy h1{
+  font-size:clamp(1.5rem, 2.4vw, 1.9rem); margin:0 0 10px; font-weight:800; letter-spacing:-0.01em; line-height:1.18;
+}
+.donate-hero-line{ display:block; }
+/* Own rule (not a .content-hero h1 .accent descendant match anymore,
+   since this hero no longer nests under .content-hero) - same token,
+   same visual result, just scoped to the new hero structure. */
+.donate-hero-copy h1 .accent{ color:var(--ochre); }
+.donate-hero-copy p{ color:var(--ink-soft); font-size:0.9rem; line-height:1.6; margin:0; max-width:32ch; }
+/* Noticeably larger than the previous 150x130 decorative size, still a
+   fixed modest box (never taller than the row it shares with the
+   donation card) so it can't push the section's overall height up or
+   overlap the card next to it - width auto-fits its own 25% column. */
+.donate-hero-art{ width:100%; max-width:220px; aspect-ratio:220/190; height:auto; justify-self:center; }
+@media(max-width:900px){
+  .donate-hero-grid{ grid-template-columns:1fr; text-align:center; justify-items:center; gap:18px; max-width:520px; }
+  .donate-hero-copy{ order:1; }
+  .donate-hero-art{ order:2; width:150px; max-width:150px; justify-self:center; }
+  .donate-card{ order:3; }
+  .donate-hero-copy p{ margin:0 auto; max-width:44ch; }
+}
 .donate-card{
   position:relative; overflow:hidden; background:var(--card-bg); border:1px solid var(--line); border-radius:22px;
-  padding:36px 40px; margin:8px auto 40px; max-width:620px;
-  box-shadow:0 30px 70px -42px rgba(0,0,0,0.4);
+  padding:28px 32px 26px; margin:0; width:100%; max-width:440px; justify-self:center;
+  /* Sharp border first, then a soft outer shadow, then the brand-colored
+     ambient glow beneath it - same layering language as the dark theme's
+     own --glow-shadow token (see :root/[data-theme=dark] above), applied
+     here at card-level instead of relying on ::before alone so the glow
+     reads on both themes without a separate light/dark override. */
+  box-shadow:0 1px 0 0 var(--line), 0 30px 70px -42px rgba(0,0,0,0.4), 0 0 60px -30px rgba(var(--brand-shadow-rgb),0.35);
   display:flex; flex-direction:column; align-items:center; text-align:center;
+  animation:donateCardIn .32s ease both;
 }
+@keyframes donateCardIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+@media (prefers-reduced-motion: reduce){ .donate-card{ animation:none; } }
 .donate-card::before{
   content:""; position:absolute; z-index:0; inset:-30% -10% auto -10%; height:60%;
   background:radial-gradient(50% 50% at 50% 0%, rgba(var(--brand-shadow-rgb),0.12), transparent 72%);
   pointer-events:none;
 }
 .donate-card > *{ position:relative; z-index:1; }
-.donate-amount-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:100%; margin:8px 0 4px; }
+.donate-amount-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:100%; margin:16px 0 4px; }
 @media(max-width:520px){ .donate-amount-grid{ grid-template-columns:1fr 1fr; } }
 .donate-amount-btn{
-  background:var(--paper-dim); border:1.5px solid var(--line); border-radius:12px; padding:14px 10px;
+  position:relative; background:var(--paper-dim); border:1.5px solid var(--line); border-radius:12px; padding:14px 10px;
   font-family:inherit; font-weight:700; font-size:1rem; color:var(--ink); cursor:pointer;
   transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease, color .18s ease;
 }
+@media (prefers-reduced-motion: reduce){ .donate-amount-btn{ transition:border-color .18s ease, background .18s ease, color .18s ease; } }
 .donate-amount-btn:hover{ border-color:rgba(var(--brand-shadow-rgb),0.5); transform:translateY(-1px); }
+.donate-amount-btn:focus-visible{ outline:2px solid var(--ochre); outline-offset:2px; }
 .donate-amount-btn.selected{
   border-color:var(--ochre); background:rgba(var(--brand-shadow-rgb),0.10); color:var(--ochre);
   box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.5), 0 0 22px rgba(var(--brand-shadow-rgb),0.22);
   transform:translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce){ .donate-amount-btn:hover, .donate-amount-btn.selected{ transform:none; } }
+/* Non-color selected indicator (accessibility: never rely on color
+   alone) - a check glyph, announced to screen readers via the button's
+   own aria-pressed rather than this purely-decorative mark. */
+.donate-amount-btn.selected::after{
+  content:"✓"; position:absolute; top:4px; right:6px; font-size:0.7rem; font-weight:800; color:var(--ochre);
+}
+.donate-badge{
+  position:absolute; top:-11px; left:50%; transform:translateX(-50%); white-space:nowrap;
+  background:var(--brand-grad); color:var(--btn-ink); font-size:0.62rem; font-weight:800;
+  letter-spacing:0.03em; text-transform:uppercase; padding:3px 9px; border-radius:20px;
+  box-shadow:0 4px 10px -4px rgba(var(--brand-shadow-rgb),0.6);
 }
 .donate-amount-custom{ grid-column:1/-1; margin-top:2px; }
 .donate-amount-custom input{
@@ -3684,11 +3753,44 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 }
 .donate-amount-custom input:focus{ outline:none; border-color:var(--red); box-shadow:0 0 0 3px rgba(var(--brand-shadow-rgb),0.18); }
 .donate-amount-custom input.selected{ border-color:var(--ochre); box-shadow:0 0 0 1px rgba(var(--brand-shadow-rgb),0.5), 0 0 22px rgba(var(--brand-shadow-rgb),0.22); }
-.donate-card .donate-qr-wrap{ margin:22px 0 6px; }
-.donate-card .btn{ width:100%; max-width:320px; font-size:1.02rem; padding:15px 24px; }
+.donate-btn-heart{ width:16px; height:16px; margin-right:7px; vertical-align:-3px; }
+.donate-card .donate-qr-wrap{ margin:14px 0 6px; }
+/* Higher specificity than the pre-existing ".donate-qr-wrap img" rule
+   (0,2,0) is required here, or that rule wins the cascade regardless of
+   source order and the "slightly larger QR" request silently no-ops. */
+.donate-card .donate-qr-wrap-lg img.donate-modal-qr-lg{ width:150px; height:150px; }
+.donate-card .btn{ width:100%; max-width:320px; font-size:1.02rem; padding:15px 24px; margin-top:18px; }
+.donate-card .btn:focus-visible{ outline:2px solid var(--ochre); outline-offset:3px; }
+.donate-payment-label{
+  margin:18px 0 2px; font-size:0.76rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
+  color:var(--ink-soft);
+}
 .donate-footnote{ margin:14px 0 0; font-size:0.84rem; color:var(--ink-soft); }
-.donate-support-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; max-width:960px; margin:0 auto; }
-@media(max-width:760px){ .donate-support-grid{ grid-template-columns:1fr; } }
+/* Compact icon+title+subtitle benefit cards - 4-up on desktop, 2-up once
+   they'd otherwise get too narrow to read. Same honest-claims-only
+   copy as before, now with a short supporting line per card instead of
+   a single-line pill, matching the brief's card layout without adding
+   any new claim. */
+.donate-benefit-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; max-width:960px; margin:24px auto 0; }
+@media(max-width:760px){ .donate-benefit-grid{ grid-template-columns:1fr 1fr; } }
+.donate-benefit-card{
+  display:flex; align-items:flex-start; gap:10px; text-align:left; padding:14px;
+  background:var(--paper-dim); border:1px solid var(--line); border-radius:14px;
+}
+.donate-benefit-icon{
+  flex:none; width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+  color:var(--ochre); background:rgba(var(--brand-shadow-rgb),0.12);
+}
+.donate-benefit-icon svg{ width:17px; height:17px; }
+.donate-benefit-card h3{ margin:0 0 2px; font-size:0.86rem; font-weight:700; color:var(--ink); }
+.donate-benefit-card p{ margin:0; font-size:0.76rem; line-height:1.4; color:var(--ink-soft); }
+.donate-thankyou{ max-width:520px; margin:26px auto 4px; text-align:center; }
+.donate-thankyou-title{
+  margin:0 0 4px; font-size:0.98rem; font-weight:700; color:var(--ink);
+  display:flex; align-items:center; justify-content:center; gap:7px;
+}
+.donate-thankyou-title svg{ width:15px; height:15px; color:var(--ochre); flex:none; }
+.donate-thankyou-desc{ margin:0; font-size:0.86rem; color:var(--ink-soft); }
 
 /* ---- Privacy / Terms shared content typography ----
    .legal-layout/.legal-header/.legal-nav/.legal-intro-callout/.legal-visual

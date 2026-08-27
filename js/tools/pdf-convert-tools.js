@@ -145,7 +145,428 @@ TOOLS.pdf2word = function(){
   }));
 };
 
-/* ---- Word to PDF (basic, text-only via mammoth) ---- */
+/* Word to PDF's Devanagari-safe Unicode font. pdf-lib's StandardFonts
+   (Helvetica etc) only support WinAnsi encoding - no Devanagari, no complex-
+   script shaping - which is why Hindi text in a DOCX previously came out
+   as garbled Latin-1 mojibake (or "?" marks, depending on the sanitizer):
+   the actual Unicode text mammoth extracts from the DOCX XML was always
+   correct, the corruption was entirely in how it got drawn onto the page.
+   Fixed by embedding a real OpenType Devanagari font (Noto Sans Devanagari,
+   OFL-licensed, Google Fonts) via pdf-lib's fontkit integration, which does
+   its own complex-script shaping (conjunct formation, matra reordering) -
+   not by pattern-matching/replacing specific characters, which would only
+   work for the exact sample text seen once and break on any other document.
+   One font is used for BOTH scripts (not switched per character run):
+   Noto Sans Devanagari covers Basic Latin as well as Devanagari, so mixed
+   Hindi+English text renders from a single embedded font, and its Latin
+   glyphs read as an ordinary sans-serif - plain-English documents still
+   look effectively the same as the previous Helvetica output.
+   A STATIC instance (Regular weight), not the variable NotoSansDevanagari
+   [wdth,wght].ttf Google Fonts ships today: embedding the variable font
+   through pdf-lib/fontkit produced a PDF whose text extracted correctly
+   but which pdf.js's own page.render() hung on indefinitely (confirmed the
+   hang wasn't Devanagari-specific - even plain Latin text through that
+   same embedded variable font hung the same way) - a real, if narrow,
+   rendering-compatibility risk not worth taking. Sourced from the Noto
+   Fonts project's own static-instance mirror instead, and pinned to a
+   specific commit (not a floating branch) so the asset can't silently
+   change later; the SHA-256 check only warns on a mismatch rather than
+   blocking the conversion, since a swapped font file is a rendering-
+   quality risk, not a code-execution one (unlike the @pdf-lib/fontkit
+   script pdf-lib actually executes, which uses a real SRI `integrity`
+   attribute in ensureFontkit() above). */
+const DEVANAGARI_FONTS = {
+  regular: {
+    url: "https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansDevanagari/full/ttf/NotoSansDevanagari-Regular.ttf",
+    sha256: "c82fb837eed9988ee6a240ce0635fe18f9c5859389206a24dfc348c926f42500",
+    bytesPromise: null,
+  },
+  bold: {
+    url: "https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansDevanagari/full/ttf/NotoSansDevanagari-Bold.ttf",
+    sha256: "1ebda0d88076fef54dd70b4dc48deb4dadf634cc9c7c325b812facb802ae3c51",
+    bytesPromise: null,
+  },
+};
+function loadDevanagariFontBytes(weight){
+  const entry = DEVANAGARI_FONTS[weight];
+  if(entry.bytesPromise) return entry.bytesPromise;
+  entry.bytesPromise = (async () => {
+    const resp = await fetch(entry.url);
+    if(!resp.ok) throw new Error("Devanagari font fetch failed: " + resp.status);
+    const bytes = await resp.arrayBuffer();
+    try {
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const hex = [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,"0")).join("");
+      if(hex !== entry.sha256) console.warn("Devanagari font hash mismatch - the CDN file may have changed since this was pinned.");
+    } catch(e) { /* crypto.subtle needs a secure context - skip the check rather than fail the conversion over it */ }
+    return bytes;
+  })().catch(e => { entry.bytesPromise = null; throw e; }); // don't cache a rejected fetch - a transient network failure shouldn't permanently break every future conversion this page session
+  return entry.bytesPromise;
+}
+async function embedUnicodeFont(pdfDoc, weight){
+  await ensureFontkit();
+  pdfDoc.registerFontkit(fontkit);
+  const fontBytes = await loadDevanagariFontBytes(weight === "bold" ? "bold" : "regular");
+  return pdfDoc.embedFont(fontBytes, {subset:true});
+}
+
+/* ==================================================================
+   Word to PDF's layout engine. Converts a run's text (Kruti Dev-aware, see below) into styled
+   "atoms" (words/spaces/tabs/breaks/images), word-wraps those atoms per paragraph using each atom's
+   OWN font/size (not one font per paragraph), and draws the result with real per-run bold/italic/
+   underline/strikethrough/color/superscript/subscript, real page geometry (size/orientation/margins
+   from the DOCX's own sectPr), real table column widths and colspan, inline images, headers/footers,
+   and page breaks (explicit and natural). This is what makes the converter actually preserve the
+   source document's layout instead of just its text - see docx-reader.js's own file header for
+   exactly which OOXML structures are read, and its "deliberately NOT attempted" list for the
+   disclosed gaps (floating shapes/text boxes, multi-column text flow, row-spanning cells, per-
+   section odd/even/first-page header or footer variants). */
+
+/* Same per-run Kruti Dev handling as before, adapted to the richer {text, style} atom shape:
+   Kruti Dev-fonted text goes through krutidevToUnicode(), everything else (already-Unicode Hindi,
+   English, any other font) passes through completely unchanged - see krutidev-to-unicode.js for why
+   this can never be "just swap the font": Kruti Dev's bytes are not Devanagari to begin with. */
+function wordTokenEffectiveText(token){
+  const raw = token.text;
+  const font = token.style && token.style.rFonts;
+  if(font && typeof isKrutiDevFontName === "function" && isKrutiDevFontName(font) && !/[ऀ-ॿ]/.test(raw)){
+    // Convert only the non-whitespace core and reattach the run's own original edge whitespace -
+    // krutidevToUnicode() ends with a .trim() (ported as-is from the library it's based on), and
+    // calling it on a token that starts/ends with meaningful whitespace would otherwise silently
+    // eat the space between this run and its neighbor (e.g. a Kruti Dev run ending in "...esa "
+    // right before a plain-font "Executive Engineer " run).
+    const lead = raw.match(/^\s*/)[0];
+    const trail = raw.slice(lead.length).match(/\s*$/)[0];
+    const core = raw.slice(lead.length, raw.length - trail.length);
+    return lead + krutidevToUnicode(core) + trail;
+  }
+  return raw;
+}
+
+// Noto Sans Devanagari has no italic style (Devanagari has no established italic convention, and
+// Noto doesn't ship one) - Devanagari runs render upright regardless of the source's italic flag.
+// Latin/other-script italic text uses pdf-lib's built-in Helvetica Oblique instead (no extra fetch/
+// embed cost - it's one of the 14 always-available StandardFonts), so real italic is still preserved
+// wherever the document can actually have it.
+function wordPickFont(text, bold, italic, fonts){
+  const hasDevanagari = /[ऀ-ॿ]/.test(text || "");
+  if(hasDevanagari) return bold ? fonts.bold : fonts.regular;
+  if(bold && italic) return fonts.boldItalic;
+  if(italic) return fonts.italic;
+  if(bold) return fonts.bold;
+  return fonts.regular;
+}
+
+function wordStyleFontSize(style){ return (style && style.sizePt) || 11; }
+
+// A paragraph's tokens (readDocxStructured()'s per-run text/tabs/breaks/images) become a flat list
+// of layout atoms: words and inter-word whitespace are split out separately (each still carrying
+// its own run's style) so word-wrap can measure and place them individually, rather than measuring
+// one paragraph-wide string in one font like the previous version of this function did.
+function wordBuildAtoms(paragraph){
+  const atoms = [];
+  for(const token of paragraph.tokens){
+    if(token.kind === "text"){
+      const text = wordTokenEffectiveText(token);
+      if(!text) continue;
+      for(const part of text.split(/(\s+)/)){
+        if(part === "") continue;
+        atoms.push({ kind: /^\s+$/.test(part) ? "space" : "word", text: part, style: token.style });
+      }
+    } else if(token.kind === "tab") atoms.push({ kind: "tab" });
+    else if(token.kind === "lineBreak") atoms.push({ kind: "break" });
+    else if(token.kind === "pageBreak") atoms.push({ kind: "pageBreak" });
+    else if(token.kind === "image") atoms.push({ kind: "image", relId: token.relId, widthPt: token.widthPt, heightPt: token.heightPt });
+  }
+  return atoms;
+}
+
+// Word-wraps one paragraph's atoms into lines, each line an array of placed pieces ({x, width,
+// text/font/size/style, or a tab/image}). Purely a measuring/placement pass - nothing is drawn here,
+// so the exact same lines can be used to both measure a block's total height (for footer placement
+// and page-break look-ahead) and to actually draw it.
+function wordWrapParagraph(paragraph, maxWidth, fonts){
+  const atoms = wordBuildAtoms(paragraph);
+  const firstLineIndent = paragraph.indentFirstLinePt || 0;
+  const tabStops = paragraph.tabStopsPt;
+  const lines = [];
+  let line = [], x = 0, isFirstLine = true;
+  const lineMax = () => Math.max(20, maxWidth - (isFirstLine ? Math.max(0, firstLineIndent) : 0));
+  function pushLine(){
+    const sizes = line.filter(p => p.size).map(p => p.size);
+    lines.push({ pieces: line, maxSize: sizes.length ? Math.max(...sizes) : 11 });
+    line = []; isFirstLine = false; x = 0;
+  }
+  x = isFirstLine ? Math.max(0, firstLineIndent) : 0;
+  for(const atom of atoms){
+    if(atom.kind === "break"){ pushLine(); x = isFirstLine ? Math.max(0, firstLineIndent) : 0; continue; }
+    if(atom.kind === "pageBreak"){ if(line.length) pushLine(); lines.push({ pageBreak: true }); x = 0; continue; }
+    if(atom.kind === "tab"){
+      let next;
+      if(tabStops && tabStops.length){ next = tabStops.find(s => s > x); if(next == null) next = x + 36; }
+      else next = (Math.floor(x / 36) + 1) * 36;
+      line.push({ kind: "tab", x, width: Math.max(0, next - x) });
+      x = next;
+      continue;
+    }
+    if(atom.kind === "image"){
+      if(line.length) pushLine();
+      lines.push({ pieces: [{ kind: "image", relId: atom.relId, widthPt: atom.widthPt, heightPt: atom.heightPt }], maxSize: atom.heightPt || 11 });
+      x = isFirstLine ? Math.max(0, firstLineIndent) : 0;
+      continue;
+    }
+    const bold = !!(atom.style && atom.style.bold), italic = !!(atom.style && atom.style.italic);
+    const font = wordPickFont(atom.text, bold, italic, fonts);
+    const size = wordStyleFontSize(atom.style);
+    const width = atom.text ? font.widthOfTextAtSize(atom.text, size) : 0;
+    if(atom.kind === "word" && x + width > lineMax() && line.length) pushLine();
+    line.push({ kind: "text", text: atom.text, style: atom.style, font, size, x, width });
+    x += width;
+  }
+  if(line.length) pushLine();
+  if(!lines.length) lines.push({ pieces: [], maxSize: 11 }); // an empty paragraph is still one blank line
+  return lines;
+}
+
+// auto: `value` is in 240ths of a line (360 = 1.5x); exact: `value` is a hard height in twips,
+// always used as-is; atLeast: same twips value, but only as a floor under the font's own natural
+// height (a bigger font on that line still gets more room).
+function wordLineHeightPt(paragraph, naturalPt){
+  const ls = paragraph.lineSpacing;
+  if(!ls) return naturalPt;
+  if(ls.rule === "exact") return ls.value / 20;
+  if(ls.rule === "atLeast") return Math.max(naturalPt, ls.value / 20);
+  return naturalPt * (ls.value / 240);
+}
+
+function wordMeasureLinesHeight(lines, paragraph){
+  return lines.reduce((sum, line) => sum + (line.pageBreak ? 0 : wordLineHeightPt(paragraph, (line.maxSize || 11) * 1.2)), 0);
+}
+
+/* Builds the actual PDF from readDocxStructured()'s sections. Each section gets its own page
+   geometry (page size/orientation/margins) and header/footer; body content flows down the page,
+   drawing every line, table row, and inline image in place, and starting a fresh page (of the
+   current section's geometry) whenever content would run past the bottom margin, an explicit Word
+   page break is hit, or a new section begins. */
+async function buildWordPdfBytes(sections, loadMediaBytes){
+  const doc = await PDFDocument.create();
+  const fonts = {
+    regular: await embedUnicodeFont(doc, "regular"),
+    bold: await embedUnicodeFont(doc, "bold"),
+    italic: await doc.embedFont(StandardFonts.HelveticaOblique),
+    boldItalic: await doc.embedFont(StandardFonts.HelveticaBoldOblique),
+  };
+
+  // Every inline image is embedded up front, once, into a flat relId -> pdf-lib image cache. This
+  // keeps the actual page-layout pass below fully synchronous (no async calls interleaved with the
+  // page-break bookkeeping it already has to do), and naturally de-duplicates an image reused
+  // multiple times (e.g. a letterhead logo repeated via the header on every page).
+  const imageCache = {};
+  async function collectImageRelIds(blocksOrRows, relIds){
+    for(const block of blocksOrRows){
+      if(!block) continue;
+      if(block.type === "paragraph"){
+        for(const token of block.tokens) if(token.kind === "image") relIds.add(token.relId);
+      } else if(block.type === "table"){
+        for(const row of block.rows) for(const cell of row) await collectImageRelIds(cell.paragraphs, relIds);
+      }
+    }
+  }
+  const allRelIds = new Set();
+  for(const { section, blocks } of sections){
+    await collectImageRelIds(blocks, allRelIds);
+    if(section.header) await collectImageRelIds(section.header, allRelIds);
+    if(section.footer) await collectImageRelIds(section.footer, allRelIds);
+  }
+  for(const relId of allRelIds){
+    try {
+      const media = await loadMediaBytes(relId);
+      if(!media) continue;
+      imageCache[relId] = media.format === "png" ? await doc.embedPng(media.bytes) : await doc.embedJpg(media.bytes);
+    } catch(e) { /* an unreadable/corrupt embedded image shouldn't fail the whole conversion */ }
+  }
+
+  let page, geo, y;
+
+  function drawPieceRun(pieces, startY, opts){
+    // Draws one already-wrapped line's pieces at a given baseline y. `opts.dryRun` skips the actual
+    // page.drawText/Image calls (used for measuring header/footer height before positioning them).
+    const dryRun = opts && opts.dryRun;
+    for(const piece of pieces){
+      if(piece.kind === "tab") continue;
+      if(piece.kind === "image"){
+        const img = imageCache[piece.relId];
+        if(img && !dryRun){
+          const w = piece.widthPt || img.width, h = piece.heightPt || img.height;
+          const ix = geo.marginLeft + Math.max(0, (geo.maxWidth - w) / 2);
+          page.drawImage(img, { x: ix, y: startY - h, width: w, height: h });
+        }
+        continue;
+      }
+      if(!piece.text || dryRun) continue;
+      const style = piece.style || {};
+      const isSuper = style.vertAlign === "superscript", isSub = style.vertAlign === "subscript";
+      const size = isSuper || isSub ? piece.size * 0.68 : piece.size;
+      const yOff = isSuper ? piece.size * 0.32 : (isSub ? -piece.size * 0.14 : 0);
+      const color = style.color ? rgb(style.color.r, style.color.g, style.color.b) : undefined;
+      const drawX = piece.lineX + piece.x;
+      page.drawText(piece.text, Object.assign({ x: drawX, y: startY + yOff, size, font: piece.font }, color ? { color } : {}));
+      if(style.underline || style.strike){
+        const lineY = startY + yOff + (style.strike ? size * 0.3 : -size * 0.08);
+        page.drawLine({ start: { x: drawX, y: lineY }, end: { x: drawX + piece.width, y: lineY }, thickness: Math.max(0.5, size * 0.05), color: color || rgb(0,0,0) });
+      }
+    }
+  }
+
+  function lineStartX(line, paragraph){
+    const contentWidth = line.pieces.reduce((s,p)=> s + (p.width||0), 0);
+    const avail = geo.maxWidth - (paragraph.indentLeftPt||0) - (paragraph.indentRightPt||0);
+    let x = geo.marginLeft + (paragraph.indentLeftPt||0);
+    if(paragraph.align === "center") x += Math.max(0, (avail - contentWidth) / 2);
+    else if(paragraph.align === "right" || paragraph.align === "end") x += Math.max(0, avail - contentWidth);
+    return x;
+  }
+
+  async function newPage(){
+    page = doc.addPage([geo.widthPt, geo.heightPt]);
+    y = geo.heightPt - geo.marginTop;
+    if(geo.header && geo.header.length) drawFixedBlocks(geo.header, geo.heightPt - geo.headerPt);
+    if(geo.footer && geo.footer.length){
+      const h = measureBlocksHeight(geo.footer);
+      drawFixedBlocks(geo.footer, geo.footerPt + h);
+    }
+  }
+
+  function measureBlocksHeight(blocks){
+    let h = 0;
+    for(const block of blocks){
+      if(block.type !== "paragraph") continue;
+      const lines = wordWrapParagraph(block, geo.maxWidth - (block.indentLeftPt||0) - (block.indentRightPt||0), fonts);
+      h += (block.spaceBeforePt||0) + wordMeasureLinesHeight(lines, block) + (block.spaceAfterPt||0);
+    }
+    return h;
+  }
+
+  // Draws a small self-contained block list (header/footer) top-down from a fixed y, with no page-
+  // break handling of its own - headers/footers are expected to be a few short lines, not multi-page
+  // content.
+  function drawFixedBlocks(blocks, startY){
+    let fy = startY;
+    for(const block of blocks){
+      if(block.type !== "paragraph") continue;
+      const w = geo.maxWidth - (block.indentLeftPt||0) - (block.indentRightPt||0);
+      const lines = wordWrapParagraph(block, w, fonts);
+      fy -= (block.spaceBeforePt||0);
+      lines.forEach(line => {
+        if(line.pageBreak) return;
+        const lh = wordLineHeightPt(block, (line.maxSize||11) * 1.2);
+        const lineX = lineStartX(line, block);
+        drawPieceRun(line.pieces.map(p => Object.assign({}, p, { lineX })), fy - lh*0.8);
+        fy -= lh;
+      });
+      fy -= (block.spaceAfterPt||0);
+    }
+  }
+
+  function newPageIfNeeded(need){ if(y - need < geo.marginBottom) return true; return false; }
+
+  async function drawParagraph(paragraph){
+    if(paragraph.pageBreakBefore){ await newPage(); }
+    const w = geo.maxWidth - (paragraph.indentLeftPt||0) - (paragraph.indentRightPt||0);
+    const lines = wordWrapParagraph(paragraph, w, fonts);
+    y -= (paragraph.spaceBeforePt||0);
+    let first = true;
+    for(const line of lines){
+      if(line.pageBreak){ await newPage(); first = true; continue; }
+      const lh = wordLineHeightPt(paragraph, (line.maxSize||11) * 1.2);
+      if(newPageIfNeeded(lh)) await newPage();
+      let lineX = lineStartX(line, paragraph);
+      if(first && paragraph.listMarker){
+        const markerFont = fonts.regular;
+        const markerStr = paragraph.listMarker + " ";
+        page.drawText(markerStr, { x: geo.marginLeft, y: y - lh*0.8, size: (line.maxSize||11), font: markerFont });
+      }
+      drawPieceRun(line.pieces.map(p => Object.assign({}, p, { lineX })), y - lh*0.8);
+      y -= lh;
+      first = false;
+    }
+    y -= (paragraph.spaceAfterPt||0);
+  }
+
+  async function drawTable(table){
+    const rows = table.rows;
+    if(!rows.length) return;
+    const colCount = Math.max(1, ...rows.map(r => r.reduce((s,c)=>s+(c.gridSpan||1),0)));
+    const totalGridWidth = (table.gridColsPt||[]).reduce((s,w)=>s+(w||0),0);
+    const colWidths = (table.gridColsPt && table.gridColsPt.length === colCount && totalGridWidth > 0)
+      ? table.gridColsPt.map(w => w * (geo.maxWidth / totalGridWidth)) // scale to fit the page's real content width
+      : new Array(colCount).fill(geo.maxWidth / colCount);
+    y -= 4;
+    for(const row of rows){
+      const cellWidths = [];
+      { let ci = 0; for(const cell of row){ const span=cell.gridSpan||1; cellWidths.push(colWidths.slice(ci,ci+span).reduce((s,w)=>s+w,0)); ci+=span; } }
+      const cellLines = row.map((cell,i) => cell.paragraphs.map(p => wordWrapParagraph(p, Math.max(10, cellWidths[i]-10), fonts)));
+      const rowHeight = Math.max(16, ...row.map((cell,i) =>
+        cell.paragraphs.reduce((s,p,pi) => s + wordMeasureLinesHeight(cellLines[i][pi], p) + 4, 4)
+      ));
+      if(newPageIfNeeded(rowHeight)) await newPage();
+      const rowTop = y;
+      let cx = geo.marginLeft;
+      row.forEach((cell, ci) => {
+        const cw = cellWidths[ci];
+        if(cell.shadeRgb) page.drawRectangle({ x: cx, y: rowTop - rowHeight, width: cw, height: rowHeight, color: rgb(cell.shadeRgb.r, cell.shadeRgb.g, cell.shadeRgb.b) });
+        page.drawRectangle({ x: cx, y: rowTop - rowHeight, width: cw, height: rowHeight, borderColor: rgb(0.55,0.55,0.55), borderWidth: 0.6 });
+        let cy = rowTop - 5;
+        cell.paragraphs.forEach((p, pi) => {
+          const lines = cellLines[ci][pi];
+          lines.forEach(line => {
+            if(line.pageBreak) return;
+            const lh = wordLineHeightPt(p, (line.maxSize||9.5) * 1.2);
+            const contentWidth = line.pieces.reduce((s,pc)=> s + (pc.width||0), 0);
+            let lineX = cx + 5;
+            if(p.align === "center") lineX += Math.max(0, (cw - 10 - contentWidth) / 2);
+            else if(p.align === "right" || p.align === "end") lineX += Math.max(0, cw - 10 - contentWidth);
+            drawPieceRun(line.pieces.map(pc => Object.assign({}, pc, { lineX })), cy - lh*0.8);
+            cy -= lh;
+          });
+        });
+        cx += cw;
+      });
+      y = rowTop - rowHeight;
+    }
+    y -= 8;
+  }
+
+  for(const { section, blocks } of sections){
+    geo = {
+      widthPt: section.landscape ? Math.max(section.widthPt, section.heightPt) : section.widthPt,
+      heightPt: section.landscape ? Math.min(section.widthPt, section.heightPt) : section.heightPt,
+      marginTop: section.marginTopPt, marginBottom: section.marginBottomPt,
+      marginLeft: section.marginLeftPt, marginRight: section.marginRightPt,
+      headerPt: section.headerPt, footerPt: section.footerPt,
+      header: section.header, footer: section.footer,
+    };
+    geo.maxWidth = geo.widthPt - geo.marginLeft - geo.marginRight;
+    await newPage();
+    for(const block of blocks){
+      if(block.type === "paragraph") await drawParagraph(block);
+      else if(block.type === "table") await drawTable(block);
+    }
+  }
+
+  return doc.save();
+}
+
+/* ---- Word to PDF (basic layout fidelity; Kruti Dev-aware) ----
+   Reads word/document.xml directly (docx-reader.js) rather than going through mammoth, since Kruti
+   Dev detection needs each run's actual font name, which mammoth's plain-text extraction discards.
+   See krutidev-to-unicode.js / docx-reader.js for the two pieces this is built on:
+     - a Unicode Hindi document (Mangal, Nirmala UI, ...) is drawn completely unchanged.
+     - a Kruti Dev document (any "Kruti Dev NNN" font run) has ONLY those runs converted from the
+       legacy Kruti Dev byte encoding to real Unicode Devanagari before drawing - never a font swap
+       alone, since Kruti Dev's bytes are not Devanagari to begin with (see krutidev-to-unicode.js).
+     - a mixed document (Hindi in Kruti Dev + English in a normal font, or Kruti Dev + Unicode Hindi
+       in the same file) converts only the runs that are actually Kruti Dev-fonted, per run. */
 TOOLS.word2pdf = function(){
   const t = window.I18N ? I18N.t : (k)=>k;
   let file=null;
@@ -177,50 +598,39 @@ TOOLS.word2pdf = function(){
     // Same rapid-file-replacement/double-click guard as PDF to Word above.
     goBtn.disabled = true;
     try {
-    await ensureMammoth();
     const arrayBuffer = await file.arrayBuffer();
-    let result;
+    let structured;
     try {
-      /* mammoth.extractRawText() has been observed to hang indefinitely
-         (never resolving or rejecting) rather than erroring, in some
-         environments - without this timeout, that leaves the tool stuck
-         on "Reading document..." forever with no way forward, unlike
-         pdfThumb's failures elsewhere which can degrade gracefully (no
-         text extracted means there's nothing to build a PDF from, so
-         this one has to surface as a real error, not a silent skip). */
-      result = await Promise.race([
-        mammoth.extractRawText({arrayBuffer}),
+      /* readDocxStructured() unzips with JSZip and parses XML with DOMParser - both synchronous-
+         ish and well-behaved, unlike mammoth.extractRawText() (see the timeout this replaced in an
+         earlier version of this function) - but kept under the same kind of timeout regardless,
+         since a pathological/huge document is still a real possibility. */
+      structured = await Promise.race([
+        readDocxStructured(arrayBuffer),
         new Promise((_, reject) => setTimeout(() => reject(new Error(t("toolWord2pdf.errTookTooLong"))), 15000))
       ]);
     } catch(e) {
       out.innerHTML = `<div class="status" style="color:var(--rose)">${t("toolWord2pdf.errCouldNotRead", {msg: escapeAttr(e.message)})}</div>`;
       return;
     }
-    const text = winAnsiSafe(result.value);
+    setStatus(t("toolWord2pdf.statusConverting"));
+    if(!operation.isCurrent()) return;
     setStatus(t("toolWord2pdf.statusRenderingPages"));
     let outBytes;
     try {
-      const doc = await PDFDocument.create();
-      const font = await doc.embedFont(StandardFonts.Helvetica);
-      const size=11, margin=50, maxWidth=495, lineHeight=15;
-      let page = doc.addPage([595,842]); let y = 842-margin;
-      function newPageIfNeeded(){ if(y<margin){ page=doc.addPage([595,842]); y=842-margin; } }
-      text.split("\n").forEach(para=>{
-        const words = para.split(/\s+/);
-        let line="";
-        for(const w of words){
-          const test = line? line+" "+w : w;
-          if(font.widthOfTextAtSize(test,size) > maxWidth){
-            page.drawText(line, {x:margin,y,size,font}); y-=lineHeight; newPageIfNeeded(); line=w;
-          } else line=test;
-        }
-        page.drawText(line,{x:margin,y,size,font}); y-=lineHeight; newPageIfNeeded();
-      });
-      outBytes = await doc.save();
+      outBytes = await buildWordPdfBytes(structured.sections, structured.loadMediaBytes);
     } catch(e) {
       out.innerHTML = `<div class="status" style="color:var(--rose)">${t("toolWord2pdf.errCouldNotBuild", {msg: escapeAttr(e.message)})}</div>`;
       return;
     }
+    // Output validation (requirement: never hand back a silently-broken file): a real PDF must
+    // parse back with at least one page and a non-trivial byte size.
+    if(!outBytes || !outBytes.length){
+      out.innerHTML = `<div class="status" style="color:var(--rose)">${t("toolWord2pdf.errCouldNotBuild", {msg: "empty output"})}</div>`;
+      return;
+    }
+    setStatus(t("toolWord2pdf.statusFinalizing"));
+    if(!operation.isCurrent()) return;
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "converted", "pdf");
     setStatus(T("workspace.statusPreparingDownload"));

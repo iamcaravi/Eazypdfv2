@@ -361,67 +361,120 @@ TOOLS.edit = function(){
 };
 
 /* ---- DONATE ----
-   Premium redesign - large central donation card with a decorative
-   amount picker (visual/UX only: this site has no payment gateway, the
-   actual transfer always happens by scanning the SAME UPI QR code below
-   and entering the amount inside the user's own UPI app, exactly as
-   before this redesign - selecting a pill here never changes which QR
-   is shown or fires any network request, so "do not change existing
-   functionality" holds exactly). qrSrc is read from the homepage's own
-   hidden #donate section BEFORE openPanel() replaces #panel's contents -
-   same lookup this function already used pre-redesign. */
+   Premium redesign - compact two-column hero + a single donation card
+   with a decorative amount picker (visual/UX only: this site has no
+   payment gateway, the actual transfer always happens by scanning the
+   SAME UPI QR code below and entering the amount inside the user's own
+   UPI app - selecting a pill here never changes which QR is shown or
+   fires any network request, so "do not change existing functionality"
+   holds exactly). qrSrc is read from the homepage's own hidden #donate
+   section BEFORE openPanel() replaces #panel's contents - same lookup
+   this function already used pre-redesign.
+
+   DONATE_HEART_SVG is a small, self-contained decorative illustration
+   (no external asset, nothing to fetch/break) - a glowing heart over a
+   soft platform with a few sparkles, all drawn with the site's own
+   theme-aware brand tokens (--brand-shadow-rgb/--red/--ochre) so it's
+   automatically lime in dark mode and blue in light mode, matching
+   every other brand-colored element on this page. Purely decorative
+   (aria-hidden on its wrapper), so it never needs alt text or i18n. */
+const DONATE_HEART_SVG = `<svg viewBox="0 0 220 190" width="100%" height="100%" role="presentation" focusable="false">
+  <defs>
+    <radialGradient id="donateHeartGlow" cx="50%" cy="38%" r="60%">
+      <stop offset="0%" stop-color="var(--ochre)" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="var(--ochre)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="donateHeartFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--ochre)" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="var(--ochre)" stop-opacity="0.55"/>
+    </linearGradient>
+    <radialGradient id="donatePlatformGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="var(--ochre)" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="var(--ochre)" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="110" cy="150" rx="95" ry="34" fill="url(#donatePlatformGlow)"/>
+  <ellipse cx="110" cy="150" rx="58" ry="12" fill="none" stroke="var(--ochre)" stroke-opacity="0.35" stroke-width="1.5"/>
+  <circle cx="110" cy="88" r="70" fill="url(#donateHeartGlow)"/>
+  <path d="M110 118S66 92 66 60c0-16 13-26 27-24 8 1 14 6 17 12 3-6 9-11 17-12 14-2 27 8 27 24 0 32-44 58-44 58z"
+        fill="url(#donateHeartFill)" stroke="var(--ochre)" stroke-width="1.5" stroke-linejoin="round"/>
+  <g fill="var(--ochre)">
+    <circle cx="45" cy="40" r="2.4"/>
+    <circle cx="176" cy="52" r="2"/>
+    <circle cx="160" cy="24" r="1.6"/>
+    <circle cx="34" cy="78" r="1.6"/>
+    <path d="M188 96l2.6 5.4 5.4 2.6-5.4 2.6-2.6 5.4-2.6-5.4-5.4-2.6 5.4-2.6z" opacity="0.85"/>
+    <path d="M30 108l2 4.2 4.2 2-4.2 2-2 4.2-2-4.2-4.2-2 4.2-2z" opacity="0.7"/>
+  </g>
+</svg>`;
+
 TOOLS.donate = function(){
   const t = window.I18N ? I18N.t : (k)=>k;
   const qrSrc = document.querySelector(".donate-qr-wrap img")?.getAttribute("src") || "";
+  // "YOYOPDF" is a proper noun kept literal in every locale's translation
+  // (confirmed - every language's misc.donateHeroLine2 string already
+  // contains the untranslated brand name), so a plain substring wrap is
+  // safe here without needing a second, HTML-aware string per language.
+  // Reuses the SAME .accent class/selector every other content-page hero
+  // on this site already uses for its own emphasized word - not a new,
+  // parallel accent system.
+  const heroLine2Html = escapeAttr(t("misc.donateHeroLine2")).replace(/YOYOPDF/g, '<span class="accent">YOYOPDF</span>');
+  const benefits = [
+    { icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18M12 8V5a2 2 0 114 0v3M8 5a2 2 0 114 0v3"/></svg>', title:"misc.donateBenefit1Title", desc:"misc.donateBenefit1Desc" },
+    { icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/></svg>', title:"misc.donateBenefit2Title", desc:"misc.donateBenefit2Desc" },
+    { icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18 14 14 0 010-18z"/></svg>', title:"misc.donateBenefit3Title", desc:"misc.donateBenefit3Desc" },
+    { icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8.5" cy="8" r="3"/><circle cx="16" cy="9" r="2.4"/><path d="M2.5 20c0-3.3 2.7-6 6-6s6 2.7 6 6M14.5 14.2c2.6.4 4.5 2.6 4.5 5.3"/></svg>', title:"misc.donateBenefit4Title", desc:"misc.donateBenefit4Desc" },
+  ];
   openPanel(`
     <div class="panel-head"><h3>${t("misc.donateTitle")}</h3><div class="panel-head-actions"><button class="panel-close" aria-label="${t("workspace.closePanel")}">✕</button></div></div>
     <div class="panel-body compact">
-      <div class="content-page">
-        <div class="content-hero donate-page-hero">
-          <h1>${t("misc.donateHeroTitle")}</h1>
-          <p>${t("misc.donateHeroDesc")}</p>
-        </div>
+      <div class="content-page donate-page">
+        <div class="donate-hero-grid">
+          <div class="donate-hero-copy">
+            <svg class="donate-hero-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20s-7-4.35-9.5-8.5C.5 8 2 4.5 5.5 4c2-.3 3.7.7 4.5 2 .8-1.3 2.5-2.3 4.5-2C18 4.5 19.5 8 17.5 11.5 15 15.65 12 20 12 20z"/></svg>
+            <h1><span class="donate-hero-line">${t("misc.donateHeroLine1")}</span><span class="donate-hero-line">${heroLine2Html}</span></h1>
+            <p>${t("misc.donateHeroDesc")}</p>
+          </div>
 
-        <div class="donate-card">
-          <div class="donate-amount-grid" id="donateAmounts">
-            <button type="button" class="donate-amount-btn" data-amount="100">₹100</button>
-            <button type="button" class="donate-amount-btn" data-amount="250">₹250</button>
-            <button type="button" class="donate-amount-btn selected" data-amount="500">₹500</button>
-            <button type="button" class="donate-amount-btn" data-amount="1000">₹1,000</button>
-            <div class="donate-amount-custom">
-              <input type="number" min="1" inputmode="numeric" id="donateCustomAmount" placeholder="${t("misc.donateCustomAmountPlaceholder")}">
+          <div class="donate-card">
+            <div class="donate-amount-grid" id="donateAmounts" role="group" aria-label="${t("misc.donateTitle")}">
+              <button type="button" class="donate-amount-btn" data-amount="100" aria-pressed="false">₹100</button>
+              <button type="button" class="donate-amount-btn" data-amount="250" aria-pressed="false">₹250</button>
+              <button type="button" class="donate-amount-btn selected" data-amount="500" aria-pressed="true"><span class="donate-badge">${t("misc.donateRecommended")}</span>₹500</button>
+              <button type="button" class="donate-amount-btn" data-amount="1000" aria-pressed="false">₹1,000</button>
+              <div class="donate-amount-custom">
+                <label for="donateCustomAmount" class="visually-hidden">${t("misc.donateCustomAmountPlaceholder")}</label>
+                <input type="number" min="1" inputmode="numeric" id="donateCustomAmount" placeholder="${t("misc.donateCustomAmountPlaceholder")}">
+              </div>
+            </div>
+            <button type="button" class="btn" id="donateSupportBtn"><svg class="donate-btn-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20s-7-4.35-9.5-8.5C.5 8 2 4.5 5.5 4c2-.3 3.7.7 4.5 2 .8-1.3 2.5-2.3 4.5-2C18 4.5 19.5 8 17.5 11.5 15 15.65 12 20 12 20z"/></svg>${t("misc.donateTitle")}</button>
+
+            <p class="donate-payment-label">${t("misc.donatePaymentLabel")}</p>
+            <div class="donate-qr-wrap donate-qr-wrap-lg">
+              <img src="${qrSrc}" alt="${t("misc.donateQrAlt")}" class="donate-modal-qr donate-modal-qr-lg">
+              <span>${t("misc.donateScanNote")}</span>
+            </div>
+            <div class="upi-logos">
+              <span class="upi-badge"><span class="dot" style="background:#4285F4"></span>Google Pay</span>
+              <span class="upi-badge"><span class="dot" style="background:#5F259F"></span>PhonePe</span>
+              <span class="upi-badge"><span class="dot" style="background:#00BAF2"></span>Paytm</span>
+              <span class="upi-badge"><span class="dot" style="background:var(--brand-grad)"></span>BHIM UPI</span>
             </div>
           </div>
-          <button type="button" class="btn" id="donateSupportBtn">${t("misc.donateTitle")}</button>
-          <div class="donate-qr-wrap">
-            <img src="${qrSrc}" alt="${t("misc.donateQrAlt")}" class="donate-modal-qr">
-            <span>${t("misc.donateScanNote")}</span>
-          </div>
-          <div class="upi-logos">
-            <span class="upi-badge"><span class="dot" style="background:#4285F4"></span>Google Pay</span>
-            <span class="upi-badge"><span class="dot" style="background:#5F259F"></span>PhonePe</span>
-            <span class="upi-badge"><span class="dot" style="background:#00BAF2"></span>Paytm</span>
-            <span class="upi-badge"><span class="dot" style="background:var(--brand-grad)"></span>BHIM UPI</span>
-          </div>
-        </div>
-        <p class="donate-footnote">${t("misc.donateFootnote")}</p>
 
-        <div class="donate-support-grid" style="margin-top:28px">
-          <div class="feature-card">
-            <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7v8l10-12h-7z"/></svg></div>
-            <h3>${t("misc.donateCard1Title")}</h3>
-            <p>${t("misc.donateCard1Desc")}</p>
-          </div>
-          <div class="feature-card">
-            <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
-            <h3>${t("misc.donateCard2Title")}</h3>
-            <p>${t("misc.donateCard2Desc")}</p>
-          </div>
-          <div class="feature-card">
-            <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></div>
-            <h3>${t("misc.donateCard3Title")}</h3>
-            <p>${t("misc.donateCard3Desc")}</p>
-          </div>
+          <div class="donate-hero-art" aria-hidden="true">${DONATE_HEART_SVG}</div>
+        </div>
+
+        <div class="donate-benefit-grid">
+          ${benefits.map(b=>`<div class="donate-benefit-card">
+            <div class="donate-benefit-icon">${b.icon}</div>
+            <div><h3>${t(b.title)}</h3><p>${t(b.desc)}</p></div>
+          </div>`).join("")}
+        </div>
+
+        <div class="donate-thankyou">
+          <p class="donate-thankyou-title"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20s-7-4.35-9.5-8.5C.5 8 2 4.5 5.5 4c2-.3 3.7.7 4.5 2 .8-1.3 2.5-2.3 4.5-2C18 4.5 19.5 8 17.5 11.5 15 15.65 12 20 12 20z"/></svg>${t("misc.donateThankYouTitle")}</p>
+          <p class="donate-thankyou-desc">${t("misc.donateThankYouDesc")}</p>
         </div>
       </div>
       ${contentPageTailHTML()}
@@ -432,15 +485,16 @@ TOOLS.donate = function(){
   const customInput = document.getElementById("donateCustomAmount");
   amountBtns.forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      amountBtns.forEach(b=>b.classList.remove("selected"));
+      amountBtns.forEach(b=>{ b.classList.remove("selected"); b.setAttribute("aria-pressed","false"); });
       btn.classList.add("selected");
+      btn.setAttribute("aria-pressed","true");
       customInput.classList.remove("selected");
       customInput.value = "";
     });
   });
   customInput.addEventListener("input", ()=>{
     if(!customInput.value) return;
-    amountBtns.forEach(b=>b.classList.remove("selected"));
+    amountBtns.forEach(b=>{ b.classList.remove("selected"); b.setAttribute("aria-pressed","false"); });
     customInput.classList.add("selected");
   });
   // The actual donation still only ever happens by scanning the QR code

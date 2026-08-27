@@ -1,23 +1,34 @@
-/* ---------------- Tool registry ---------------- */
+/* ---------------- Tool registry ----------------
+   Category set/labels/colors/icons are unchanged - only the ORDER of
+   categories, and the order of tools within "convert"/"edit", moved.
+   PDF to Word, PDF to Excel and Edit PDF were the first 1-2 entries a
+   visitor scanning "All PDF Tools" (this same array flattened, both in
+   the mega-menu columns and in the #toolCategories homepage grid - see
+   below) would hit; they're still fully listed, fully functional, same
+   names/URLs/metadata, just moved to roughly the middle of the overall
+   35-tool list (positions ~15-17 of 35, was ~1-11) via: (a) "convert"
+   and "edit" no longer being the first two categories, and (b) those
+   three tools no longer being the first item(s) within their own
+   category's list. */
 const CATEGORIES = [
-  { id:"convert", title:"Convert", tools:[
-    ["pdf2word","PDF to Word"],["pdf2excel","PDF to Excel"],["jpg2pdf","JPG to PDF"],
-    ["pdf2jpg","PDF to JPG"],["word2pdf","Word to PDF"],["excel2pdf","Excel to PDF"],
-    ["pdf2pptx","PDF to PowerPoint"],["mergeexcel","Merge Excel"],
-  ]},
-  { id:"edit", title:"Edit", tools:[
-    ["merge","Merge PDF"],["split","Split PDF"],["edit","Edit PDF"],
-    ["rotate","Rotate PDF"],["watermark","Add Watermark"],
-    ["organize","Organize PDF"],["pagenumbers","Add Page Numbers"],["crop","Crop PDF"],
-    ["deletepages","Delete Pages"],["extractpages","Extract Pages"],["addblank","Add Blank Page"],
-    ["reorder","Reorder Pages"],["headerfooter","Add Header & Footer"],["invertpdf","Invert PDF Colors"],
-  ]},
   { id:"optimize", title:"Optimize", tools:[
     ["compress","Compress PDF"],["imgcompress","Image Compressor"],["repair","Repair PDF"],
   ]},
   { id:"security", title:"Security", tools:[
     ["sign","Sign PDF"],["flatten","Flatten PDF"],["fillform","Fill PDF Form"],
     ["protect","Protect PDF"],["unlock","Unlock PDF"],
+  ]},
+  { id:"convert", title:"Convert", tools:[
+    ["jpg2pdf","JPG to PDF"],["pdf2jpg","PDF to JPG"],["word2pdf","Word to PDF"],
+    ["excel2pdf","Excel to PDF"],["pdf2pptx","PDF to PowerPoint"],["mergeexcel","Merge Excel"],
+    ["pdf2word","PDF to Word"],["pdf2excel","PDF to Excel"],
+  ]},
+  { id:"edit", title:"Edit", tools:[
+    ["edit","Edit PDF"],["merge","Merge PDF"],["split","Split PDF"],
+    ["rotate","Rotate PDF"],["watermark","Add Watermark"],
+    ["organize","Organize PDF"],["pagenumbers","Add Page Numbers"],["crop","Crop PDF"],
+    ["deletepages","Delete Pages"],["extractpages","Extract Pages"],["addblank","Add Blank Page"],
+    ["reorder","Reorder Pages"],["headerfooter","Add Header & Footer"],["invertpdf","Invert PDF Colors"],
   ]},
   { id:"images", title:"Images", tools:[
     ["imgresize","Resize Image"],["imgcrop","Crop Image"],["imgconvert","Convert Image Format"],

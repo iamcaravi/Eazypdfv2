@@ -40,6 +40,8 @@ const SCRIPT_ORDER = Object.freeze([
   "js/tools/pdf-page-tools-2.js",
   "js/core/doc-export-builders.js",
   "js/core/xlsx-merge.js",
+  "js/core/krutidev-to-unicode.js",
+  "js/core/docx-reader.js",
   "js/tools/pdf-convert-tools.js",
   "js/tools/pdf-signing-tools.js",
   "js/tools/image-tools.js",
@@ -63,7 +65,7 @@ const BASE_SCRIPTS = Object.freeze([
 const PROFILE_SCRIPTS = Object.freeze({
   page1: Object.freeze(["js/core/pdf-canvas-widgets.js", "js/tools/pdf-page-tools-1.js"]),
   page2: Object.freeze(["js/core/pdf-canvas-widgets.js", "js/tools/pdf-page-tools-2.js"]),
-  convert: Object.freeze(["js/core/pdf-canvas-widgets.js", "js/core/doc-export-builders.js", "js/core/xlsx-merge.js", "js/tools/pdf-convert-tools.js"]),
+  convert: Object.freeze(["js/core/pdf-canvas-widgets.js", "js/core/doc-export-builders.js", "js/core/xlsx-merge.js", "js/core/krutidev-to-unicode.js", "js/core/docx-reader.js", "js/tools/pdf-convert-tools.js"]),
   signing: Object.freeze(["js/core/pdf-canvas-widgets.js", "js/tools/pdf-signing-tools.js"]),
   image: Object.freeze(["js/tools/image-tools.js"]),
   security: Object.freeze(["js/core/pdf-crypto.js", "js/core/pdf-canvas-widgets.js", "js/tools/pdf-security-tools.js"]),
