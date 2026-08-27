@@ -165,7 +165,20 @@
    only ever animates `scale`, and without a centered origin the icon
    would visibly grow off to one side instead of swelling in place. */
 .magnetic, .dock-item{ transform-origin:center; will-change:transform; }
-html{scroll-behavior:smooth; font-size:17.5px;}
+/* background here (not just on body below) matters specifically for
+   cross-document navigations: the browser's View Transition API (see
+   @view-transition at the top of this file) snapshots the ROOT element
+   (html), not body, for its ::view-transition-old/new(root) crossfade.
+   html previously had no background of its own - fully transparent -
+   so any moment the root's snapshot is taken before body's own paint
+   has "shown through" it (confirmed via a screen recording: a brief
+   flash of the browser's default white canvas during navigation to a
+   tool page, between the outgoing dark frame and the incoming themed
+   content) fell back to the browser's default white canvas instead of
+   staying dark. Same token body already uses, so both layers agree in
+   both themes - this doesn't change what the page looks like once
+   fully painted, only what's behind it during that root-level snapshot. */
+html{scroll-behavior:smooth; font-size:17.5px; background:var(--paper);}
 body{
   margin:0;
   background:var(--paper);
