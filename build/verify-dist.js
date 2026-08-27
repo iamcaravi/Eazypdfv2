@@ -188,8 +188,16 @@ for (const page of appPages) {
   if (JSON.stringify(externalScripts.map((tag) => tag.src)) !== JSON.stringify(runtime.libraries.map((library) => library.src))) {
     fail(page + " does not match its generated external runtime profile");
   }
+  // Phase 13: these 7 pinned hashes must be reachable from every page
+  // somehow, but not necessarily inline in THIS page's own HTML any more -
+  // jszip/mammoth/xlsx (and the lazy pdf-lib/pdf.js fallbacks) live only in
+  // the one shared lazy-loaders.js now, not duplicated per page. gsap/
+  // ScrollTrigger's hash is still always inline (every profile loads them
+  // eagerly), and non-image profiles still have pdf-lib/pdf.js inline too.
   for (const hash of sriHashes) {
-    if (!html.includes(hash)) fail(page + " is missing Phase 8 SRI hash " + hash);
+    if (!html.includes(hash) && !(lazyLoaderSource && lazyLoaderSource.includes(hash))) {
+      fail(page + " is missing Phase 8 SRI hash " + hash + " (checked page HTML and lazy-loaders.js)");
+    }
   }
   for (const library of runtime.libraries) {
     const tag = externalScripts.find((candidate) => candidate.src === library.src);
