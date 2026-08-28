@@ -39,6 +39,40 @@ async function downloadBytes(page, linkSelector, timeout = 30_000) {
   return readFileSync(path);
 }
 
+async function inspectRenderedPdf(page, bytes) {
+  return page.evaluate(async (data) => {
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(data) });
+    const pdf = await loadingTask.promise;
+    const pages = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      const pdfPage = await pdf.getPage(pageNumber);
+      const viewport = pdfPage.getViewport({ scale: 1 });
+      const content = await pdfPage.getTextContent();
+      const items = content.items.filter((item) => item.str.trim()).map((item) => ({
+        text: item.str,
+        x: item.transform[4],
+        y: item.transform[5],
+        width: item.width || 0,
+        height: item.height || Math.abs(item.transform[3]) || 0,
+      }));
+      const overlaps = [];
+      for (let i = 0; i < items.length; i++) {
+        const a = items[i];
+        for (let j = i + 1; j < items.length; j++) {
+          const b = items[j];
+          const xOverlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+          const yOverlap = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+          if (xOverlap > 0.6 && yOverlap > 0.6) overlaps.push([a.text, b.text]);
+        }
+      }
+      const outOfBounds = items.filter((item) => item.x < 30 || item.x + item.width > viewport.width - 30);
+      pages.push({ text: items.map((item) => item.text).join("\n"), overlaps, outOfBounds });
+    }
+    await pdf.destroy();
+    return { pageCount: pages.length, pages };
+  }, Array.from(bytes));
+}
+
 test("PDF to Word: produces a real, ZIP-based .docx (not a renamed/empty file)", async ({ page }) => {
   const errors = captureRuntimeErrors(page);
   await page.goto("/pdf-to-word");
@@ -56,6 +90,8 @@ test("PDF to Word: produces a real, ZIP-based .docx (not a renamed/empty file)",
 
 test("Word to PDF: converts a real .docx's text into a decodable PDF", async ({ page }) => {
   const errors = captureRuntimeErrors(page);
+  const requests = [];
+  page.on("request", (request) => requests.push(request.url()));
   await page.goto("/word-to-pdf");
   await page.locator("#fi").setInputFiles(minimalDocx);
   await expect(page.locator("#go")).toBeVisible();
@@ -64,6 +100,65 @@ test("Word to PDF: converts a real .docx's text into a decodable PDF", async ({ 
   const bytes = await downloadBytes(page, 'a.dl-link[download="minimal_converted.pdf"]');
   const result = await PDFDocument.load(bytes);
   expect(result.getPageCount()).toBeGreaterThanOrEqual(1);
+  const rendered = await inspectRenderedPdf(page, bytes);
+  expect(rendered.pages.map((p) => p.text).join("\n")).toContain("YOYOPDF DOCX fixture");
+  expect(requests.some((url) => url.includes("assets/vendor/regenerator-runtime/0.14.1/runtime.js"))).toBe(true);
+  expect(requests.some((url) => url.includes("assets/vendor/pdf-lib-fontkit/1.1.1/fontkit.umd.min.js"))).toBe(true);
+  expect(requests.some((url) => url.includes("assets/vendor/noto-sans-devanagari/"))).toBe(true);
+  expect(requests.filter((url) => url.includes("cdn.jsdelivr.net"))).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("Word to PDF: preserves paragraphs, a table, Unicode Hindi, and Kruti Dev text", async ({ page }) => {
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/word-to-pdf");
+  const docxBytes = await page.evaluate(async () => {
+    await ensureJSZip();
+    const zip = new JSZip();
+    zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+        <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+        <Default Extension="xml" ContentType="application/xml"/>
+        <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+        <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+      </Types>`);
+    zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+        <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+      </Relationships>`);
+    zip.file("word/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+        <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>
+        <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>
+      </w:styles>`);
+    zip.file("word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+        <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Conversion Quality Report</w:t></w:r></w:p>
+        <w:p><w:r><w:t>This is the first paragraph with enough text to verify clean wrapping and readable structure in the generated PDF.</w:t></w:r></w:p>
+        <w:p><w:r><w:t>This is a separate second paragraph.</w:t></w:r></w:p>
+        <w:tbl><w:tblGrid><w:gridCol w:w="3200"/><w:gridCol w:w="3200"/></w:tblGrid>
+          <w:tr><w:tc><w:p><w:r><w:t>Item</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr>
+          <w:tr><w:tc><w:p><w:r><w:t>Readable table row</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>42</w:t></w:r></w:p></w:tc></w:tr>
+        </w:tbl>
+        <w:p><w:r><w:rPr><w:rFonts w:ascii="Mangal" w:hAnsi="Mangal"/></w:rPr><w:t>नमस्ते भारत</w:t></w:r></w:p>
+        <w:p><w:r><w:rPr><w:rFonts w:ascii="Kruti Dev 010" w:hAnsi="Kruti Dev 010"/></w:rPr><w:t>lsok esa</w:t></w:r></w:p>
+        <w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" w:header="720" w:footer="720"/></w:sectPr>
+      </w:body></w:document>`);
+    return Array.from(await zip.generateAsync({ type: "uint8array" }));
+  });
+  await page.locator("#fi").setInputFiles({ name: "structured-hindi.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: Buffer.from(docxBytes) });
+  await page.locator("#go").click();
+
+  const bytes = await downloadBytes(page, 'a.dl-link[download="structured-hindi_converted.pdf"]', 45_000);
+  const rendered = await inspectRenderedPdf(page, bytes);
+  const text = rendered.pages.map((p) => p.text).join("\n");
+  expect(text).toContain("Conversion Quality Report");
+  expect(text).toContain("first paragraph");
+  expect(text).toContain("separate second paragraph");
+  expect(text).toContain("Readable table row");
+  expect(text).toContain("नमस्ते भारत");
+  expect(text).toContain("सेवा में");
+  expect(rendered.pages.flatMap((p) => p.overlaps)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -116,6 +211,55 @@ test("Excel to PDF: converts a real .xlsx's first sheet into a decodable PDF", a
   const bytes = await downloadBytes(page, 'a.dl-link[download="minimal_converted.pdf"]');
   const result = await PDFDocument.load(bytes);
   expect(result.getPageCount()).toBeGreaterThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
+test("Excel to PDF: wraps measured rows and paginates a wide, long worksheet without text overlap", async ({ page }) => {
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/excel-to-pdf");
+  const workbookBytes = await page.evaluate(async () => {
+    await ensureXLSX();
+    const headers = ["Record", "Customer", "Detailed description", "Quantity", "Unit price", "Total", "Date", "Status", "Region", "Owner", "Reference", "Notes", "Tax", "Balance", "Category", "Department", "Code", "Approved by"];
+    const rows = [headers];
+    for(let i=1;i<=75;i++) rows.push([
+      i,
+      `Customer ${i}`,
+      `Customer record number ${i} contains a deliberately long description that must wrap inside its own cell without entering neighbouring columns.`,
+      i%9+1,
+      123.45,
+      (i%9+1)*123.45,
+      new Date(2026,0,(i%28)+1),
+      i%2 ? "Pending review" : "Approved",
+      `Region ${i%5+1}`,
+      `Owner ${i%8+1}`,
+      `REF-${String(i).padStart(5,"0")}`,
+      `Additional notes for row ${i} wrap cleanly.`,
+      18.5,
+      5184.75,
+      `Category ${i%4+1}`,
+      `Department ${i%6+1}`,
+      `C${i}`,
+      `Reviewer ${i%3+1}`,
+    ]);
+    const sheet = XLSX.utils.aoa_to_sheet(rows,{cellDates:true});
+    sheet["!cols"] = headers.map((_,i)=>({wch:i===2?34:(i===11?24:12)}));
+    sheet["!rows"] = [{hpt:28},...Array.from({length:75},(_,i)=>i%10===0?{hpt:30}:null)];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook,sheet,"Operations Report");
+    return Array.from(new Uint8Array(XLSX.write(workbook,{bookType:"xlsx",type:"array",cellDates:true})));
+  });
+  await page.locator("#fi").setInputFiles({ name: "layout-stress.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(workbookBytes) });
+  await page.locator("#go").click();
+
+  const bytes = await downloadBytes(page, 'a.dl-link[download="layout-stress_converted.pdf"]', 45_000);
+  const result = await PDFDocument.load(bytes);
+  expect(result.getPageCount()).toBeGreaterThan(2);
+  const rendered = await inspectRenderedPdf(page, bytes);
+  const allText = rendered.pages.map((p) => p.text).join("\n");
+  expect(allText).toContain("Customer record number 42");
+  expect(allText).toContain("5184.75");
+  expect(rendered.pages.flatMap((p) => p.overlaps)).toEqual([]);
+  expect(rendered.pages.flatMap((p) => p.outOfBounds)).toEqual([]);
   expect(errors).toEqual([]);
 });
 

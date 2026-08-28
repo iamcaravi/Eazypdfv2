@@ -168,21 +168,20 @@ TOOLS.pdf2word = function(){
    hang wasn't Devanagari-specific - even plain Latin text through that
    same embedded variable font hung the same way) - a real, if narrow,
    rendering-compatibility risk not worth taking. Sourced from the Noto
-   Fonts project's own static-instance mirror instead, and pinned to a
-   specific commit (not a floating branch) so the asset can't silently
-   change later; the SHA-256 check only warns on a mismatch rather than
-   blocking the conversion, since a swapped font file is a rendering-
-   quality risk, not a code-execution one (unlike the @pdf-lib/fontkit
-   script pdf-lib actually executes, which uses a real SRI `integrity`
-   attribute in ensureFontkit() above). */
+   Fonts project's own static-instance mirror, pinned to a specific upstream
+   commit, and vendored as a same-origin production asset. The SHA-256 check
+   only warns on a mismatch rather than blocking the conversion, since a
+   swapped font file is a rendering-quality risk, not a code-execution one
+   (unlike the @pdf-lib/fontkit script pdf-lib actually executes, which uses
+   a real SRI `integrity` attribute in ensureFontkit() above). */
 const DEVANAGARI_FONTS = {
   regular: {
-    url: "https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansDevanagari/full/ttf/NotoSansDevanagari-Regular.ttf",
+    url: "assets/vendor/noto-sans-devanagari/3a06b1c521155492df224d33464b3c7b2852d861/NotoSansDevanagari-Regular.ttf",
     sha256: "c82fb837eed9988ee6a240ce0635fe18f9c5859389206a24dfc348c926f42500",
     bytesPromise: null,
   },
   bold: {
-    url: "https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansDevanagari/full/ttf/NotoSansDevanagari-Bold.ttf",
+    url: "assets/vendor/noto-sans-devanagari/3a06b1c521155492df224d33464b3c7b2852d861/NotoSansDevanagari-Bold.ttf",
     sha256: "1ebda0d88076fef54dd70b4dc48deb4dadf634cc9c7c325b812facb802ae3c51",
     bytesPromise: null,
   },
@@ -868,7 +867,264 @@ TOOLS.pdf2pptx = function(){
   }));
 };
 
-/* ---- Excel to PDF (basic table layout) ---- */
+/* ---- Excel to PDF measured table layout ---- */
+const EXCEL_PDF_LAYOUT = Object.freeze({
+  pageWidth: 842,
+  pageHeight: 595,
+  margin: 32,
+  titleHeight: 22,
+  fontSize: 8.5,
+  headerFontSize: 9,
+  lineHeight: 11.5,
+  paddingX: 5,
+  paddingY: 4,
+  minRowHeight: 20,
+  minColWidth: 46,
+  maxColWidth: 180,
+});
+
+function excelPdfCellText(sheet, row, col){
+  const cell = sheet[XLSX.utils.encode_cell({r:row, c:col})];
+  if(!cell || cell.v == null) return "";
+  let value = cell.w;
+  if(value == null){
+    try { value = XLSX.utils.format_cell(cell); }
+    catch(e) { value = cell.v instanceof Date ? cell.v.toLocaleDateString() : cell.v; }
+  }
+  return winAnsiSafe(String(value == null ? "" : value).replace(/\r\n?/g, "\n").replace(/\t/g, "    "));
+}
+
+function excelPdfMeasure(font, text, size){
+  if(!text) return 0;
+  try { return font.widthOfTextAtSize(text, size); }
+  catch(e) { return text.length * size * 0.52; }
+}
+
+/* Wrap at words when possible, then split an overlong word character-by-character.
+   Every returned line is guaranteed to fit maxWidth, which is the invariant that
+   prevents one cell's text from ever entering its neighbour. */
+function excelPdfWrapText(text, font, size, maxWidth){
+  const result = [];
+  const width = Math.max(4, maxWidth);
+  const pushLongWord = word => {
+    let chunk = "";
+    for(const ch of word){
+      const candidate = chunk + ch;
+      if(chunk && excelPdfMeasure(font, candidate, size) > width){ result.push(chunk); chunk = ch; }
+      else chunk = candidate;
+    }
+    if(chunk) result.push(chunk);
+  };
+  String(text).split("\n").forEach(paragraph => {
+    if(!paragraph){ result.push(""); return; }
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+    let line = "";
+    words.forEach(word => {
+      const candidate = line ? line + " " + word : word;
+      if(excelPdfMeasure(font, candidate, size) <= width){ line = candidate; return; }
+      if(line){ result.push(line); line = ""; }
+      if(excelPdfMeasure(font, word, size) <= width) line = word;
+      else pushLongWord(word);
+    });
+    if(line) result.push(line);
+  });
+  return result.length ? result : [""];
+}
+
+function excelPdfFindMerge(merges, row, col){
+  return merges.find(m => row >= m.s.r && row <= m.e.r && col >= m.s.c && col <= m.e.c) || null;
+}
+
+function excelPdfScaleWidths(widths, usableWidth){
+  const cfg = EXCEL_PDF_LAYOUT;
+  let out = widths.slice();
+  let total = out.reduce((sum,w)=>sum+w,0);
+  if(total <= usableWidth || out.length * cfg.minColWidth > usableWidth) return out;
+  out = out.map(w => Math.max(cfg.minColWidth, w * usableWidth / total));
+  total = out.reduce((sum,w)=>sum+w,0);
+  for(let pass=0; pass<4 && total>usableWidth+0.1; pass++){
+    const flexible = out.map((w,i)=>({i, room:w-cfg.minColWidth})).filter(x=>x.room>0.01);
+    const room = flexible.reduce((sum,x)=>sum+x.room,0);
+    if(!room) break;
+    const excess = total-usableWidth;
+    flexible.forEach(x => { out[x.i] -= Math.min(x.room, excess * x.room / room); });
+    total = out.reduce((sum,w)=>sum+w,0);
+  }
+  return out;
+}
+
+function excelPdfColumnWidths(sheet, range, visibleRows, visibleCols, regularFont, boldFont){
+  const cfg = EXCEL_PDF_LAYOUT;
+  const sheetCols = sheet["!cols"] || [];
+  const headerRow = visibleRows[0];
+  return visibleCols.map(col => {
+    const meta = sheetCols[col] || {};
+    let requested = 0;
+    if(Number.isFinite(meta.wpx)) requested = meta.wpx * 72/96;
+    else if(Number.isFinite(meta.wch)) requested = (meta.wch * 7 + 5) * 72/96;
+    else if(Number.isFinite(meta.width)) requested = (meta.width * 7 + 5) * 72/96;
+    let content = cfg.minColWidth;
+    visibleRows.forEach(row => {
+      const text = excelPdfCellText(sheet,row,col);
+      if(!text) return;
+      const font = row === headerRow ? boldFont : regularFont;
+      const size = row === headerRow ? cfg.headerFontSize : cfg.fontSize;
+      const widest = text.split("\n").reduce((max,line)=>Math.max(max,excelPdfMeasure(font,line,size)),0);
+      content = Math.max(content, Math.min(cfg.maxColWidth, widest + cfg.paddingX*2));
+    });
+    return Math.max(cfg.minColWidth, Math.min(cfg.maxColWidth, Math.max(requested,content)));
+  });
+}
+
+function excelPdfColumnBands(visibleCols, widths, usableWidth){
+  const cfg = EXCEL_PDF_LAYOUT;
+  const scaled = excelPdfScaleWidths(widths, usableWidth);
+  if(scaled.reduce((sum,w)=>sum+w,0) <= usableWidth+0.1){
+    return [{cols:visibleCols.slice(), widths:scaled}];
+  }
+  const bands = [];
+  let cols = [], bandWidths = [], used = 0;
+  visibleCols.forEach((col,i) => {
+    const width = Math.min(usableWidth, Math.max(cfg.minColWidth,scaled[i]));
+    if(cols.length && used+width > usableWidth){ bands.push({cols,widths:bandWidths}); cols=[]; bandWidths=[]; used=0; }
+    cols.push(col); bandWidths.push(width); used += width;
+  });
+  if(cols.length) bands.push({cols,widths:bandWidths});
+  return bands;
+}
+
+function excelPdfRowLayout(sheet, row, band, merges, regularFont, boldFont, isHeader){
+  const cfg = EXCEL_PDF_LAYOUT;
+  const entries = [];
+  let pos = 0;
+  while(pos < band.cols.length){
+    const col = band.cols[pos];
+    const merge = excelPdfFindMerge(merges,row,col);
+    let endPos = pos;
+    let sourceRow = row, sourceCol = col;
+    if(merge){
+      while(endPos+1 < band.cols.length && band.cols[endPos+1] <= merge.e.c) endPos++;
+      sourceRow = merge.s.r; sourceCol = merge.s.c;
+    }
+    const width = band.widths.slice(pos,endPos+1).reduce((sum,w)=>sum+w,0);
+    const text = (!merge || row === merge.s.r) ? excelPdfCellText(sheet,sourceRow,sourceCol) : "";
+    const cell = sheet[XLSX.utils.encode_cell({r:sourceRow,c:sourceCol})];
+    const font = isHeader ? boldFont : regularFont;
+    const size = isHeader ? cfg.headerFontSize : cfg.fontSize;
+    const lines = excelPdfWrapText(text,font,size,width-cfg.paddingX*2);
+    entries.push({pos,endPos,width,text,cell,font,size,lines,align:!isHeader && cell && (cell.t === "n" || cell.t === "d") ? "right" : "left"});
+    pos = endPos+1;
+  }
+  const maxLines = Math.max(1,...entries.map(entry=>entry.lines.length));
+  const rowMeta = (sheet["!rows"] || [])[row] || {};
+  const requestedHeight = Number.isFinite(rowMeta.hpt) ? rowMeta.hpt : (Number.isFinite(rowMeta.hpx) ? rowMeta.hpx*72/96 : 0);
+  const height = Math.max(cfg.minRowHeight, requestedHeight, maxLines*cfg.lineHeight+cfg.paddingY*2);
+  return {row,entries,maxLines,height,isHeader};
+}
+
+function excelPdfDrawRow(page, topY, band, layout, lineOffset, lineCount, height, striped){
+  const cfg = EXCEL_PDF_LAYOUT;
+  let x = cfg.margin;
+  layout.entries.forEach(entry => {
+    const fill = layout.isHeader ? rgb(0.90,0.95,0.90) : (striped ? rgb(0.975,0.98,0.975) : rgb(1,1,1));
+    page.drawRectangle({x,y:topY-height,width:entry.width,height,color:fill,borderColor:rgb(0.68,0.72,0.68),borderWidth:0.55});
+    entry.lines.slice(lineOffset,lineOffset+lineCount).forEach((line,lineIndex) => {
+      if(!line) return;
+      const textWidth = excelPdfMeasure(entry.font,line,entry.size);
+      const textX = entry.align === "right"
+        ? x + entry.width - cfg.paddingX - textWidth
+        : x + cfg.paddingX;
+      page.drawText(line,{x:Math.max(x+cfg.paddingX,textX),y:topY-cfg.paddingY-entry.size-lineIndex*cfg.lineHeight,size:entry.size,font:entry.font,color:rgb(0.10,0.12,0.10)});
+    });
+    x += entry.width;
+  });
+}
+
+async function buildExcelPdfBytes(sheet, sheetName){
+  const cfg = EXCEL_PDF_LAYOUT;
+  const doc = await PDFDocument.create();
+  const regularFont = await doc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
+  let range;
+  try { range = sheet && sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null; }
+  catch(e) { range = null; }
+  if(!range){
+    const page = doc.addPage([cfg.pageWidth,cfg.pageHeight]);
+    page.drawText("This worksheet is empty.",{x:cfg.margin,y:cfg.pageHeight-cfg.margin-14,size:11,font:regularFont,color:rgb(0.2,0.2,0.2)});
+    return doc.save();
+  }
+
+  const rowMeta = sheet["!rows"] || [], colMeta = sheet["!cols"] || [];
+  const visibleRows = [];
+  const visibleCols = [];
+  for(let r=range.s.r;r<=range.e.r;r++) if(!(rowMeta[r] && rowMeta[r].hidden)) visibleRows.push(r);
+  for(let c=range.s.c;c<=range.e.c;c++) if(!(colMeta[c] && colMeta[c].hidden)) visibleCols.push(c);
+  if(!visibleRows.length || !visibleCols.length){
+    const page = doc.addPage([cfg.pageWidth,cfg.pageHeight]);
+    page.drawText("This worksheet has no visible cells.",{x:cfg.margin,y:cfg.pageHeight-cfg.margin-14,size:11,font:regularFont,color:rgb(0.2,0.2,0.2)});
+    return doc.save();
+  }
+
+  const usableWidth = cfg.pageWidth-cfg.margin*2;
+  const widths = excelPdfColumnWidths(sheet,range,visibleRows,visibleCols,regularFont,boldFont);
+  const bands = excelPdfColumnBands(visibleCols,widths,usableWidth);
+  const merges = (sheet["!merges"] || []).filter(m => m.e.r>=range.s.r && m.s.r<=range.e.r && m.e.c>=range.s.c && m.s.c<=range.e.c);
+  const headerRow = visibleRows[0];
+
+  for(let bandIndex=0;bandIndex<bands.length;bandIndex++){
+    const band = bands[bandIndex];
+    const headerLayout = excelPdfRowLayout(sheet,headerRow,band,merges,regularFont,boldFont,true);
+    let page, y, renderedBodyRows;
+    const title = winAnsiSafe(String(sheetName || "Sheet")).slice(0,90) + (bands.length>1 ? `  -  columns ${XLSX.utils.encode_col(band.cols[0])}-${XLSX.utils.encode_col(band.cols[band.cols.length-1])}` : "");
+
+    function startPage(repeatHeader){
+      page = doc.addPage([cfg.pageWidth,cfg.pageHeight]);
+      y = cfg.pageHeight-cfg.margin;
+      page.drawText(title,{x:cfg.margin,y:y-11,size:11,font:boldFont,color:rgb(0.12,0.20,0.13)});
+      y -= cfg.titleHeight;
+      renderedBodyRows = 0;
+      if(repeatHeader){
+        const h = Math.min(headerLayout.height,y-cfg.margin);
+        excelPdfDrawRow(page,y,band,headerLayout,0,headerLayout.maxLines,h,false);
+        y -= h;
+      }
+    }
+
+    startPage(false);
+    for(const row of visibleRows){
+      const isHeader = row === headerRow;
+      const layout = isHeader ? headerLayout : excelPdfRowLayout(sheet,row,band,merges,regularFont,boldFont,false);
+      const maxPageRowHeight = cfg.pageHeight-cfg.margin*2-cfg.titleHeight-(isHeader ? 0 : Math.min(headerLayout.height,80));
+      if(layout.height <= maxPageRowHeight){
+        if(y-layout.height < cfg.margin) startPage(!isHeader);
+        excelPdfDrawRow(page,y,band,layout,0,layout.maxLines,layout.height,!isHeader && renderedBodyRows%2===1);
+        y -= layout.height;
+        if(!isHeader) renderedBodyRows++;
+        continue;
+      }
+
+      // A pathological single row can be taller than a complete page. It is
+      // the only case where keeping the row whole is physically impossible;
+      // continue its wrapped lines on following pages instead of clipping or
+      // allowing them to overlap another row.
+      let lineOffset = 0;
+      while(lineOffset < layout.maxLines){
+        let available = y-cfg.margin;
+        let linesHere = Math.floor((available-cfg.paddingY*2)/cfg.lineHeight);
+        if(linesHere < 1){ startPage(!isHeader); available=y-cfg.margin; linesHere=Math.max(1,Math.floor((available-cfg.paddingY*2)/cfg.lineHeight)); }
+        linesHere = Math.min(linesHere,layout.maxLines-lineOffset);
+        const chunkHeight = Math.max(cfg.minRowHeight,linesHere*cfg.lineHeight+cfg.paddingY*2);
+        excelPdfDrawRow(page,y,band,layout,lineOffset,linesHere,chunkHeight,!isHeader && renderedBodyRows%2===1);
+        y -= chunkHeight;
+        lineOffset += linesHere;
+        if(lineOffset < layout.maxLines) startPage(!isHeader);
+      }
+      if(!isHeader) renderedBodyRows++;
+    }
+  }
+  return doc.save();
+}
+
 TOOLS.excel2pdf = function(){
   const t = window.I18N ? I18N.t : (k)=>k;
   let file=null;
@@ -905,9 +1161,8 @@ TOOLS.excel2pdf = function(){
     let outBytes;
     try {
       const bytes = await file.arrayBuffer();
-      const wb = XLSX.read(bytes, {type:"array"});
+      const wb = XLSX.read(bytes, {type:"array", cellDates:true, cellStyles:true});
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:""});
       // Explicit, not silent: a workbook with sheets the user can't see
       // converted should never look like a complete conversion.
       if(wb.SheetNames.length > 1 && typeof toast === "function"){
@@ -916,24 +1171,7 @@ TOOLS.excel2pdf = function(){
         toast(t(count === 1 ? "toolExcel2pdf.toastOnlySheetConvertedOne" : "toolExcel2pdf.toastOnlySheetConvertedMany", {sheet: wb.SheetNames[0], count, names}));
       }
       setStatus(t("toolExcel2pdf.statusGenerating"));
-      const doc = await PDFDocument.create();
-      const font = await doc.embedFont(StandardFonts.Helvetica);
-      const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
-      const margin=36, size=9, rowHeight=18;
-      const pageWidth=842, pageHeight=595; // landscape for wide tables
-      let page = doc.addPage([pageWidth,pageHeight]); let y = pageHeight-margin;
-      const colCount = Math.max(1, ...rows.map(r=>r.length));
-      const colWidth = Math.min(110, (pageWidth-margin*2)/colCount);
-      function newPageIfNeeded(){ if(y < margin+rowHeight){ page=doc.addPage([pageWidth,pageHeight]); y=pageHeight-margin; } }
-      rows.forEach((row,ri)=>{
-        newPageIfNeeded();
-        row.forEach((cell,ci)=>{
-          const text = winAnsiSafe(String(cell).slice(0,20));
-          page.drawText(text, {x:margin+ci*colWidth, y, size, font: ri===0?boldFont:font, color:rgb(0.1,0.1,0.1)});
-        });
-        y -= rowHeight;
-      });
-      outBytes = await doc.save();
+      outBytes = await buildExcelPdfBytes(sheet,wb.SheetNames[0]);
     } catch(e) {
       out.innerHTML = `<div class="status" style="color:var(--rose)">${t("toolExcel2pdf.errCouldNotConvert", {msg: escapeAttr(e.message)})}</div>`;
       return;

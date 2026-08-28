@@ -177,8 +177,8 @@ if(footerYearEl) footerYearEl.textContent = new Date().getFullYear();
 
 /* ---------------- Theme toggle ---------------- */
 const themeToggle = document.getElementById("themeToggle");
-let currentTheme = "dark";
-try { currentTheme = localStorage.getItem("yoyopdf-theme") || "dark"; } catch(e) {}
+let currentTheme = "light";
+try { currentTheme = localStorage.getItem("yoyopdf-theme") || "light"; } catch(e) {}
 document.documentElement.setAttribute("data-theme", currentTheme);
 themeToggle.textContent = currentTheme === "light" ? "🌙" : "☀️";
 themeToggle.addEventListener("click", ()=>{

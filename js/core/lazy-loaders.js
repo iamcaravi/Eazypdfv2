@@ -46,7 +46,9 @@ function ensureMammoth(){ return typeof mammoth!=="undefined" ? Promise.resolve(
    English conversions. @pdf-lib/fontkit's UMD build calls a Babel-generator
    -compiled function during complex-script shaping without bundling its own
    regeneratorRuntime helper, so that polyfill must load first or shaping
-   throws a ReferenceError mid-conversion. */
-function ensureRegeneratorRuntime(){ return typeof regeneratorRuntime!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdn.jsdelivr.net/npm/regenerator-runtime@0.14.1/runtime.js", "sha384-OUN/6TBQWJ0V9kHVpZgUpqrgWENHMWqIBFHq8UEwg41L3EKbh39nX+5wiDPH29A5"); }
-function ensureFontkit(){ return typeof fontkit!=="undefined" ? Promise.resolve() : ensureRegeneratorRuntime().then(()=>loadScriptOnce("https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js", "sha384-2p6U+1mmqF10USehFeRiyG2ESG9FwIqN+jxULn5w9jjQIihSn9Pt13dVCn/Hawjn")); }
+   throws a ReferenceError mid-conversion. Both executable dependencies are
+   pinned, SRI-checked, same-origin assets: production's strict CSP permits
+   script-src 'self' but deliberately does not permit jsDelivr. */
+function ensureRegeneratorRuntime(){ return typeof regeneratorRuntime!=="undefined" ? Promise.resolve() : loadScriptOnce("assets/vendor/regenerator-runtime/0.14.1/runtime.js", "sha384-OUN/6TBQWJ0V9kHVpZgUpqrgWENHMWqIBFHq8UEwg41L3EKbh39nX+5wiDPH29A5"); }
+function ensureFontkit(){ return typeof fontkit!=="undefined" ? Promise.resolve() : ensureRegeneratorRuntime().then(()=>loadScriptOnce("assets/vendor/pdf-lib-fontkit/1.1.1/fontkit.umd.min.js", "sha384-2p6U+1mmqF10USehFeRiyG2ESG9FwIqN+jxULn5w9jjQIihSn9Pt13dVCn/Hawjn")); }
 function ensureXLSX(){ return typeof XLSX!=="undefined" ? Promise.resolve() : loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js", "sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw"); }

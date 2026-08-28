@@ -10,8 +10,8 @@
    not defer/async, and must stay the very first thing in <head> - it has
    to run and set data-theme before the browser's first paint, which is
    the entire point of it existing. */
-var __savedTheme = "dark";
-try { __savedTheme = localStorage.getItem("yoyopdf-theme") || "dark"; } catch(e) {}
+var __savedTheme = "light";
+try { __savedTheme = localStorage.getItem("yoyopdf-theme") || "light"; } catch(e) {}
 document.documentElement.setAttribute("data-theme", __savedTheme);
 /* Same root-background value css/site.css's html{} rule already sets,
    applied here too as a plain inline style PROPERTY on the element
