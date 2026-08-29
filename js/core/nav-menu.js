@@ -69,7 +69,7 @@ const DESCRIPTIONS = {
   pdf2word:"Pull the text out of a PDF into an editable Word file.",
   word2pdf:"Convert a Word document's text into a clean PDF.",
   pdf2excel:"Extract PDF content into rows and columns in Excel.",
-  excel2pdf:"Turn a spreadsheet's first sheet into a table PDF.",
+  excel2pdf:"Turn every worksheet into one paginated table PDF.",
   mergeexcel:"Combine multiple Excel workbooks into one, keeping each sheet's layout and formatting.",
   organize:"Preview every page and drag together a new page order.",
   rotate:"Rotate every page 90°, 180° or 270° in one click.",

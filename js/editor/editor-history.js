@@ -43,6 +43,8 @@
   const MAX_HISTORY_ENTRIES = 50;
   let undoStack = [];
   let redoStack = [];
+  let currentRevision = 0;
+  let nextRevision = 1;
   let applying = false; // true while undo()/redo() itself is calling restoreState() — its own resulting objectsCommitted (there isn't one; restoreState doesn't fire it) is not a concern, but guards against any future re-entrancy
 
   function pushBounded(stack, snapshot) {
@@ -53,10 +55,13 @@
   function init() {
     undoStack = [];
     redoStack = [];
+    currentRevision = 0;
+    nextRevision = 1;
 
     window.addEventListener('editor:objectsCommitted', (e) => {
       if (applying) return;
-      pushBounded(undoStack, e.detail.before);
+      pushBounded(undoStack, {snapshot:e.detail.before, revision:currentRevision});
+      currentRevision = nextRevision++;
       redoStack = [];
       emitChange();
     });
@@ -66,6 +71,8 @@
     window.addEventListener('editor:documentLoaded', () => {
       undoStack = [];
       redoStack = [];
+      currentRevision = 0;
+      nextRevision = 1;
       emitChange();
     });
 
@@ -75,25 +82,27 @@
   function undo() {
     if (!undoStack.length || !window.EditorObjects) return;
     const prev = undoStack.pop();
-    pushBounded(redoStack, window.EditorObjects.getState());
+    pushBounded(redoStack, {snapshot:window.EditorObjects.getState(), revision:currentRevision});
     applying = true;
-    window.EditorObjects.restoreState(prev);
+    window.EditorObjects.restoreState(prev.snapshot);
     applying = false;
+    currentRevision = prev.revision;
     emitChange();
   }
 
   function redo() {
     if (!redoStack.length || !window.EditorObjects) return;
     const next = redoStack.pop();
-    pushBounded(undoStack, window.EditorObjects.getState());
+    pushBounded(undoStack, {snapshot:window.EditorObjects.getState(), revision:currentRevision});
     applying = true;
-    window.EditorObjects.restoreState(next);
+    window.EditorObjects.restoreState(next.snapshot);
     applying = false;
+    currentRevision = next.revision;
     emitChange();
   }
 
   function emitChange() {
-    window.dispatchEvent(new CustomEvent('editor:historyChange', { detail: { canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 } }));
+    window.dispatchEvent(new CustomEvent('editor:historyChange', { detail: { canUndo: undoStack.length > 0, canRedo: redoStack.length > 0, revision:currentRevision } }));
   }
 
   window.EditorHistory = { init, undo, redo };

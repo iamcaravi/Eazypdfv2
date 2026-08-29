@@ -170,13 +170,13 @@ function loadEditorAssets(){
   // ?v=2: same stale-cache issue js/app.js hit earlier (browsers keep
   // serving an old cached copy of an unversioned <link>/<script> src
   // indefinitely, even across page loads, once one visit has cached it) -
-  // these editor stylesheets had no cache-busting param at all, so an
+  // these editor assets had no cache-busting param at all, so an
   // edit to any of them (like the --font-body fix below) would silently
   // never reach a browser that had already visited once.
-  ["css/editor-workspace.css", "css/pdf-viewer.css", "css/editor-panel.css", "css/editor-inspector.css", "css/editor-viewer-polish.css", "css/editor-objects.css"].forEach(href=>{
+  ["css/editor-workspace.css", "css/pdf-viewer.css", "css/editor-panel.css", "css/editor-inspector.css", "css/editor-viewer-polish.css", "css/editor-objects.css", "css/editor-product.css"].forEach(href=>{
     const l = document.createElement("link");
     l.rel = "stylesheet";
-    l.href = href + "?v=2";
+    l.href = href + "?v=20";
     document.head.appendChild(l);
   });
 
@@ -199,13 +199,16 @@ function loadEditorAssets(){
     "js/editor/editor-statusbar.js",
     // Editing engine (Phase 3 — previously referenced everywhere by name
     // but never actually written; see editor-objects.js's own file header)
+    "js/editor/editor-text-layout.js",
     "js/editor/editor-objects.js",
+    "js/editor/editor-content.js",
     "js/editor/editor-history.js",
+    "js/editor/editor-commands.js",
     "js/editor/editor-export.js",
   ];
   editorAssetsLoadPromise = files.reduce((p, src) => p.then(() => new Promise((resolve, reject) => {
     const s = document.createElement("script");
-    s.src = src;
+    s.src = src + "?v=20";
     s.onload = resolve;
     s.onerror = () => reject(new Error("Failed to load " + src));
     document.head.appendChild(s);
@@ -223,8 +226,9 @@ function buildEditorShell(){
   wrap.innerHTML = `
     <div class="editor-shell" data-state="empty">
       <div class="editor-toolbar" role="toolbar" aria-label="${t("editor.toolbarAriaLabel")}"></div>
+      <div class="editor-pagebar" role="toolbar" aria-label="${t("editor.groupPage")} / ${t("editor.groupZoom")}"></div>
       <div class="editor-body">
-        <aside class="editor-sidebar" aria-label="${t("editor.pageThumbnailList")}">
+        <aside class="editor-sidebar is-collapsed" aria-label="${t("editor.pageThumbnailList")}">
           <div class="editor-sidebar-head">
             <span class="editor-sidebar-head-title">${t("editor.pagesLabel")} (<span data-page-count>0</span>)</span>
             <button type="button" class="btn-icon" data-collapse-target=".editor-sidebar" aria-label="${t("editor.collapsePagePanel")}">
@@ -255,7 +259,11 @@ function buildEditorShell(){
           <div class="editor-canvas-page" role="img" aria-label="${t("editor.placeholderPage")}"></div>
         </div>
         <div class="editor-resize-handle" data-resize="inspector"></div>
-        <aside class="editor-inspector" aria-label="${t("editor.inspectorAriaLabel")}"></aside>
+        <aside class="editor-inspector is-collapsed" aria-label="${t("editor.inspectorAriaLabel")}">
+          <button type="button" class="btn-icon editor-inspector-close" data-collapse-target=".editor-inspector" aria-label="Close properties panel">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
+          </button>
+        </aside>
         <div class="editor-scrim"></div>
       </div>
       <div class="editor-statusbar" role="status" aria-label="${t("editor.documentStatus")}">
@@ -276,7 +284,14 @@ function initEditorShell(shell){
   const canvasEl = shell.querySelector('.editor-canvas');
 
   ZoomManager.init(
-    () => { const r = canvasEl.getBoundingClientRect(); return { width: r.width, height: r.height }; },
+    () => {
+      const r = canvasEl.getBoundingClientRect();
+      const style = getComputedStyle(canvasEl);
+      return {
+        width: Math.max(1, r.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)),
+        height: Math.max(1, r.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom))
+      };
+    },
     () => window.__currentPageNativeSize || { width: 612, height: 792 }
   );
   ViewportManager.init(shell);
@@ -289,6 +304,8 @@ function initEditorShell(shell){
   // the whole workspace" handler fires first and closes the editor out
   // from under an in-progress placement instead of just canceling it.
   EditorObjects.init(shell);
+  EditorContent.init(shell);
+  EditorCommands.init(shell);
   NavigationManager.init(shell, { getPageCount: () => window.RenderEngine.getNumPages() });
 
   EditorToolbar.init(shell);
@@ -300,7 +317,10 @@ function initEditorShell(shell){
   EditorExport.init();
 
   window.addEventListener('editor:pageChange', async (e) => {
-    try { window.__currentPageNativeSize = await window.RenderEngine.getPageInfo(e.detail.page); } catch (_) {}
+    try {
+      window.__currentPageNativeSize = await window.RenderEngine.getPageInfo(e.detail.page);
+      window.ZoomManager?.refit();
+    } catch (_) {}
   });
 
   // Not part of the reused shell modules — this milestone's own, minimal
@@ -328,36 +348,104 @@ function initEditorShell(shell){
   window.addEventListener('editor:requestClose', closePanel);
 }
 
-TOOLS.edit = function(){
+let editEntryGeneration = 0;
+
+function ensureEditorShell(){
+  if (!window.__editorShellEl){
+    window.__editorShellEl = buildEditorShell();
+    initEditorShell(window.__editorShellEl);
+  }
+  return window.__editorShellEl;
+}
+
+function attachPreparedEditor(){
   openPanel(`<div class="panel-body" id="editWorkspaceMount"></div>`);
   panel.classList.add("panel-fullscreen");
   overlay.classList.add("panel-fullscreen");
+  document.getElementById("editWorkspaceMount").appendChild(window.__editorShellEl);
+  window.ThumbnailEngine?.init(window.__editorShellEl, window.RenderEngine.getNumPages());
+}
 
-  const mount = document.getElementById("editWorkspaceMount");
-  mount.innerHTML = `<p style="margin:0;padding:20px;color:var(--ink-soft);font-size:.9rem">${T("editor.loading")}</p>`;
+async function prepareEditFile(file, generation){
+  const body = document.getElementById("editUploadBody");
+  const out = document.getElementById("editUploadOut");
+  const dropzone = document.getElementById("dz");
+  if(!body || !out || !dropzone) return;
 
-  loadEditorAssets()
-    .then(()=>{
-      mount.innerHTML = "";
-      if (!window.__editorShellEl){
-        window.__editorShellEl = buildEditorShell();
-        mount.appendChild(window.__editorShellEl);
-        initEditorShell(window.__editorShellEl);
-      } else {
-        mount.appendChild(window.__editorShellEl);
-      }
-      // No second upload: reuse whatever file AppSession already holds (e.g. from
-      // the Hero quick-start) through the editor's own existing loader API.
-      if(AppSession.currentFile && window.EditorCanvas && typeof window.EditorCanvas.loadFile === "function"){
-        window.EditorCanvas.loadFile(AppSession.currentFile);
-      }
-    })
-    .catch(err=>{
-      // escapeAttr() before innerHTML, same as every other e.message ->
-      // innerHTML site in the app - this one was the sole exception.
-      const msg = (err && err.message) ? err.message : String(err);
-      mount.innerHTML = `<p style="margin:0;padding:20px;color:var(--ink-soft);font-size:.9rem">${T("editor.loadError", {msg: escapeAttr(msg)})}</p>`;
-    });
+  AppSession.clear();
+  body.classList.add("is-loaded");
+  dropzone.setAttribute("aria-busy", "true");
+  renderFileList([file], ()=>{});
+  out.innerHTML = statusEl(T("workspace.statusReadingPdf"));
+  let editorAttached = false;
+
+  try{
+    await loadEditorAssets();
+    if(generation !== editEntryGeneration) return;
+    const shell = ensureEditorShell();
+    window.EditorCanvas.setState("loading");
+    const { numPages } = await window.RenderEngine.loadDocument(file);
+    if(generation !== editEntryGeneration) return;
+
+    window.EditorObjects.restoreState([]);
+    shell.querySelector(".editor-sidebar")?.classList.add("is-collapsed");
+    shell.querySelector(".editor-inspector")?.classList.add("is-collapsed");
+    // Attach before mounting pages so the editor's initial fit runs before
+    // any page canvas starts rendering. Mounting while detached and then
+    // attaching can make that fit restart an in-flight render on one canvas.
+    attachPreparedEditor();
+    editorAttached = true;
+    await window.ViewportManager.mountDocument(numPages);
+    if(generation !== editEntryGeneration) return;
+    window.EditorSidebar.init(shell, { pageCount:numPages });
+    window.EditorCanvas.setState("page");
+    AppSession.set([file], "edit-upload");
+    if(location.hash !== "#editor"){
+      history.pushState({ editStage:"editor" }, "", location.pathname + "#editor");
+    }
+  }catch(err){
+    if(generation !== editEntryGeneration || err?.name === "AbortError") return;
+    AppSession.clear();
+    window.EditorCanvas?.setState("empty");
+    const message = err?.message || T("workspace.thisFileCouldNotBeOpened");
+    if(editorAttached) showEditUpload();
+    const errorOut = document.getElementById("editUploadOut") || out;
+    errorOut.innerHTML = `<div class="status" role="alert">${escapeAttr(message)}</div>`;
+    document.getElementById("dz")?.removeAttribute("aria-busy");
+    toast(message);
+  }
+}
+
+function showEditUpload(){
+  editEntryGeneration++;
+  panel.classList.remove("panel-fullscreen");
+  overlay.classList.remove("panel-fullscreen");
+  openPanel(`
+    <div class="panel-head"><h3>${T("tools.edit")}</h3></div>
+    <div class="panel-body compact tool-workspace" id="editUploadBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">${T("tools.edit")}</h2>
+        <p class="tool-hero-desc">${T("toolDesc.edit")}</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, T("workspace.selectPdfFiles"))}
+      </div>
+      <p class="tool-privacy-hint">🔒 ${T("workspace.privacyHintFiles")}</p>
+      <div id="editUploadOut"></div>
+    </div>`);
+  wireDropzone(files=>{
+    const generation = ++editEntryGeneration;
+    return prepareEditFile(files[0], generation);
+  });
+}
+
+TOOLS.edit = function(){
+  if(location.hash === "#editor" && AppSession.currentFile && window.__editorShellEl &&
+     window.RenderEngine?.getNumPages() > 0){
+    attachPreparedEditor();
+    return;
+  }
+  showEditUpload();
 };
 
 /* ---- DONATE ----

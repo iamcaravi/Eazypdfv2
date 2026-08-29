@@ -19,13 +19,9 @@
    every draw call below converts top-down percentages into that space
    using the page's own getSize() — see toPdfBox().
 
-   Known v1 limitations (documented, not silently wrong):
-     - Text uses pdf-lib's built-in StandardFonts only (no font embedding),
-       mapped from the six Properties-panel font choices to the nearest of
-       Helvetica/Times/Courier — an embedded TrueType font is future work.
-     - Text does not word-wrap; only explicit newlines in the box break
-       lines. Long single lines can overflow the box, same as most simple
-       PDF text tools.
+   Text uses built-in PDF fonts where possible, wraps to the object width,
+   and falls back to the existing same-origin Noto Sans Devanagari assets
+   for text that StandardFonts cannot encode.
      - Rectangle corner radius (data.radius) IS applied on export (Phase
        12) via drawSvgPath() with a hand-built rounded-rect path, since
        pdf-lib's drawRectangle has no radius parameter of its own — see
@@ -43,20 +39,30 @@
   // utils.js's own downloadBlob() tracks __activeResultUrl, so repeated
   // exports through this fallback don't leak one object URL each.
   let __fallbackExportUrl = null;
+  let __printUrl = null;
+  let __printFrame = null;
+  let __printCleanupTimer = null;
   let currentFileName = '';
   let documentGeneration = 0;
   let exportController = null;
+  let printController = null;
   let fallbackExportPromise = null;
+  let fallbackPrintPromise = null;
   function t(key, vars) { return window.I18N ? window.I18N.t(key, vars) : key; }
 
   function init() {
-    const exportButton = document.querySelector('[data-action="export"]');
     if(typeof window.createOperationController === 'function') {
-      exportController = window.createOperationController(exportButton, {busyLabel:'Saving...', timeoutMs:120000});
+      // These toolbar buttons contain an icon plus a visible label. A null
+      // default button keeps the shared controller from replacing that rich
+      // markup with plain text while statusbar progress still reports work.
+      exportController = window.createOperationController(null, {timeoutMs:120000});
+      printController = window.createOperationController(null, {timeoutMs:120000});
     }
     window.addEventListener('editor:documentLoaded', (e) => {
       documentGeneration += 1;
       exportController?.cancel();
+      printController?.cancel();
+      cleanupPrintSurface();
       currentFileName = (e.detail && e.detail.fileName) || '';
     });
   }
@@ -100,13 +106,17 @@
 
   /** Converts an object's top-down xPct/yPct/wPct/hPct box into pdf-lib's
    *  bottom-left-origin point space for a page of size (pw, ph). */
-  function toPdfBox(obj, pw, ph) {
-    const x = (obj.xPct / 100) * pw;
-    const w = (obj.wPct / 100) * pw;
-    const h = (obj.hPct / 100) * ph;
-    const yTop = (obj.yPct / 100) * ph;
-    const y = ph - yTop - h; // bottom-left corner, PDF space
-    return { x, y, w, h, yTopPdf: ph - yTop };
+  function toPdfBox(obj, page) {
+    const {width:pw,height:ph}=page.getSize();
+    const rotation=((page.getRotation()?.angle||0)%360+360)%360;
+    const displayW=rotation===90||rotation===270?ph:pw;
+    const displayH=rotation===90||rotation===270?pw:ph;
+    const dx=(obj.xPct/100)*displayW, w=(obj.wPct/100)*displayW;
+    const h=(obj.hPct/100)*displayH, dy=displayH-(obj.yPct/100)*displayH-h;
+    if(rotation===90) return {x:dy,y:ph-dx-w,w:h,h:w,yTopPdf:ph-dx,rotation};
+    if(rotation===180) return {x:pw-dx-w,y:ph-dy-h,w,h,yTopPdf:ph-dy,rotation};
+    if(rotation===270) return {x:pw-dy-h,y:dx,w:h,h:w,yTopPdf:dx+w,rotation};
+    return {x:dx,y:dy,w,h,yTopPdf:dy+h,rotation};
   }
 
   function hexToRgb01(hex) {
@@ -123,17 +133,59 @@
 
   async function drawTextObject(page, obj, pdfDoc, fontCache, rgb) {
     const d = obj.data || {};
-    const { x, w, yTopPdf } = toPdfBox(obj, ...pageSize(page));
-    const key = mapFontKey(d.fontFamily, d.bold, d.italic);
-    if (!fontCache[key]) fontCache[key] = await pdfDoc.embedFont(window.PDFLib.StandardFonts[key]);
-    const font = fontCache[key];
-    const size = d.fontSize || 16;
+    const { x, y, w, h, yTopPdf, rotation } = toPdfBox(obj, page);
+    if(d.replaceOriginal && d.sourceBox){
+      const cover=toPdfBox(d.sourceBox,page);
+      const background=hexToRgb01(d.backgroundColor||'#ffffff');
+      page.drawRectangle({x:cover.x,y:cover.y,width:cover.w,height:cover.h,color:rgb(background.r,background.g,background.b)});
+    }
+    const sourceText=String(d.text != null ? d.text : 'Text');
+    const needsUnicode=/[^\u0000-\u00ff]/.test(sourceText);
+    let font,key;
+    if(needsUnicode){
+      key=d.bold?'unicodeBold':'unicodeRegular';
+      if(!fontCache[key]){
+        if(typeof window.ensureFontkit!=='function') throw new Error('Unicode font support is unavailable.');
+        await window.ensureFontkit();
+        pdfDoc.registerFontkit(window.fontkit);
+        const url=d.bold?'assets/vendor/noto-sans-devanagari/3a06b1c521155492df224d33464b3c7b2852d861/NotoSansDevanagari-Bold.ttf':'assets/vendor/noto-sans-devanagari/3a06b1c521155492df224d33464b3c7b2852d861/NotoSansDevanagari-Regular.ttf';
+        const response=await fetch(url); if(!response.ok) throw new Error('Could not load the Unicode editing font.');
+        fontCache[key]=await pdfDoc.embedFont(await response.arrayBuffer(),{subset:true});
+      }
+      font=fontCache[key];
+    }else{
+      key=mapFontKey(d.fontFamily,d.bold,d.italic);
+      if(!fontCache[key]) fontCache[key]=await pdfDoc.embedFont(window.PDFLib.StandardFonts[key]);
+      font=fontCache[key];
+    }
+    let size = d.layoutFontSize || d.fontSize || 16;
+    if(d.replaceOriginal && !d.reflowApplied && !sourceText.includes('\n')){
+      const naturalWidth=font.widthOfTextAtSize(sourceText,size);
+      if(naturalWidth>w && naturalWidth>0) size=Math.max(size*.72,size*(w/naturalWidth));
+    }
     const color = hexToRgb01(d.color);
-    const sanitize = typeof window.winAnsiSafe === 'function' ? window.winAnsiSafe : (s) => s;
-    const rawText = sanitize(d.text != null ? d.text : 'Text');
-    const lines = String(rawText).split('\n');
-    const lineHeight = size * 1.2;
-    let cursorY = yTopPdf - size; // first baseline just under the top edge
+    const sanitize = needsUnicode ? (s)=>s : (typeof window.winAnsiSafe === 'function' ? window.winAnsiSafe : (s) => s);
+    const plannedLines=Array.isArray(d.layoutLines)?d.layoutLines.map(line=>sanitize(line)):null;
+    const lines=plannedLines?plannedLines.slice():[];
+    if(!plannedLines) sanitize(sourceText).split('\n').forEach(paragraph=>{
+      const words=paragraph.split(/(\s+)/); let line='';
+      words.forEach(word=>{
+        const candidate=line+word;
+        if(line && font.widthOfTextAtSize(candidate,size)>w){ lines.push(line.trimEnd()); line=word.trimStart(); }
+        else line=candidate;
+      });
+      lines.push(line);
+    });
+    const widestLine=lines.reduce((max,line)=>Math.max(max,font.widthOfTextAtSize(line,size)),0);
+    if(widestLine>w && widestLine>0) size=Math.max(size*.72,size*(w/widestLine));
+    const lineHeight = size * (d.lineHeight || 1.2);
+    const maxLines=Math.max(1,Math.floor(h/lineHeight));
+    if(lines.length>maxLines) lines.length=maxLines;
+    const baselineOffset=(Number(d.baselineOffset)||size)*(size/(Number(d.originalFontSize)||size));
+    let cursorY = yTopPdf - baselineOffset;
+    const operators=window.PDFLib;
+    const canClip=d.replaceOriginal && operators.pushGraphicsState && operators.rectangle && operators.clip && operators.endPath && operators.popGraphicsState;
+    if(canClip) page.pushOperators(operators.pushGraphicsState(),operators.rectangle(x,y,w,h),operators.clip(),operators.endPath());
     for (const line of lines) {
       let lineX = x;
       if (d.align === 'center' || d.align === 'right') {
@@ -141,13 +193,14 @@
         if (d.align === 'center') lineX = x + (w - textWidth) / 2;
         else lineX = x + (w - textWidth);
       }
-      page.drawText(line, { x: lineX, y: cursorY, size, font, color: rgb(color.r, color.g, color.b) });
+      page.drawText(line, { x: lineX, y: cursorY, size, font, color: rgb(color.r, color.g, color.b), opacity:d.opacity==null?1:d.opacity, rotate:window.PDFLib.degrees((d.rotation||0)-rotation) });
       if (d.underline) {
         const textWidth = font.widthOfTextAtSize(line, size);
         page.drawLine({ start: { x: lineX, y: cursorY - size * 0.12 }, end: { x: lineX + textWidth, y: cursorY - size * 0.12 }, thickness: Math.max(0.5, size * 0.05), color: rgb(color.r, color.g, color.b) });
       }
       cursorY -= lineHeight;
     }
+    if(canClip) page.pushOperators(operators.popGraphicsState());
   }
 
   async function drawImageObject(page, obj, pdfDoc) {
@@ -160,8 +213,8 @@
     if (kind === 'png') embedded = await pdfDoc.embedPng(buf);
     else if (kind === 'jpg') embedded = await pdfDoc.embedJpg(buf);
     else throw new Error(t('editor.errUnsupportedImageFormat'));
-    const { x, y, w, h } = toPdfBox(obj, ...pageSize(page));
-    page.drawImage(embedded, { x, y, width: w, height: h });
+    const { x, y, w, h, rotation } = toPdfBox(obj, page);
+    page.drawImage(embedded, { x, y, width: w, height: h, rotate:window.PDFLib.degrees((d.rotation||0)-rotation) });
   }
 
   /** SVG path for a rounded rectangle, top-left-anchored, y increasing
@@ -175,7 +228,7 @@
 
   function drawShapeObject(page, obj, rgb) {
     const d = obj.data || {};
-    const { x, y, w, h, yTopPdf } = toPdfBox(obj, ...pageSize(page));
+    const { x, y, w, h, yTopPdf } = toPdfBox(obj, page);
     const stroke = hexToRgb01(d.stroke);
     const strokeWidth = d.strokeWidth != null ? d.strokeWidth : 2;
     if (obj.type === 'rectangle') {
@@ -212,17 +265,11 @@
     const d = obj.data || {};
     const pts = d.points || [];
     if (pts.length < 2) return;
-    const [pw, ph] = pageSize(page);
-    const boxX = (obj.xPct / 100) * pw;
-    const boxW = (obj.wPct / 100) * pw;
-    const boxH = (obj.hPct / 100) * ph;
-    const boxYTop = (obj.yPct / 100) * ph;
     const stroke = hexToRgb01(d.stroke);
     const strokeWidth = d.strokeWidth != null ? d.strokeWidth : 2;
     function toAbs(p) {
-      const x = boxX + (p.x / 100) * boxW;
-      const yTop = boxYTop + (p.y / 100) * boxH;
-      return { x, y: ph - yTop };
+      const point=toPdfBox({xPct:obj.xPct+(p.x/100)*obj.wPct,yPct:obj.yPct+(p.y/100)*obj.hPct,wPct:0,hPct:0},page);
+      return {x:point.x,y:point.y};
     }
     for (let i = 1; i < pts.length; i++) {
       const a = toAbs(pts[i - 1]), b = toAbs(pts[i]);
@@ -232,16 +279,57 @@
 
   function drawHighlightObject(page, obj, rgb) {
     const d = obj.data || {};
-    const { x, y, w, h } = toPdfBox(obj, ...pageSize(page));
+    const { x, y, w, h } = toPdfBox(obj, page);
     const fill = hexToRgb01(d.fill || '#ffeb3b');
     page.drawRectangle({ x, y, width: w, height: h, color: rgb(fill.r, fill.g, fill.b), opacity: d.opacity != null ? d.opacity : 0.4 });
   }
 
   function drawWhiteoutObject(page, obj, rgb) {
     const d = obj.data || {};
-    const { x, y, w, h } = toPdfBox(obj, ...pageSize(page));
+    const { x, y, w, h } = toPdfBox(obj, page);
     const fill = hexToRgb01(d.color || '#ffffff');
     page.drawRectangle({ x, y, width: w, height: h, color: rgb(fill.r, fill.g, fill.b) });
+  }
+
+  function addMarkupAnnotation(page,obj,pdfDoc){
+    const d=obj.data||{}, {x,y,w,h}=toPdfBox(obj,page);
+    const color=hexToRgb01(d.fill||d.color||(obj.type==='highlight'?'#ffeb3b':'#dc2626'));
+    const {PDFName}=window.PDFLib;
+    const annotation=pdfDoc.context.obj({
+      Type:PDFName.of('Annot'),Subtype:PDFName.of(obj.type==='highlight'?'Highlight':'StrikeOut'),
+      Rect:[x,y,x+w,y+h],QuadPoints:[x,y+h,x+w,y+h,x,y,x+w,y],C:[color.r,color.g,color.b],CA:d.opacity!=null?d.opacity:0.4,F:4
+    });
+    page.node.addAnnot(pdfDoc.context.register(annotation));
+  }
+
+  function addLinkAnnotation(page,obj,pdfDoc){
+    const {x,y,w,h}=toPdfBox(obj,page);
+    const {PDFName,PDFString}=window.PDFLib;
+    const url=String(obj.data?.url||'').trim();
+    if(!/^https?:\/\//i.test(url) && !/^mailto:/i.test(url)) throw new Error(`Invalid link URL: ${url||'(empty)'}`);
+    const action=pdfDoc.context.obj({S:PDFName.of('URI'),URI:PDFString.of(url)});
+    const annotation=pdfDoc.context.obj({Type:PDFName.of('Annot'),Subtype:PDFName.of('Link'),Rect:[x,y,x+w,y+h],Border:[0,0,0],A:action,F:4});
+    page.node.addAnnot(pdfDoc.context.register(annotation));
+  }
+
+  function addFormField(page,obj,pdfDoc){
+    const d=obj.data||{}, {x,y,w,h}=toPdfBox(obj,page);
+    const form=pdfDoc.getForm(), name=String(d.name||obj.id).replace(/[^\w.-]/g,'_');
+    const options={x,y,width:w,height:h,borderWidth:1};
+    if(obj.type==='form-text'||obj.type==='form-multiline'){
+      const field=form.createTextField(name);
+      if(obj.type==='form-multiline') field.enableMultiline();
+      if(d.defaultValue) field.setText(String(d.defaultValue));
+      field.addToPage(page,options);
+    }else if(obj.type==='form-dropdown'){
+      const field=form.createDropdown(name), values=(d.options||[]).map(String).filter(Boolean);
+      if(values.length){ field.addOptions(values); field.select(values.includes(d.defaultValue)?d.defaultValue:values[0]); }
+      field.addToPage(page,options);
+    }else if(obj.type==='form-checkbox'){
+      const field=form.createCheckBox(name); field.addToPage(page,options); if(d.checked) field.check();
+    }else if(obj.type==='form-radio'){
+      const field=form.createRadioGroup(d.groupName||name); field.addOptionToPage(d.exportValue||'Yes',page,options); if(d.checked) field.select(d.exportValue||'Yes');
+    }
   }
 
   function pageSize(page) {
@@ -263,7 +351,7 @@
     link.remove();
   }
 
-  async function performExport(operation) {
+  async function buildEditedPdf(operation, statusText) {
     if (!window.RenderEngine) throw new Error(t('editor.errNotReady'));
     const original = window.RenderEngine.getOriginalBytes();
     if (!original) throw new Error(t('editor.errOpenBeforeExport'));
@@ -271,7 +359,7 @@
     if (!PDFLibNS) throw new Error(t('editor.errExportLibUnavailable'));
     const { rgb } = PDFLibNS;
     const exportGeneration = documentGeneration;
-    exportStatus(t('editor.statusSaving'));
+    exportStatus(statusText || t('editor.statusSaving'));
 
     const pdfDoc = typeof window.loadPdfSafe === 'function'
       ? await window.loadPdfSafe(original)
@@ -289,8 +377,10 @@
       else if (obj.type === 'image') await drawImageObject(page, obj, pdfDoc);
       else if (obj.type === 'rectangle' || obj.type === 'ellipse' || obj.type === 'line') drawShapeObject(page, obj, rgb);
       else if (obj.type === 'draw') drawDrawObject(page, obj, rgb);
-      else if (obj.type === 'highlight') drawHighlightObject(page, obj, rgb);
+      else if (obj.type === 'highlight' || obj.type === 'strikethrough') addMarkupAnnotation(page,obj,pdfDoc);
       else if (obj.type === 'whiteout') drawWhiteoutObject(page, obj, rgb);
+      else if (obj.type === 'link') addLinkAnnotation(page,obj,pdfDoc);
+      else if (obj.type && obj.type.indexOf('form-')===0) addFormField(page,obj,pdfDoc);
       else throw new Error(t('editor.errObjectUnsupportedType', { id: obj.id, type: obj.type }));
     }
 
@@ -305,6 +395,13 @@
     const blob = new Blob([outBytes], { type: 'application/pdf' });
     const fileName = outputFileName();
 
+    return { blob, fileName, byteLength:outBytes.length };
+  }
+
+  async function performExport(operation) {
+    const result = await buildEditedPdf(operation, t('editor.statusSaving'));
+    const {blob,fileName}=result;
+
     if (typeof window.downloadBlob === 'function') {
       const { url } = window.downloadBlob(blob, fileName);
       triggerDownload(url, fileName);
@@ -314,7 +411,42 @@
       triggerDownload(__fallbackExportUrl, fileName);
     }
     exportStatus(t('editor.statusSaved', { name: fileName }));
-    return { fileName, byteLength: outBytes.length };
+    window.dispatchEvent(new CustomEvent('editor:documentSaved', {detail:{fileName}}));
+    return result;
+  }
+
+  function cleanupPrintSurface() {
+    if (__printCleanupTimer) clearTimeout(__printCleanupTimer);
+    __printCleanupTimer = null;
+    __printFrame?.remove();
+    __printFrame = null;
+    if (__printUrl) URL.revokeObjectURL(__printUrl);
+    __printUrl = null;
+  }
+
+  async function performPrint(operation) {
+    const result = await buildEditedPdf(operation, 'Preparing edited PDF for printing…');
+    operation.throwIfStale();
+    cleanupPrintSurface();
+    __printUrl = URL.createObjectURL(result.blob);
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden','true');
+    frame.style.cssText='position:fixed;left:-10000px;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none';
+    frame.src = __printUrl;
+    __printFrame = frame;
+    document.body.appendChild(frame);
+    await new Promise((resolve,reject)=>{
+      const timer=setTimeout(resolve,1800);
+      frame.onload=()=>{clearTimeout(timer);setTimeout(resolve,250);};
+      frame.onerror=()=>{clearTimeout(timer);reject(new Error('The edited PDF could not be prepared for printing.'));};
+    });
+    operation.throwIfStale();
+    if (!frame.contentWindow) throw new Error('The browser print surface is unavailable.');
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    exportStatus('Print dialog opened for the edited PDF.');
+    __printCleanupTimer=setTimeout(cleanupPrintSurface,60000);
+    return result;
   }
 
   function reportExportFailure(error) {
@@ -340,5 +472,17 @@
     return fallbackExportPromise;
   }
 
-  window.EditorExport = { init, exportCurrentDocument };
+  function printCurrentDocument() {
+    if(printController){
+      return printController.run(performPrint, {timeoutMs:120000}).catch(reportExportFailure);
+    }
+    if(fallbackPrintPromise) return fallbackPrintPromise;
+    const context={isCurrent:()=>true,throwIfStale:()=>{}};
+    fallbackPrintPromise=performPrint(context)
+      .catch(reportExportFailure)
+      .finally(()=>{fallbackPrintPromise=null;});
+    return fallbackPrintPromise;
+  }
+
+  window.EditorExport = { init, exportCurrentDocument, printCurrentDocument };
 })();

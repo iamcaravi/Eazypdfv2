@@ -106,9 +106,15 @@
    TOOLS.edit (via classList.add, stripped again in closePanel()), never the
    default for any other tool.
    ========================================================================== */
-.overlay.panel-fullscreen{ padding:0; align-items:stretch; }
+.overlay.panel-fullscreen{ padding:0; align-items:stretch; z-index:100; }
+body:has(.overlay.panel-fullscreen.open) #quickDock,
+body:has(.overlay.panel-fullscreen.open) #quickDockFab,
+body:has(.overlay.panel-fullscreen.open) #quickDockMenu{
+  opacity:0 !important; visibility:hidden !important; pointer-events:none !important;
+}
 .panel.panel-fullscreen{
-  max-width:none; width:100%; height:100vh; height:100dvh;
+  max-width:none; width:100%; height:100%;
   border-radius:0; box-shadow:none; animation:none;
 }
 .panel.panel-fullscreen .panel-body{ padding:0; height:100%; display:block; }
+.panel.panel-fullscreen .editor-shell{ height:100%; }

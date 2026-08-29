@@ -249,6 +249,7 @@ async function extractPageBlocks(pdoc, pageNum, visuals){
   const pageWidth = viewport[2] - viewport[0];
   const shapes = (visuals && visuals.shapes) || [];
   const colorSpans = (visuals && visuals.colorSpans) || [];
+  const nearestPageColor = buildNearestColorLookup(colorSpans, 40);
 
   const fontStyleCache = {};
   async function styleFor(fontName){
@@ -269,7 +270,7 @@ async function extractPageBlocks(pdoc, pageNum, visuals){
     const size = Math.abs(it.transform[0]) || Math.abs(it.transform[3]) || 10;
     const x = it.transform[4], y = it.transform[5];
     const style = it.str.trim() ? await styleFor(it.fontName) : {bold:false, italic:false, fontFamily:null};
-    const color = it.str.trim() ? nearestColor(colorSpans, x, y, 40) : null;
+    const color = it.str.trim() ? nearestPageColor(x, y) : null;
     let line = lines.find(l => Math.abs(l.y - y) <= lineTolerance);
     if(!line){ line = {y, items:[]}; lines.push(line); }
     line.items.push({str: it.str, x, width: it.width||0, size, bold: style.bold, italic: style.italic, fontFamily: style.fontFamily, color});
@@ -479,7 +480,7 @@ async function extractPageBlocks(pdoc, pageNum, visuals){
         const block = {type:"gridtable", nRows:borderless.nRows, nCols:borderless.nCols, cells:borderless.cells, colWidthsPt:borderless.colWidthsPt, colBounds:borderless.colBounds, rowBounds:borderless.rowBounds, bordered:borderless.bordered, _y: run[0].y};
         if(box){
           if(isSafeForShading(box.fill)) block.shadeHex = rgbToHex(box.fill);
-          if(box.stroke) block.borderHex = rgbToHex(box.stroke);
+          if(box.stroke){ block.borderHex = rgbToHex(box.stroke); block.borderWidthPt = box.lineWidth||1; }
         }
         blocks.push(block);
       } else {
@@ -499,10 +500,13 @@ async function extractPageBlocks(pdoc, pageNum, visuals){
           while(padded.length < width) padded.push("");
           return padded.map(t=>({text:t, span:1}));
         });
-        const block = {type:"table", rows, _y: run[0].y};
+        const tableItems=run.flatMap(line=>line.items).filter(item=>item.str.trim());
+        const block = {type:"table", rows, _y: run[0].y,
+          xLeft:tableItems.length?Math.min(...tableItems.map(item=>item.x)):0,
+          xRight:tableItems.length?Math.max(...tableItems.map(item=>item.x+item.width)):pageWidth};
         if(box){
           if(isSafeForShading(box.fill)) block.shadeHex = rgbToHex(box.fill);
-          if(box.stroke) block.borderHex = rgbToHex(box.stroke);
+          if(box.stroke){ block.borderHex = rgbToHex(box.stroke); block.borderWidthPt = box.lineWidth||1; }
         }
         blocks.push(block);
       }
@@ -518,7 +522,7 @@ async function extractPageBlocks(pdoc, pageNum, visuals){
     i = j;
   }
   standaloneSeparators.forEach(s=>{
-    blocks.push({type:"separator", _y: s.y});
+    blocks.push({type:"separator", _y: s.y, xLeft:s.x, xRight:s.x+s.w});
   });
   gridTables.forEach(g=>{
     const block = {type:"gridtable", nRows:g.nRows, nCols:g.nCols, cells:g.cells, colWidthsPt:g.colWidthsPt, colBounds:g.colBounds, rowBounds:g.rowBounds, bordered:g.bordered, _y: g._y};
@@ -533,12 +537,39 @@ async function extractPageBlocks(pdoc, pageNum, visuals){
     const box = findEnclosingBox(g.rowBounds[0], g.rowBounds[g.rowBounds.length-1]);
     if(box){
       if(isSafeForShading(box.fill)) block.shadeHex = rgbToHex(box.fill);
-      if(box.stroke) block.borderHex = rgbToHex(box.stroke);
+      if(box.stroke){ block.borderHex = rgbToHex(box.stroke); block.borderWidthPt = box.lineWidth||1; }
     }
+    g.cells.forEach(cell=>{
+      const x0=g.colBounds[cell.c0], x1=g.colBounds[cell.c0+cell.colSpan];
+      const yTop=g.rowBounds[cell.r0], yBottom=g.rowBounds[cell.r0+cell.rowSpan];
+      const fillBox=boxCandidates.filter(candidate=>candidate.fill && candidate.x<=x0+2 && candidate.x+candidate.w>=x1-2 && candidate.y<=yBottom+2 && candidate.y+candidate.h>=yTop-2).sort((a,b)=>a.w*a.h-b.w*b.h)[0];
+      if(fillBox && isSafeForShading(fillBox.fill)) cell.shadeHex=rgbToHex(fillBox.fill);
+    });
+    block.borderWidthPt = g.borderWidthPt;
     blocks.push(block);
   });
   blocks.sort((a,b)=> (b._y||0) - (a._y||0));
   return blocks;
+}
+
+/* Lightweight editable fallback for PDF pages whose richer structure pass could not be built.
+   It deliberately uses the same paragraph grouping model, keeping extractable text as Word runs;
+   only pages with no extractable text at all should fall back to a rendered page image. */
+async function extractPlainPageParagraphs(pdoc, pageNum){
+  const page = await pdoc.getPage(pageNum);
+  const content = await page.getTextContent();
+  const pageWidth = page.view[2]-page.view[0];
+  const lines = [];
+  for(const item of content.items){
+    if(item.str === undefined) continue;
+    const y = item.transform[5];
+    let line = lines.find(candidate=>Math.abs(candidate.y-y)<=3);
+    if(!line){ line={y,items:[]}; lines.push(line); }
+    line.items.push({str:item.str,x:item.transform[4],width:item.width||0,size:Math.abs(item.transform[0])||Math.abs(item.transform[3])||10,bold:false,italic:false,fontFamily:null,color:null});
+  }
+  lines.sort((a,b)=>b.y-a.y);
+  lines.forEach(line=>line.items.sort((a,b)=>a.x-b.x));
+  return linesToParagraphs(lines,pageWidth);
 }
 
 /* Merges nearby 1D values (x or y coordinates) into representative
@@ -735,7 +766,8 @@ function detectRulingGridTable(shapes, lines){
     // detector fired at all) - the Excel formatting layer uses this to
     // draw real borders ONLY here, never on a table promoted from the
     // borderless/gap-based path below, which has no such evidence at all.
-    bordered: true
+    bordered: true,
+    borderWidthPt: (()=>{ const values=[...hLines,...vLines].map(line=>line.stroke ? (line.lineWidth||1) : Math.max(0.25,Math.min(line.w||1,line.h||1))).sort((a,b)=>a-b); return values.length?values[Math.floor(values.length/2)]:0.5; })()
   };
 }
 
@@ -1039,8 +1071,9 @@ async function extractPageVisuals(pdoc, pageNum){
   const opList = await page.getOperatorList();
   const OPS = pdfjsLib.OPS;
   const images = [], shapes = [], colorSpans = [];
-  let stack = [[1,0,0,1,0,0]];
-  let fillColor = [0,0,0], strokeColor = [0,0,0], lineWidth = 1, pendingPath = null, inTextObject = false;
+  let state = {ctm:[1,0,0,1,0,0], fillColor:[0,0,0], strokeColor:[0,0,0], lineWidth:1};
+  const stack = [];
+  let pendingPath = null, inTextObject = false;
   function mul(m, cur){
     return [
       m[0]*cur[0]+m[1]*cur[2], m[0]*cur[1]+m[1]*cur[3],
@@ -1100,17 +1133,17 @@ async function extractPageVisuals(pdoc, pageNum){
   for(let idx=0; idx<opList.fnArray.length; idx++){
     const fn = opList.fnArray[idx];
     const args = opList.argsArray[idx];
-    if(fn === OPS.save){ stack.push(stack[stack.length-1].slice()); }
-    else if(fn === OPS.restore){ if(stack.length>1) stack.pop(); }
-    else if(fn === OPS.transform){ stack[stack.length-1] = mul(args, stack[stack.length-1]); }
-    else if(fn === OPS.setFillRGBColor){ fillColor = [args[0],args[1],args[2]]; }
-    else if(fn === OPS.setStrokeRGBColor){ strokeColor = [args[0],args[1],args[2]]; }
-    else if(fn === OPS.setLineWidth){ lineWidth = args[0]; }
+    if(fn === OPS.save){ stack.push({ctm:state.ctm.slice(),fillColor:state.fillColor.slice(),strokeColor:state.strokeColor.slice(),lineWidth:state.lineWidth}); }
+    else if(fn === OPS.restore){ if(stack.length) state=stack.pop(); }
+    else if(fn === OPS.transform){ state.ctm = mul(args, state.ctm); }
+    else if(fn === OPS.setFillRGBColor){ state.fillColor = [args[0],args[1],args[2]]; }
+    else if(fn === OPS.setStrokeRGBColor){ state.strokeColor = [args[0],args[1],args[2]]; }
+    else if(fn === OPS.setLineWidth){ state.lineWidth = args[0]; }
     else if(fn === OPS.beginText){ inTextObject = true; }
     else if(fn === OPS.endText){ inTextObject = false; }
     else if(fn === OPS.setTextMatrix){
-      const m = mul(args, stack[stack.length-1]);
-      colorSpans.push({x:m[4], y:m[5], color:fillColor.slice()});
+      const m = mul(args, state.ctm);
+      colorSpans.push({x:m[4], y:m[5], color:state.fillColor.slice()});
     }
     else if(fn === OPS.constructPath){ pendingPath = args; }
     else if(fn===OPS.fill || fn===OPS.eoFill || fn===OPS.stroke || fn===OPS.fillStroke || fn===OPS.eoFillStroke){
@@ -1129,7 +1162,7 @@ async function extractPageVisuals(pdoc, pageNum){
           // a table's dozens of individual border-line rectangles, even
           // when packed into one merged fill call, come out as that many
           // separate thin shapes instead of one giant, useless box.
-          const m = stack[stack.length-1];
+          const m = state.ctm;
           const doFill = fn===OPS.fill||fn===OPS.eoFill||fn===OPS.fillStroke||fn===OPS.eoFillStroke;
           const doStroke = fn===OPS.stroke||fn===OPS.fillStroke||fn===OPS.eoFillStroke;
           for(const b of splitIntoSubpathBBoxes(pendingPath[0], pendingPath[1])){
@@ -1137,7 +1170,7 @@ async function extractPageVisuals(pdoc, pageNum){
             const corners = [[b.minX,b.minY],[b.maxX,b.minY],[b.minX,b.maxY],[b.maxX,b.maxY]].map(([px,py])=>apply(m,px,py));
             const minX = Math.min(...corners.map(c=>c[0])), maxX = Math.max(...corners.map(c=>c[0]));
             const minY = Math.min(...corners.map(c=>c[1])), maxY = Math.max(...corners.map(c=>c[1]));
-            shapes.push({x:minX, y:minY, w:maxX-minX, h:maxY-minY, fill: doFill?fillColor.slice():null, stroke: doStroke?strokeColor.slice():null, lineWidth});
+            shapes.push({x:minX, y:minY, w:maxX-minX, h:maxY-minY, fill: doFill?state.fillColor.slice():null, stroke: doStroke?state.strokeColor.slice():null, lineWidth:state.lineWidth});
           }
         }
         pendingPath = null;
@@ -1145,7 +1178,7 @@ async function extractPageVisuals(pdoc, pageNum){
     }
     else if(fn === OPS.paintImageXObject || fn === OPS.paintJpegXObject){
       const objId = args[0];
-      const m = stack[stack.length-1];
+      const m = state.ctm;
       const w = Math.hypot(m[0], m[1]), h = Math.hypot(m[2], m[3]);
       if(w < 8 || h < 8) continue; // skip tiny/decorative artifacts
       try{
@@ -1159,13 +1192,27 @@ async function extractPageVisuals(pdoc, pageNum){
 function rgbToHex(rgb){
   return rgb.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("").toUpperCase();
 }
-function nearestColor(colorSpans, x, y, maxDist){
-  let best=null, bestD=maxDist*maxDist;
-  for(const c of colorSpans){
-    const dx=c.x-x, dy=c.y-y, d=dx*dx+dy*dy;
-    if(d<=bestD){ bestD=d; best=c.color; }
+function buildNearestColorLookup(colorSpans, maxDist){
+  const cellSize=Math.max(1,maxDist);
+  const buckets=new Map();
+  const key=(x,y)=>`${Math.floor(x/cellSize)},${Math.floor(y/cellSize)}`;
+  for(const span of colorSpans){
+    const bucketKey=key(span.x,span.y);
+    if(!buckets.has(bucketKey)) buckets.set(bucketKey,[]);
+    buckets.get(bucketKey).push(span);
   }
-  return best;
+  return (x,y)=>{
+    const cellX=Math.floor(x/cellSize), cellY=Math.floor(y/cellSize);
+    let best=null, bestD=maxDist*maxDist;
+    for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++){
+      const candidates=buckets.get(`${cellX+dx},${cellY+dy}`) || [];
+      for(const candidate of candidates){
+        const px=candidate.x-x, py=candidate.y-y, distance=px*px+py*py;
+        if(distance<=bestD){ bestD=distance; best=candidate.color; }
+      }
+    }
+    return best;
+  };
 }
 /* page.commonObjs font descriptors expose a reliable generic family via
    .fallbackName ("serif"/"sans-serif"/"monospace") even when the real
@@ -1328,7 +1375,9 @@ function tableBlockXml(block){
   const cols = block.rows.reduce((m,r)=>Math.max(m, r.reduce((s,c)=>s+(c.span||1),0)), 1);
   const gridCols = Array.from({length:cols}).map(()=>`<w:gridCol/>`).join("");
   const borderColor = block.borderHex || "BFBFBF";
-  const border = `<w:top w:val="single" w:sz="4" w:color="${borderColor}"/><w:left w:val="single" w:sz="4" w:color="${borderColor}"/><w:bottom w:val="single" w:sz="4" w:color="${borderColor}"/><w:right w:val="single" w:sz="4" w:color="${borderColor}"/>`;
+  const borderSize=Math.max(2,Math.min(24,Math.round((block.borderWidthPt||0.5)*8)));
+  const borderSide=name=>block.borderHex ? `<w:${name} w:val="single" w:sz="${borderSize}" w:color="${borderColor}"/>` : `<w:${name} w:val="nil"/>`;
+  const border = `${borderSide("top")}${borderSide("left")}${borderSide("bottom")}${borderSide("right")}`;
   const shd = block.shadeHex ? `<w:shd w:val="clear" w:fill="${block.shadeHex}"/>` : "";
   const rowsXml = block.rows.map(row=>{
     const cellsXml = row.map(cell=>{
@@ -1339,7 +1388,7 @@ function tableBlockXml(block){
     }).join("");
     return `<w:tr>${cellsXml}</w:tr>`;
   }).join("");
-  return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>${border}<w:insideH w:val="single" w:sz="4" w:color="${borderColor}"/><w:insideV w:val="single" w:sz="4" w:color="${borderColor}"/></w:tblBorders></w:tblPr><w:tblGrid>${gridCols}</w:tblGrid>${rowsXml}</w:tbl>`;
+  return `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblLayout w:type="fixed"/><w:tblBorders>${border}${block.borderHex?`<w:insideH w:val="single" w:sz="${borderSize}" w:color="${borderColor}"/><w:insideV w:val="single" w:sz="${borderSize}" w:color="${borderColor}"/>`:`<w:insideH w:val="nil"/><w:insideV w:val="nil"/>`}</w:tblBorders></w:tblPr><w:tblGrid>${gridCols}</w:tblGrid>${rowsXml}</w:tbl>`;
 }
 /* Real ruling-line table with true row/col spans (see
    detectRulingGridTable). Unlike tableBlockXml's auto-width gap-detected
@@ -1372,13 +1421,21 @@ function inlinePictureParagraphXml(im, zipCtx, maxWidthEmu){
   const {picXml, cx, cy, imgCounter} = buildPictureXml(im, zipCtx, maxWidthEmu);
   return `<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="${imgCounter}" name="Picture ${imgCounter}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">${picXml}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
 }
-function gridTableBlockXml(block, zipCtx){
-  const colWidthsTwips = block.colWidthsPt.map(w=>Math.max(1, Math.round(w*20)));
+function gridTableBlockXml(block, zipCtx, maxWidthPt){
+  let widthsPt = block.colWidthsPt.map(w=>Math.max(0.05,w));
+  const sourceWidth = widthsPt.reduce((a,b)=>a+b,0);
+  if(maxWidthPt && sourceWidth > maxWidthPt){
+    const scale = maxWidthPt/sourceWidth;
+    widthsPt = widthsPt.map(w=>w*scale);
+  }
+  const colWidthsTwips = widthsPt.map(w=>Math.max(1, Math.round(w*20)));
   const totalTwips = colWidthsTwips.reduce((a,b)=>a+b, 0);
   const gridCols = colWidthsTwips.map(w=>`<w:gridCol w:w="${w}"/>`).join("");
   const borderColor = block.borderHex || "000000";
-  const border = `<w:top w:val="single" w:sz="4" w:color="${borderColor}"/><w:left w:val="single" w:sz="4" w:color="${borderColor}"/><w:bottom w:val="single" w:sz="4" w:color="${borderColor}"/><w:right w:val="single" w:sz="4" w:color="${borderColor}"/>`;
-  const shd = block.shadeHex ? `<w:shd w:val="clear" w:fill="${block.shadeHex}"/>` : "";
+  const borderSize=Math.max(2,Math.min(24,Math.round((block.borderWidthPt||0.5)*8)));
+  const borderSide=(name,on)=>`<w:${name} w:val="${on?"single":"nil"}"${on?` w:sz="${borderSize}" w:color="${borderColor}"`:""}/>`;
+  const cellBorder=(cell,row)=>`<w:tcBorders>${borderSide("top",block.bordered!==false && row===cell.r0 && (!cell.edges||cell.edges.top))}${borderSide("left",block.bordered!==false && (!cell.edges||cell.edges.left))}${borderSide("bottom",block.bordered!==false && row===cell.r0+cell.rowSpan-1 && (!cell.edges||cell.edges.bottom))}${borderSide("right",block.bordered!==false && (!cell.edges||cell.edges.right))}</w:tcBorders>`;
+  const tableBorders=`<w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/>`;
 
   const occ = Array.from({length:block.nRows}, ()=>new Array(block.nCols).fill(null));
   block.cells.forEach(cell=>{
@@ -1420,22 +1477,25 @@ function gridTableBlockXml(block, zipCtx){
           const cellMaxWidthEmu = Math.max(1, cellWidthTwips - 8) * 635;
           cellImagesXml = cell.images.map(im=>inlinePictureParagraphXml(im, zipCtx, cellMaxWidthEmu)).join("");
         }
-        rowXml += `<w:tc><w:tcPr>${tcW}<w:tcBorders>${border}</w:tcBorders>${shd}${spanXml}${vMergeXml}${vAlignXml}<w:tcMar><w:left w:w="${padLeftTwips}" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tcMar></w:tcPr><w:p>${jcXml?`<w:pPr>${jcXml}</w:pPr>`:""}${cellContentXml}</w:p>${cellImagesXml}</w:tc>`;
+        const shd=(cell.shadeHex||block.shadeHex) ? `<w:shd w:val="clear" w:fill="${cell.shadeHex||block.shadeHex}"/>` : "";
+        rowXml += `<w:tc><w:tcPr>${tcW}${cellBorder(cell,r)}${shd}${spanXml}${vMergeXml}${vAlignXml}<w:tcMar><w:left w:w="${padLeftTwips}" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tcMar></w:tcPr><w:p>${jcXml?`<w:pPr>${jcXml}</w:pPr>`:""}${cellContentXml}</w:p>${cellImagesXml}</w:tc>`;
       } else {
-        rowXml += `<w:tc><w:tcPr>${tcW}<w:tcBorders>${border}</w:tcBorders>${shd}${spanXml}<w:vMerge/></w:tcPr><w:p/></w:tc>`;
+        const shd=(cell.shadeHex||block.shadeHex) ? `<w:shd w:val="clear" w:fill="${cell.shadeHex||block.shadeHex}"/>` : "";
+        rowXml += `<w:tc><w:tcPr>${tcW}${cellBorder(cell,r)}${shd}${spanXml}<w:vMerge/></w:tcPr><w:p/></w:tc>`;
       }
       c += cell.colSpan;
     }
-    rowsXml += `<w:tr>${rowXml}</w:tr>`;
+    const rowHeightPt=block.rowBounds && block.rowBounds.length>r+1 ? Math.max(1,block.rowBounds[r]-block.rowBounds[r+1]) : null;
+    rowsXml += `<w:tr>${rowHeightPt?`<w:trPr><w:cantSplit/><w:trHeight w:val="${Math.round(rowHeightPt*20)}" w:hRule="atLeast"/></w:trPr>`:""}${rowXml}</w:tr>`;
   }
-  return `<w:tbl><w:tblPr><w:tblW w:w="${totalTwips}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders>${border}<w:insideH w:val="single" w:sz="4" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:color="000000"/></w:tblBorders></w:tblPr><w:tblGrid>${gridCols}</w:tblGrid>${rowsXml}</w:tbl>`;
+  return `<w:tbl><w:tblPr><w:tblW w:w="${totalTwips}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders>${tableBorders}</w:tblBorders></w:tblPr><w:tblGrid>${gridCols}</w:tblGrid>${rowsXml}</w:tbl>`;
 }
 function columnsBlockXml(block){
   const leftXml = block.left.map(styledParagraphXml).join("") || "<w:p/>";
   const rightXml = block.right.map(styledParagraphXml).join("") || "<w:p/>";
   const noBorder = `<w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/>`;
   const shd = block.shadeHex ? `<w:shd w:val="clear" w:fill="${block.shadeHex}"/>` : "";
-  return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>${noBorder}</w:tblBorders></w:tblPr><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid><w:tr><w:tc><w:tcPr>${shd}</w:tcPr>${leftXml}</w:tc><w:tc><w:tcPr>${shd}</w:tcPr>${rightXml}</w:tc></w:tr></w:tbl>`;
+  return `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblLayout w:type="fixed"/><w:tblBorders>${noBorder}</w:tblBorders></w:tblPr><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid><w:tr><w:tc><w:tcPr>${shd}</w:tcPr>${leftXml}</w:tc><w:tc><w:tcPr>${shd}</w:tcPr>${rightXml}</w:tc></w:tr></w:tbl>`;
 }
 /* A vector-drawn rule with no text attached to it (page/section divider,
    e.g. the line under a heading or between report sections) - approximated
@@ -1659,10 +1719,16 @@ function blockExtent(block, defaultLineHeightPt){
       yTop: block._y, yBottom: block._y - defaultLineHeightPt
     };
   }
+  if(block.type === "separator"){
+    return {xLeft:block.xLeft!=null?block.xLeft:null,xRight:block.xRight!=null?block.xRight:null,yTop:block._y,yBottom:block._y-1};
+  }
+  if(block.type === "table"){
+    return {xLeft:block.xLeft!=null?block.xLeft:null,xRight:block.xRight!=null?block.xRight:null,yTop:block._y,yBottom:block._y-defaultLineHeightPt*Math.max(1,block.rows.length)};
+  }
   // "table" fallback (buildBorderlessTable declined, no real column x
   // evidence retained) - Y extent approximated from its own row count,
   // same per-row unit as every other geometry-less block type.
-  return { xLeft: null, xRight: null, yTop: block._y, yBottom: block._y - defaultLineHeightPt*Math.max(1, block.rows.length) };
+  return {xLeft:null,xRight:null,yTop:block._y,yBottom:block._y-defaultLineHeightPt};
 }
 
 /* Grows the running page-wide column-boundary set (points) across pages
@@ -2828,10 +2894,125 @@ function sectPrXml(sizeObj, headerRid, footerRid){
     pgH = Math.round(sizeObj.heightPt*20);
     if(pgW > pgH) orient = ' w:orient="landscape"';
   }
-  const margin = Math.max(360, Math.min(1417, Math.floor(Math.min(pgW,pgH)/2) - 200));
+  const fallbackMargin = Math.max(360, Math.min(1417, Math.floor(Math.min(pgW,pgH)/2) - 200));
+  const marginTwips = value => Number.isFinite(value) ? Math.max(0,Math.round(value*20)) : fallbackMargin;
+  const top=marginTwips(sizeObj && sizeObj.marginTopPt), right=marginTwips(sizeObj && sizeObj.marginRightPt);
+  const bottom=marginTwips(sizeObj && sizeObj.marginBottomPt), left=marginTwips(sizeObj && sizeObj.marginLeftPt);
   const refs = (headerRid ? `<w:headerReference w:type="default" r:id="${headerRid}"/>` : "")
     + (footerRid ? `<w:footerReference w:type="default" r:id="${footerRid}"/>` : "");
-  return `<w:sectPr>${refs}<w:pgSz w:w="${pgW}" w:h="${pgH}"${orient}/><w:pgMar w:top="${margin}" w:right="${margin}" w:bottom="${margin}" w:left="${margin}"/></w:sectPr>`;
+  return `<w:sectPr>${refs}<w:pgSz w:w="${pgW}" w:h="${pgH}"${orient}/><w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}"/></w:sectPr>`;
+}
+
+function docxPageContentBox(sizeObj){
+  let widthPt = 595.3, heightPt = 841.9;
+  if(sizeObj && sizeObj.widthPt && sizeObj.heightPt){ widthPt=sizeObj.widthPt; heightPt=sizeObj.heightPt; }
+  const pgW=Math.round(widthPt*20), pgH=Math.round(heightPt*20);
+  const fallback=Math.max(360,Math.min(1417,Math.floor(Math.min(pgW,pgH)/2)-200))/20;
+  const margin = (name)=>Number.isFinite(sizeObj && sizeObj[name]) ? Math.max(0,sizeObj[name]) : fallback;
+  const marginTopPt=margin("marginTopPt"), marginRightPt=margin("marginRightPt");
+  const marginBottomPt=margin("marginBottomPt"), marginLeftPt=margin("marginLeftPt");
+  return {widthPt,heightPt,marginTopPt,marginRightPt,marginBottomPt,marginLeftPt,usableWidthPt:Math.max(1,widthPt-marginLeftPt-marginRightPt)};
+}
+
+function pdfBlockBounds(block, pageSize){
+  if(!block) return null;
+  if(block.type === "image" && Number.isFinite(block.xPt)) return {left:block.xPt,right:block.xPt+(block.widthPt||0),top:block.yFromTopPt||0,bottom:(block.yFromTopPt||0)+(block.heightPt||0)};
+  let left=block.xLeft, right=block.xRight;
+  if(block.colBounds && block.colBounds.length){ left=block.colBounds[0]; right=block.colBounds[block.colBounds.length-1]; }
+  if(block.type === "columns"){
+    const children=[...(block.left||[]),...(block.right||[])].map(child=>pdfBlockBounds(child,pageSize)).filter(Boolean);
+    if(children.length){ left=Math.min(...children.map(x=>x.left)); right=Math.max(...children.map(x=>x.right)); }
+  }
+  let topY=block._y, bottomY=block._y;
+  if(block.rowBounds && block.rowBounds.length){ topY=block.rowBounds[0]; bottomY=block.rowBounds[block.rowBounds.length-1]; }
+  const runSizes=block.runs ? block.runs.map(run=>run.size||0) : [];
+  const fontSize=Math.max(10,...runSizes);
+  if(!Number.isFinite(left) || !Number.isFinite(right) || !Number.isFinite(topY)) return null;
+  return {left,right,top:Math.max(0,pageSize.heightPt-topY-fontSize),bottom:Math.min(pageSize.heightPt,pageSize.heightPt-(Number.isFinite(bottomY)?bottomY:topY)+fontSize*0.3)};
+}
+
+/* Infer the source page's real content margins from extracted geometry. These values drive both
+   sectPr and the page layout table, so a tightly-laid-out form does not get forced through Word's
+   former hardcoded 1-inch margins. */
+function inferPdfPageLayoutSize(pageSize, blocks){
+  const bounds=(blocks||[]).map(block=>pdfBlockBounds(block,pageSize)).filter(Boolean);
+  if(!bounds.length) return Object.assign({},pageSize);
+  const cap=72;
+  return Object.assign({},pageSize,{
+    marginLeftPt:Math.max(0,Math.min(cap,Math.min(...bounds.map(x=>x.left)))),
+    marginRightPt:Math.max(0,Math.min(cap,pageSize.widthPt-Math.max(...bounds.map(x=>x.right)))),
+    marginTopPt:Math.max(0,Math.min(cap,Math.min(...bounds.map(x=>x.top)))),
+    marginBottomPt:Math.max(0,Math.min(cap,pageSize.heightPt-Math.max(...bounds.map(x=>x.bottom))))
+  });
+}
+
+function pageLayoutBlockXml(pageBlock, renderBlock){
+  const contentBox=docxPageContentBox(pageBlock.pageSize);
+  const usableTwips=Math.max(1,Math.round(contentBox.usableWidthPt*20));
+  const entries=(pageBlock.blocks||[]).map(block=>({block,bounds:pdfBlockBounds(block,pageBlock.pageSize)})).filter(entry=>entry.bounds).sort((a,b)=>a.bounds.top-b.bounds.top);
+  const noBorder=`<w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/>`;
+  const renderNested=entry=>{
+    const nested=Object.assign({},entry.block,{_availableWidthPt:Math.max(1,entry.bounds.right-entry.bounds.left)});
+    return renderBlock(nested)+(/^(table|gridtable|columns)$/.test(nested.type) ? "<w:p/>" : "");
+  };
+
+  // Blocks sharing a visual baseline belong in one horizontal band. Serializing independent
+  // left/right regions as separate rows lets the first region push the second downward. Group only
+  // non-overlapping regions whose measured top coordinates agree, using a tolerance derived from
+  // their own height rather than from any document-specific layout.
+  const bands=[];
+  for(const entry of entries){
+    const height=Math.max(1,entry.bounds.bottom-entry.bounds.top);
+    const flowBottom=entry.block.type==="image" && entry.block.placement==="anchored" ? entry.bounds.top+1 : entry.bounds.bottom;
+    const tolerance=Math.max(1,Math.min(4,height*0.25));
+    const band=bands[bands.length-1];
+    const overlapsX=band && band.entries.some(item=>entry.bounds.left < item.bounds.right-0.5 && entry.bounds.right > item.bounds.left+0.5);
+    if(band && Math.abs(entry.bounds.top-band.top)<=tolerance && !overlapsX){
+      band.entries.push(entry);
+      band.bottom=Math.max(band.bottom,entry.bounds.bottom);
+      band.flowBottom=Math.max(band.flowBottom,flowBottom);
+    }else bands.push({top:entry.bounds.top,bottom:entry.bounds.bottom,flowBottom,entries:[entry]});
+  }
+
+  function bandContentXml(band){
+    const sorted=band.entries.slice().sort((a,b)=>a.bounds.left-b.bounds.left);
+    if(sorted.length===1){
+      const entry=sorted[0];
+      const leftIndent=Math.max(0,entry.bounds.left-contentBox.marginLeftPt);
+      const rightIndent=Math.max(0,contentBox.widthPt-contentBox.marginRightPt-entry.bounds.right);
+      return `<w:tc><w:tcPr><w:tcW w:w="${usableTwips}" w:type="dxa"/><w:tcMar><w:left w:w="${Math.round(leftIndent*20)}" w:type="dxa"/><w:right w:w="${Math.round(rightIndent*20)}" w:type="dxa"/><w:top w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/></w:tcMar></w:tcPr>${renderNested(entry)}</w:tc>`;
+    }
+    const segments=[];
+    let cursor=contentBox.marginLeftPt;
+    const contentRight=contentBox.widthPt-contentBox.marginRightPt;
+    for(const entry of sorted){
+      const left=Math.max(cursor,Math.min(contentRight,entry.bounds.left));
+      const right=Math.max(left+0.05,Math.min(contentRight,entry.bounds.right));
+      if(left>cursor+0.05) segments.push({width:left-cursor});
+      segments.push({width:right-left,entry});
+      cursor=right;
+    }
+    if(contentRight>cursor+0.05) segments.push({width:contentRight-cursor});
+    const widths=segments.map(segment=>Math.max(1,Math.round(segment.width*20)));
+    const grid=widths.map(width=>`<w:gridCol w:w="${width}"/>`).join("");
+    const cells=segments.map((segment,index)=>`<w:tc><w:tcPr><w:tcW w:w="${widths[index]}" w:type="dxa"/><w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar></w:tcPr>${segment.entry?renderNested(segment.entry):"<w:p/>"}</w:tc>`).join("");
+    const nested=`<w:tbl><w:tblPr><w:tblW w:w="${usableTwips}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar><w:tblBorders>${noBorder}</w:tblBorders></w:tblPr><w:tblGrid>${grid}</w:tblGrid><w:tr>${cells}</w:tr></w:tbl><w:p/>`;
+    return `<w:tc><w:tcPr><w:tcW w:w="${usableTwips}" w:type="dxa"/></w:tcPr>${nested}</w:tc>`;
+  }
+  let rows="";
+  if(bands.length){
+    const firstGap=Math.max(0,bands[0].top-contentBox.marginTopPt);
+    if(firstGap>0.5) rows+=`<w:tr><w:trPr><w:trHeight w:val="${Math.round(firstGap*20)}" w:hRule="exact"/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${usableTwips}" w:type="dxa"/></w:tcPr><w:p/></w:tc></w:tr>`;
+    bands.forEach((band,index)=>{
+      const next=bands[index+1];
+      const sourceHeight=Math.max(1,band.flowBottom-band.top);
+      const slotPt=Math.max(sourceHeight,next ? next.top-band.top : sourceHeight);
+      rows+=`<w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="${Math.round(slotPt*20)}" w:hRule="exact"/></w:trPr>${bandContentXml(band)}</w:tr>`;
+    });
+  } else {
+    rows=`<w:tr><w:tc><w:tcPr><w:tcW w:w="${usableTwips}" w:type="dxa"/></w:tcPr><w:p/></w:tc></w:tr>`;
+  }
+  return `<w:tbl><w:tblPr><w:tblW w:w="${usableTwips}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar><w:tblBorders>${noBorder}</w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w="${usableTwips}"/></w:tblGrid>${rows}</w:tbl>`;
 }
 
 /* Whether a block (of ANY type - paragraph, table, gridtable, columns)
@@ -2911,12 +3092,12 @@ function detectHeaderFooter(pageBlocksList){
 }
 async function buildMixedDocx(blocks, pageSize, headerFooter){
   const zip = new JSZip();
-  const hasImages = blocks.some(b=>b.type==="image" || (b.type==="gridtable" && b.cells.some(c=>c.images && c.images.length)));
+  const blockHasImages = b=>b && (b.type==="image" || (b.type==="gridtable" && b.cells.some(c=>c.images && c.images.length)) || (b.type==="pagelayout" && b.blocks.some(blockHasImages)));
+  const hasImages = blocks.some(blockHasImages);
   const headerRuns = headerFooter && headerFooter.headerRuns;
   const footerRuns = headerFooter && headerFooter.footerRuns;
 
   const mediaFolder = zip.folder("word").folder("media");
-  const maxWidthEmu = 5760000; // ~6.3in usable page width
   const relEntries = [];
   // Shared counter state so top-level image blocks AND table-cell-embedded
   // images (rendered from inside gridTableBlockXml) draw relationship/image
@@ -2956,7 +3137,10 @@ ${footerRuns ? '<Override PartName="/word/footer1.xml" ContentType="application/
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`);
 
-  const bodyParts = blocks.map(b=>{
+  function renderBlock(b){
+    const blockPageSize = b._pageSize || pageSize;
+    const contentBox = docxPageContentBox(blockPageSize);
+    const maxWidthEmu = Math.round(contentBox.usableWidthPt*12700);
     if(b.type === "image"){
       // Images extracted from real embedded PDF image objects carry their
       // true size in PDF points (1pt = 12700 EMU); the whole-page-screenshot
@@ -2971,9 +3155,9 @@ ${footerRuns ? '<Override PartName="/word/footer1.xml" ContentType="application/
         // than dropped inline wherever its Y-sort position happens to
         // land. relativeHeight must be unique per anchored image so Word
         // doesn't collapse their z-order.
-        const xEmu = Math.max(0, Math.round(b.xPt*12700));
-        const yEmu = Math.max(0, Math.round(b.yFromTopPt*12700));
-        return `<w:p><w:r><w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="${1000+imgCounter}" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>${xEmu}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${yEmu}</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapSquare wrapText="bothSides"/><wp:docPr id="${imgCounter}" name="Picture ${imgCounter}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">${picXml}</a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>`;
+        const xEmu = Math.max(0, Math.min(Math.round(b.xPt*12700), Math.round(contentBox.widthPt*12700)-cx));
+        const yEmu = Math.max(0, Math.min(Math.round(b.yFromTopPt*12700), Math.round(contentBox.heightPt*12700)-cy));
+        return `<w:p><w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${1000+imgCounter}" behindDoc="0" locked="0" layoutInCell="0" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>${xEmu}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${yEmu}</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${imgCounter}" name="Picture ${imgCounter}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">${picXml}</a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>`;
       }
       // Wide banner/logo images behave as normal centered inline content.
       const jc = b.placement === "centered" ? `<w:pPr><w:jc w:val="center"/></w:pPr>` : "";
@@ -2990,14 +3174,16 @@ ${footerRuns ? '<Override PartName="/word/footer1.xml" ContentType="application/
       if(b.sectionSize) return `<w:p><w:pPr>${sectPrXml(b.sectionSize, headerRid, footerRid)}</w:pPr></w:p>`;
       return `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
     }
+    if(b.type === "pagelayout"){ return pageLayoutBlockXml(b,renderBlock); }
     if(b.type === "paragraph"){ return styledParagraphXml(b); }
     if(b.type === "table"){ return tableBlockXml(b); }
-    if(b.type === "gridtable"){ return gridTableBlockXml(b, zipCtx); }
+    if(b.type === "gridtable"){ return gridTableBlockXml(b, zipCtx, b._availableWidthPt||contentBox.usableWidthPt); }
     if(b.type === "columns"){ return columnsBlockXml(b); }
     if(b.type === "separator"){ return separatorBlockXml(); }
     if(!b.text || !b.text.trim()) return `<w:p/>`;
     return `<w:p><w:r><w:t xml:space="preserve">${escapeXml(fixDevanagari(b.text))}</w:t></w:r></w:p>`;
-  }).join("");
+  }
+  const bodyParts = blocks.map(renderBlock).join("");
 
   // Final section's properties describe the LAST PDF page's size (mid-
   // document size changes are handled per-pagebreak above via sectPrXml).

@@ -61,6 +61,8 @@
   let fileSize = 0;
   const pageInfoCache = new Map(); // pageNumber -> {width, height, ratio}
   const textContentCache = new Map(); // pageNumber -> Promise<TextContent>, Priority 6A
+  const textLayoutCache = new Map();
+  const annotationCache = new Map();
   let originalBytes = null; // Priority 5B — retained clone for Export, see file header
   let loadingTask = null;
   let loadGeneration = 0;
@@ -94,6 +96,8 @@
     }
     pageInfoCache.clear();
     textContentCache.clear();
+    textLayoutCache.clear();
+    annotationCache.clear();
     originalBytes = null;
   }
 
@@ -187,6 +191,179 @@
     return promise;
   }
 
+  async function getPageTextLayout(pageNumber) {
+    if (textLayoutCache.has(pageNumber)) return textLayoutCache.get(pageNumber);
+    if (!pdfDoc) throw new Error('No document loaded');
+    const promise = (async () => {
+      const page = await pdfDoc.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent({ includeMarkedContent: true, disableNormalization: true });
+      const util = window.pdfjsLib.Util;
+      const paintRuns = await getPageTextPaintRuns(page);
+      const paintByItem = alignPaintRuns(content.items, paintRuns);
+      const items = content.items.filter((item) => item.str != null && item.str.length).map((item, index) => {
+        const tx = util.transform(viewport.transform, item.transform);
+        const fontHeight = Math.max(1, Math.hypot(tx[2], tx[3]));
+        const angle = Math.atan2(tx[1], tx[0]) * 180 / Math.PI;
+        const style = content.styles[item.fontName] || {};
+        const ascent = Number.isFinite(style.ascent) ? style.ascent : 0.8;
+        const descent = Number.isFinite(style.descent) ? style.descent : -0.2;
+        const baseline = tx[5];
+        const height = Math.max(1, (ascent - descent) * fontHeight);
+        const width = Math.max(1, Math.abs(item.width || 0));
+        const paint = paintByItem[index] || {};
+        let fontObject = null;
+        try { fontObject = page.commonObjs && page.commonObjs.get(item.fontName); } catch (_) { /* best-effort internal font metadata */ }
+        const fontFamily = fontObject?.loadedName || fontObject?.fallbackName || style.fontFamily || item.fontName || unicodeFallback(item.str);
+        return {
+          index, text:item.str, x:tx[4], y:baseline-ascent*fontHeight,
+          width, height, angle, baseline,
+          transform:Array.from(item.transform || []),
+          fontSize:fontHeight, fontFamily, fontName:item.fontName || '',
+          bold:!!fontObject?.black || !!fontObject?.bold || /bold|black|heavy|semibold/i.test(`${fontFamily} ${item.fontName || ''}`),
+          italic:!!fontObject?.italic || /italic|oblique/i.test(`${fontFamily} ${item.fontName || ''}`),
+          color:paint.color || '#000000', opacity:paint.opacity == null ? 1 : paint.opacity,
+          characterSpacing:paint.characterSpacing || 0, wordSpacing:paint.wordSpacing || 0,
+          horizontalScale:paint.horizontalScale || 1, textRise:paint.textRise || 0,
+          ascent, descent, direction:item.dir || 'ltr', vertical:!!style.vertical
+        };
+      });
+      return {width:viewport.width,height:viewport.height,rotation:viewport.rotation,items};
+    })();
+    textLayoutCache.set(pageNumber,promise);
+    return promise;
+  }
+
+  function unicodeFallback(text) {
+    return /[\u0900-\u097f]/.test(text || '') ? 'Noto Sans Devanagari' : 'sans-serif';
+  }
+
+  function normalizedText(value) { return String(value || '').replace(/\s+/g, ''); }
+
+  /** Align PDF.js text-content items with operator-list paint runs by their
+   *  ordered character ranges. A showText operator may produce several text
+   *  items (or several operators may be combined into one item), so advancing
+   *  one paint run per item assigns neighboring colors to the wrong text.
+   *  The greatest-overlap run is the best single-style representation when a
+   *  PDF.js item genuinely spans more than one painted run. */
+  function alignPaintRuns(rawItems, paintRuns) {
+    const items = rawItems.filter((item) => item.str != null && item.str.length);
+    const segments = [];
+    let stream = '';
+    paintRuns.forEach((run) => {
+      const text = normalizedText(run.text);
+      if (!text) return;
+      const start = stream.length;
+      stream += text;
+      segments.push({start,end:stream.length,run});
+    });
+    let cursor = 0, segmentIndex = 0;
+    return items.map((item) => {
+      const text = normalizedText(item.str);
+      if (!text || !segments.length) return {};
+      let start = stream.indexOf(text, cursor);
+      if (start === -1) start = cursor;
+      const end = Math.min(stream.length, start + text.length);
+      while (segmentIndex < segments.length - 1 && segments[segmentIndex].end <= start) segmentIndex++;
+      let best = segments[segmentIndex], bestOverlap = -1;
+      for (let i = segmentIndex; i < segments.length && segments[i].start < end; i++) {
+        const overlap = Math.max(0, Math.min(end, segments[i].end) - Math.max(start, segments[i].start));
+        if (overlap > bestOverlap) { best = segments[i]; bestOverlap = overlap; }
+      }
+      cursor = Math.max(cursor, end);
+      return best?.run || {};
+    });
+  }
+
+  function operatorText(value) {
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(operatorText).join('');
+    if (value && typeof value === 'object') return value.unicode || value.fontChar || '';
+    return '';
+  }
+
+  function colorHex(args) {
+    let values = args;
+    if (args?.length === 1 && (Array.isArray(args[0]) || ArrayBuffer.isView(args[0]))) values = Array.from(args[0]);
+    values = Array.from(values || []).slice(0, 3).map(Number);
+    if (values.length < 3 || values.some((n) => !Number.isFinite(n))) return '#000000';
+    if (Math.max(...values) <= 1) values = values.map((n) => n * 255);
+    return '#' + values.map((n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')).join('');
+  }
+
+  function grayHex(args) {
+    const raw = args?.length === 1 && (Array.isArray(args[0]) || ArrayBuffer.isView(args[0])) ? args[0][0] : args?.[0];
+    const gray = Number(raw);
+    const scale = Number.isFinite(gray) && gray > 1 ? 255 : 1;
+    const byte = Math.round(Math.max(0, Math.min(1, Number.isFinite(gray) ? gray / scale : 0)) * 255);
+    return colorHex([byte, byte, byte]);
+  }
+
+  function cmykHex(args) {
+    let values = args;
+    if (args?.length === 1 && (Array.isArray(args[0]) || ArrayBuffer.isView(args[0]))) values = Array.from(args[0]);
+    const [c,m,y,k] = Array.from(values || []).slice(0,4).map(Number);
+    if (![c,m,y,k].every(Number.isFinite)) return '#000000';
+    const scale = Math.max(c,m,y,k) > 1 ? 255 : 1;
+    const channel = (component) => 255 * (1 - Math.min(1, component / scale + k / scale));
+    return colorHex([channel(c),channel(m),channel(y)]);
+  }
+
+  async function getPageTextPaintRuns(page) {
+    const OPS = window.pdfjsLib.OPS || {};
+    const list = await page.getOperatorList();
+    const state = { fillColor:'#000000', strokeColor:'#000000', fillOpacity:1, strokeOpacity:1, renderingMode:0, characterSpacing:0, wordSpacing:0, horizontalScale:1, textRise:0 };
+    const stack = [], runs = [];
+    for (let i = 0; i < list.fnArray.length; i++) {
+      const fn = list.fnArray[i], args = list.argsArray[i] || [];
+      if (fn === OPS.save) stack.push(Object.assign({}, state));
+      else if (fn === OPS.restore && stack.length) Object.assign(state, stack.pop());
+      else if (fn === OPS.setFillRGBColor) state.fillColor = colorHex(args);
+      else if (fn === OPS.setStrokeRGBColor) state.strokeColor = colorHex(args);
+      else if (fn === OPS.setFillGray) state.fillColor = grayHex(args);
+      else if (fn === OPS.setStrokeGray) state.strokeColor = grayHex(args);
+      else if (fn === OPS.setFillCMYKColor) state.fillColor = cmykHex(args);
+      else if (fn === OPS.setStrokeCMYKColor) state.strokeColor = cmykHex(args);
+      else if (fn === OPS.setTextRenderingMode) state.renderingMode = Number(args[0]) || 0;
+      else if (fn === OPS.setCharSpacing) state.characterSpacing = Number(args[0]) || 0;
+      else if (fn === OPS.setWordSpacing) state.wordSpacing = Number(args[0]) || 0;
+      else if (fn === OPS.setHScale) state.horizontalScale = (Number(args[0]) || 100) / 100;
+      else if (fn === OPS.setTextRise) state.textRise = Number(args[0]) || 0;
+      else if (fn === OPS.setGState) {
+        const entries = Array.isArray(args[0]) ? args[0] : args;
+        for (const entry of entries) if (Array.isArray(entry)) {
+          const value = Number(entry[1]);
+          if (entry[0] === 'ca' && Number.isFinite(value)) state.fillOpacity = Math.max(0,Math.min(1,value));
+          if (entry[0] === 'CA' && Number.isFinite(value)) state.strokeOpacity = Math.max(0,Math.min(1,value));
+        }
+      } else if (fn === OPS.showText || fn === OPS.showSpacedText || fn === OPS.nextLineShowText || fn === OPS.nextLineSetSpacingShowText) {
+        const strokeOnly = state.renderingMode === 1 || state.renderingMode === 5;
+        runs.push(Object.assign({
+          text:operatorText(args),
+          color:strokeOnly ? state.strokeColor : state.fillColor,
+          opacity:strokeOnly ? state.strokeOpacity : state.fillOpacity
+        }, state));
+      }
+    }
+    return runs;
+  }
+
+  async function getPageAnnotations(pageNumber) {
+    if (annotationCache.has(pageNumber)) return annotationCache.get(pageNumber);
+    if (!pdfDoc) throw new Error('No document loaded');
+    const promise = (async () => {
+      const page = await pdfDoc.getPage(pageNumber);
+      const viewport = page.getViewport({scale:1});
+      const annotations = await page.getAnnotations({intent:'display'});
+      return annotations.map((annotation,index) => {
+        const rect = annotation.rect ? viewport.convertToViewportRectangle(annotation.rect) : [0,0,0,0];
+        return Object.assign({},annotation,{index,viewportRect:[Math.min(rect[0],rect[2]),Math.min(rect[1],rect[3]),Math.max(rect[0],rect[2]),Math.max(rect[1],rect[3])]});
+      });
+    })();
+    annotationCache.set(pageNumber,promise);
+    return promise;
+  }
+
   /**
    * Renders one page into one canvas at the given scale. Returns the live
    * pdf.js RenderTask so callers (render-queue.js) can .cancel() it — this
@@ -245,7 +422,7 @@
     fileSize = 0;
   }
 
-  window.RenderEngine = { loadDocument, getPageInfo, getPageTextContent, renderPage, getNumPages, getOriginalBytes, destroy };
+  window.RenderEngine = { loadDocument, getPageInfo, getPageTextContent, getPageTextLayout, getPageAnnotations, renderPage, getNumPages, getOriginalBytes, destroy };
 
   // Every module that awaits a RenderTask's .promise already treats
   // RenderingCancelledException as expected/non-fatal (see render-queue.js

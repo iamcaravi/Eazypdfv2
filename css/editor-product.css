@@ -1,0 +1,125 @@
+/* Product-level Edit PDF interaction layer. Scoped to the editor so no other tool is affected. */
+.editor-shell .editor-toolbar{overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.editor-shell .editor-toolbar-group{flex:none}
+.editor-shell .btn-icon.is-active{background:var(--color-brand-primary);color:#fff}
+.editor-native-layer{position:absolute;inset:0;z-index:1;pointer-events:none}
+.editor-shell .editor-object{z-index:2}.editor-shell .editor-object.is-selected{z-index:3}
+.editor-native-text{position:absolute;margin:0;padding:0;border:0;background:transparent;color:transparent;pointer-events:none;transform-origin:left top;border-radius:2px}
+.editor-shell[data-active-tool="select"] .editor-native-text,
+.editor-shell[data-active-tool="text"] .editor-native-text{pointer-events:auto;cursor:text}
+.editor-shell[data-active-tool="select"] .editor-native-text:hover,
+.editor-shell[data-active-tool="select"] .editor-native-text:focus-visible,
+.editor-shell[data-active-tool="text"] .editor-native-text:hover,
+.editor-shell[data-active-tool="text"] .editor-native-text:focus-visible{outline:1px solid rgba(37,99,235,.72);background:rgba(37,99,235,.07)}
+.editor-native-text.is-activated{visibility:visible;pointer-events:none;outline:0;background:var(--editor-source-background,#fff)}
+.editor-object.is-source-text:not(.is-source-committed){cursor:text}
+.editor-object.is-source-text:not(.is-source-committed) .editor-object-handle{display:none}
+.editor-object.is-source-text.is-source-committed{cursor:move}
+.editor-object.is-source-text .eo-text-inner{white-space:pre;word-break:normal;text-overflow:clip;background:transparent}
+.editor-object[data-type="link"]{outline-color:#2563eb}
+.eo-link-box{width:100%;height:100%;box-sizing:border-box;border:1px dashed #2563eb;background:rgba(37,99,235,.08);color:#1d4ed8;font:11px/1.2 var(--font-body);overflow:hidden;padding:2px}
+.eo-strikethrough-box{position:relative;width:100%;height:100%}
+.eo-strikethrough-box::after{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:#dc2626}
+.eo-form-field{width:100%;height:100%;box-sizing:border-box;border:1px solid #64748b;background:#fff;color:#334155;font:12px/1.2 var(--font-body);padding:3px;overflow:hidden}
+.editor-dialog-overlay{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.48)}
+.editor-dialog{width:min(460px,94vw);display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:12px;background:var(--color-surface,#fff);color:var(--color-text-primary,#111827);box-shadow:0 24px 70px rgba(15,23,42,.28);font-family:var(--font-body,'Plus Jakarta Sans',sans-serif)}
+.editor-dialog-head{display:flex;align-items:center;justify-content:space-between;font-size:16px}
+.editor-dialog-head button{border:0;background:transparent;color:inherit;cursor:pointer;font-size:16px}
+.editor-dialog label{display:grid;gap:6px;font-size:12px;font-weight:600}
+.editor-dialog input,.editor-dialog textarea,.editor-dialog select{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--color-border,#d1d5db);border-radius:7px;background:var(--color-surface,#fff);color:inherit;font:inherit}
+.editor-dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.editor-dialog-actions button,.editor-choice-grid button{padding:9px 12px;border:1px solid var(--color-border,#d1d5db);border-radius:7px;background:var(--color-surface,#fff);color:inherit;font:600 12px var(--font-body);cursor:pointer}
+.editor-dialog-actions button:last-child{background:var(--color-brand-primary,#e8291b);border-color:transparent;color:#fff}
+.editor-dialog-actions button:disabled{opacity:.45;cursor:not-allowed}
+.editor-find-status,.editor-dialog-note{margin:0;color:var(--color-text-secondary,#64748b);font-size:12px}
+.editor-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.editor-choice-grid button{text-align:left}
+@media(max-width:639px){.editor-choice-grid{grid-template-columns:1fr}.editor-dialog-actions>*{flex:1}}
+
+/* Phase 1 workspace layout: maximize the document while retaining every editor control. */
+.editor-shell{
+  --editor-sidebar-w:176px;
+  --editor-sidebar-min:148px;
+  --editor-sidebar-max:240px;
+  --editor-inspector-w:280px;
+  --editor-rail-w:0px;
+}
+.editor-shell .editor-toolbar{
+  min-height:46px;height:auto;padding:4px 10px;gap:8px;
+  background:var(--color-surface);box-shadow:0 1px 0 var(--color-border);overflow-x:auto;
+}
+.editor-pagebar{
+  min-height:42px;display:flex;align-items:center;justify-content:center;gap:8px;flex:none;
+  padding:4px 10px;border-bottom:1px solid var(--color-border);background:var(--color-bg-dim);
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;
+}
+.editor-pagebar .editor-toolbar-group{gap:1px;padding-right:8px}
+.editor-pagebar .editor-toolbar-label{font-size:.66rem;letter-spacing:.055em}
+.editor-pagebar .btn-icon{width:30px;height:30px;border-radius:6px}
+.editor-pagebar .btn-icon svg{width:17px;height:17px}
+.editor-pagebar .editor-tool-button{width:auto;min-width:30px;padding:0 8px;gap:5px}
+.editor-pagebar .editor-toolbar-group[data-group="page-actions"] .editor-tool-button{min-width:max-content}
+.editor-shell .editor-toolbar-group{gap:1px;padding-right:8px}
+.editor-shell .editor-toolbar-label{margin-right:3px;font-size:.66rem;letter-spacing:.055em}
+.editor-shell .btn-icon{width:30px;height:30px;border-radius:6px}
+.editor-shell .btn-icon svg{width:17px;height:17px}
+.editor-shell .editor-tool-button{width:auto;min-width:30px;padding:0 7px;gap:5px}
+.editor-tool-label{font-size:.76rem;font-weight:600;white-space:nowrap}
+.editor-menu-caret{font-size:.62rem;color:currentColor;margin-left:-1px}
+.editor-toolbar-menu{position:relative;display:flex;align-items:center}
+.editor-tool-menu-popover{
+  position:fixed;z-index:1300;display:none;min-width:190px;padding:5px;
+  border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);
+  box-shadow:var(--shadow-3);
+}
+.editor-toolbar-menu.is-open .editor-tool-menu-popover{display:grid;gap:2px}
+.editor-shell .editor-tool-menu-popover .editor-tool-button{width:100%;justify-content:flex-start;padding:0 9px}
+.editor-doc-title{max-width:180px}
+.editor-dirty-indicator{flex:none;color:var(--color-brand-primary);font-size:.7rem;font-weight:700;white-space:nowrap}
+.editor-dirty-indicator[hidden]{display:none}
+.editor-shell .editor-tool-button.has-unsaved-changes{position:relative;background:rgba(232,41,27,.08);color:var(--color-brand-primary)}
+.editor-shell .editor-tool-button.has-unsaved-changes::after{content:"";position:absolute;right:3px;top:3px;width:6px;height:6px;border-radius:50%;background:var(--color-brand-primary)}
+.editor-shell .editor-toolbar-close{margin-left:2px}
+
+.editor-sidebar{overflow:hidden}
+.editor-sidebar.is-collapsed{width:0;border-right:0}
+.editor-sidebar.is-collapsed + .editor-resize-handle{display:none}
+.editor-sidebar-head{height:40px;padding:0 8px}
+.editor-thumb-list{padding:8px;gap:10px}
+.editor-thumb{padding:4px}
+
+.editor-inspector{
+  position:relative;z-index:3;width:var(--editor-inspector-w);flex:none;
+  border-left:1px solid var(--color-border);box-shadow:none;
+  transition:width var(--duration-base) var(--ease-standard),visibility var(--duration-base);
+}
+.editor-inspector.is-collapsed{width:0;border-left:0;visibility:hidden}
+.editor-resize-handle[data-resize="inspector"]:has(+ .editor-inspector.is-collapsed){display:none}
+.editor-inspector-close{
+  position:sticky;top:6px;z-index:2;margin:6px 6px 0 auto;background:var(--color-surface)!important;
+  border:1px solid var(--color-border)!important;box-shadow:var(--shadow-1);
+}
+.editor-canvas{padding:18px 20px;background-size:32px 32px}
+.editor-canvas-pages{gap:18px}
+.editor-canvas-pages .editor-canvas-page{box-shadow:0 8px 28px rgba(26,20,20,.18)}
+.editor-canvas-pages .editor-canvas-page{max-width:none}
+.editor-statusbar{height:28px;padding:0 10px;gap:16px}
+
+@media(max-width:1599px){
+  .editor-shell .editor-toolbar{gap:5px;padding-inline:7px}
+  .editor-shell .editor-toolbar-group{padding-right:5px}
+  .editor-shell .editor-toolbar-label{display:none}
+  .editor-shell .editor-tool-button{padding-inline:5px}
+}
+@media(max-width:1050px){
+  .editor-tool-label{display:none}
+  .editor-shell .editor-tool-button{width:30px;padding:0;gap:0}
+  .editor-menu-caret{display:none}
+  .editor-doc-title{display:none}
+}
+@media(max-width:899px){
+  .editor-shell{--editor-inspector-w:min(82vw,300px)}
+  .editor-body.is-overlay .editor-sidebar,.editor-body.is-overlay .editor-inspector{width:min(82vw,300px);visibility:visible;box-shadow:var(--shadow-3)}
+  .editor-canvas{padding:12px 8px}
+  .editor-pagebar{justify-content:flex-start;padding-inline:7px}
+}

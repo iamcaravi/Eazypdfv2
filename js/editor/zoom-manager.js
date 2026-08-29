@@ -11,7 +11,7 @@
      ZoomManager.init(getContainerSize, getPageNativeSize)
      ZoomManager.setZoom(percent)         // snaps to nearest allowed STEP
      ZoomManager.zoomIn() / zoomOut()     // moves one STEP
-     ZoomManager.fitWidth() / fitPage()
+     ZoomManager.fitWidth() / fitPage() / initialReadable()
      ZoomManager.getScale() -> number     // e.g. 1.25 for 125%
      ZoomManager.getPercent() -> number   // e.g. 125
    Events emitted:
@@ -21,8 +21,10 @@
                                    toolbar already listen for this, unchanged)
    ========================================================================== */
 (function () {
-  const STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4]; // 25% .. 400%, per the brief
+  const STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 4]; // 25% .. 400%, per the brief
+  const INITIAL_READABLE_SCALE = 1.75;
   let scale = 1;
+  let fitMode = null;
   let getContainerSize = () => ({ width: 800, height: 600 });
   let getPageNativeSize = () => ({ width: 612, height: 792 }); // US Letter default until a doc loads
 
@@ -35,7 +37,8 @@
     return STEPS.reduce((a, b) => (Math.abs(b - target) < Math.abs(a - target) ? b : a));
   }
 
-  function setScale(next, { snap = false } = {}) {
+  function setScale(next, { snap = false, preserveFit = false } = {}) {
+    if (!preserveFit) fitMode = null;
     const clamped = Math.min(STEPS[STEPS.length - 1], Math.max(STEPS[0], next));
     scale = snap ? nearestStep(clamped) : clamped;
     window.RenderQueue && window.RenderQueue.cancelAll();
@@ -55,19 +58,40 @@
   }
 
   function fitWidth() {
+    fitMode = 'width';
     const { width: containerW } = getContainerSize();
     const { width: pageW } = getPageNativeSize();
-    const padding = 48; // matches the canvas's own padding, see editor-workspace.css
-    return setScale((containerW - padding) / pageW);
+    return setScale(containerW / pageW, { preserveFit: true });
   }
 
   function fitPage() {
+    fitMode = 'page';
     const { width: containerW, height: containerH } = getContainerSize();
     const { width: pageW, height: pageH } = getPageNativeSize();
-    const padding = 48;
-    const scaleW = (containerW - padding) / pageW;
-    const scaleH = (containerH - padding) / pageH;
-    return setScale(Math.min(scaleW, scaleH));
+    const scaleW = containerW / pageW;
+    const scaleH = containerH / pageH;
+    return setScale(Math.min(scaleW, scaleH), { preserveFit: true });
+  }
+
+  /** Opening policy for an editing-first workspace. It aims for 175% on
+   *  normal desktop canvases, but never makes the first page wider than the
+   *  measured usable canvas. Height is intentionally allowed to scroll: a
+   *  full-page fit is what made ordinary documents open around 71% and too
+   *  small to edit. CSS sizes remain logical pixels; RenderEngine applies
+   *  devicePixelRatio only to the backing canvas for sharp output. */
+  function initialReadable() {
+    fitMode = 'initial';
+    const { width: containerW } = getContainerSize();
+    const { width: pageW } = getPageNativeSize();
+    const widthSafeScale = containerW > 0 && pageW > 0 ? containerW / pageW : 1;
+    return setScale(Math.min(INITIAL_READABLE_SCALE, widthSafeScale), { preserveFit: true });
+  }
+
+  function refit() {
+    if (fitMode === 'width') return fitWidth();
+    if (fitMode === 'page') return fitPage();
+    if (fitMode === 'initial') return initialReadable();
+    return scale;
   }
 
   /** Ctrl+wheel zoom — call from a `wheel` listener already filtered to
@@ -82,5 +106,5 @@
   function getScale() { return scale; }
   function getPercent() { return Math.round(scale * 100); }
 
-  window.ZoomManager = { init, setZoom, zoomIn, zoomOut, fitWidth, fitPage, handleWheelDelta, getScale, getPercent, STEPS };
+  window.ZoomManager = { init, setZoom, zoomIn, zoomOut, fitWidth, fitPage, initialReadable, refit, handleWheelDelta, getScale, getPercent, STEPS };
 })();

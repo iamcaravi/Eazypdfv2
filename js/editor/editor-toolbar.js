@@ -204,6 +204,7 @@
     prevPage: '<path d="M15 5l-7 7 7 7" stroke-linejoin="round" stroke-linecap="round"/>',
     nextPage: '<path d="M9 5l7 7-7 7" stroke-linejoin="round" stroke-linecap="round"/>',
     lastPage: '<path d="M17 5v14" stroke-linecap="round"/><path d="M7 6l6 6-6 6" stroke-linejoin="round" stroke-linecap="round"/>',
+    insertPage: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8" stroke-linecap="round"/>',
     select: '<path d="M4 4l7 16 2-7 7-2z" stroke-linejoin="round"/>',
     lasso: '<path d="M12 4c-4 0-7 2.5-7 6s3 5 3 8c0 1.5 1.5 2 2.5 1M12 4c4 0 7 2.5 7 6s-3 5-3 8"/>',
     align: '<path d="M4 6h16M4 12h10M4 18h13" stroke-linecap="round"/>',
@@ -215,7 +216,11 @@
     draw: '<path d="M4 20l4-1 11-11-3-3L5 16z"/>',
     sign: '<path d="M4 18c3-6 5 4 8-2s5 4 8-2" stroke-linecap="round"/>',
     highlight: '<path d="M4 20h16" stroke-linecap="round"/><path d="M6 16l9-9 3 3-9 9H6z" stroke-linejoin="round"/>',
-    whiteout: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 8h8v8H8z" fill="currentColor" stroke="none"/>'
+    whiteout: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 8h8v8H8z" fill="currentColor" stroke="none"/>',
+    link: '<path d="M10 13a5 5 0 007.1.1l2-2a5 5 0 00-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 00-7.1-.1l-2 2A5 5 0 0012 20l1.1-1.1"/>',
+    form: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 14h4"/>',
+    search: '<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L20 20"/>',
+    strike: '<path d="M6 7c0-2 2-3 5-3s5 1 6 3M6 17c1 2 3 3 6 3s5-1 6-3M3 12h18"/>'
   };
 
   function t(key, vars) { return window.I18N ? window.I18N.t(key, vars) : key; }
@@ -223,40 +228,53 @@
   function buildGroups() { return [
     { id: 'file', label: t('editor.groupFile'), buttons: [
       { icon: 'open', title: t('editor.btnOpenPdf'), action: 'open' },
-      { icon: 'save', title: t('editor.btnSave'), action: 'export', reserved: true },
-      { icon: 'print', title: t('editor.btnPrint'), reserved: true }
+      { icon: 'save', title: 'Save edited PDF', label: 'Save PDF', action: 'export', reserved: true },
+      { icon: 'print', title: t('editor.btnPrint'), label: 'Print', action: 'print', reserved: true }
     ]},
     { id: 'edit', label: t('editor.groupEdit'), buttons: [
       { icon: 'undo', title: t('editor.btnUndo'), action: 'undo', reserved: true },
-      { icon: 'redo', title: t('editor.btnRedo'), action: 'redo', reserved: true }
+      { icon: 'redo', title: t('editor.btnRedo'), action: 'redo', reserved: true },
+      { icon: 'search', title: 'Find and replace', action: 'find-replace' }
     ]},
     { id: 'view', label: t('editor.groupView'), buttons: [
-      { icon: 'sidebar', title: t('editor.btnToggleSidebar'), action: 'toggle-sidebar' },
-      { icon: 'inspector', title: t('editor.btnToggleInspector'), action: 'toggle-inspector' },
+      { icon: 'sidebar', title: t('editor.btnToggleSidebar'), label: 'Pages', action: 'toggle-sidebar' },
+      { icon: 'inspector', title: t('editor.btnToggleInspector'), label: 'Properties', action: 'toggle-inspector' },
       { icon: 'grid', title: t('editor.btnToggleGrid'), action: 'toggle-grid' }
     ]},
-    { id: 'zoom', label: t('editor.groupZoom'), custom: 'zoom' },
-    { id: 'page', label: t('editor.groupPage'), custom: 'page' },
-    { id: 'selection', label: t('editor.groupSelection'), reserved: true, buttons: [
-      { icon: 'select', title: t('editor.btnSelect') }, { icon: 'lasso', title: t('editor.btnLasso') }, { icon: 'align', title: t('editor.btnAlign') }
+    { id: 'content', label: 'Content', buttons: [
+      { icon: 'text', title: t('editor.btnText'), label: 'Text', action: 'text-tool' },
+      { icon: 'image', title: t('editor.btnImage'), label: 'Image', action: 'image-tool' },
+      { icon: 'link', title: 'Add link', label: 'Link', action: 'link-tool' },
+      { icon: 'form', title: 'Add form field', label: 'Forms', action: 'form-tool' }
     ]},
-    { id: 'future', label: t('editor.groupTools'), buttons: [
-      { icon: 'text', title: t('editor.btnText'), action: 'text-tool' },
-      { icon: 'image', title: t('editor.btnImage'), action: 'image-tool' },
-      { icon: 'rectangle', title: t('editor.btnRectangle'), action: 'rectangle-tool' },
-      { icon: 'ellipse', title: t('editor.btnEllipse'), action: 'ellipse-tool' },
-      { icon: 'line', title: t('editor.btnLine'), action: 'line-tool' },
-      { icon: 'draw', title: t('editor.btnDraw'), action: 'draw-tool' },
-      { icon: 'highlight', title: t('editor.btnHighlight'), action: 'highlight-tool' },
-      { icon: 'whiteout', title: t('editor.btnWhiteout'), action: 'whiteout-tool' },
-      { icon: 'sign', title: t('editor.btnSign'), action: 'sign-tool' }
+    { id: 'sign', label: 'Sign', buttons: [
+      { icon: 'sign', title: t('editor.btnSign'), label: 'Sign', action: 'sign-tool' }
+    ]},
+    { id: 'markup', label: 'Markup', buttons: [
+      { icon: 'whiteout', title: t('editor.btnWhiteout'), label: 'Whiteout', action: 'whiteout-tool' },
+      { icon: 'highlight', title: 'Annotation tools', label: 'Annotate', menu: [
+        { icon: 'highlight', title: t('editor.btnHighlight'), action: 'highlight-tool' },
+        { icon: 'strike', title: 'Strikethrough', action: 'strikethrough-tool' },
+        { icon: 'draw', title: t('editor.btnDraw'), action: 'draw-tool' }
+      ]},
+      { icon: 'rectangle', title: 'Shape tools', label: 'Shapes', menu: [
+        { icon: 'rectangle', title: t('editor.btnRectangle'), action: 'rectangle-tool' },
+        { icon: 'ellipse', title: t('editor.btnEllipse'), action: 'ellipse-tool' },
+        { icon: 'line', title: t('editor.btnLine'), action: 'line-tool' }
+      ]}
+    ]},
+    { id: 'page', label: t('editor.groupPage'), custom: 'page', secondary: true },
+    { id: 'zoom', label: t('editor.groupZoom'), custom: 'zoom', secondary: true },
+    { id: 'page-actions', label: t('editor.groupPage'), secondary: true, reserved: true, buttons: [
+      { icon: 'insertPage', title: t('tools.addblank'), label: t('tools.addblank'), reserved: true }
     ]}
   ]; }
 
   function init(root) {
     const GROUPS = buildGroups();
     const toolbar = root.querySelector('.editor-toolbar');
-    if (!toolbar) return;
+    const pagebar = root.querySelector('.editor-pagebar');
+    if (!toolbar || !pagebar) return;
 
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -421,8 +439,10 @@
             <span>${t('editor.drawYourSignature')}</span>
             <button type="button" class="editor-sign-close" aria-label="${t('workspace.cancel')}">✕</button>
           </div>
+          <label class="editor-sign-type">Type signature<input type="text" class="editor-sign-type-input" placeholder="Your signature"></label>
           <canvas class="editor-sign-canvas" width="480" height="180"></canvas>
           <div class="editor-sign-modal-actions">
+            <button type="button" class="editor-sign-upload">Upload image</button>
             <button type="button" class="editor-sign-clear">${t('toolSign.clear')}</button>
             <button type="button" class="editor-sign-done">${t('toolSign.useSignature')}</button>
           </div>
@@ -456,8 +476,15 @@
         overlay.remove();
       }
       overlay.querySelector('.editor-sign-close').addEventListener('click', close);
+      overlay.querySelector('.editor-sign-upload').addEventListener('click',()=>{close();imageInput.click();});
       overlay.querySelector('.editor-sign-clear').addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); hasInk = false; });
       overlay.querySelector('.editor-sign-done').addEventListener('click', async () => {
+        const typed=overlay.querySelector('.editor-sign-type-input').value.trim();
+        if(typed && !hasInk){
+          ctx.clearRect(0,0,canvas.width,canvas.height);
+          ctx.fillStyle='#1a1a2e'; ctx.font='italic 56px cursive'; ctx.textAlign='center'; ctx.textBaseline='middle';
+          ctx.fillText(typed,canvas.width/2,canvas.height/2); hasInk=true;
+        }
         if (!hasInk) { close(); return; }
         const trimmed = trimTransparentCanvas(canvas);
         const url = trimmed.toDataURL('image/png');
@@ -495,6 +522,7 @@
     // custom group below is built.
     const pageState = { current: 1, total: 0 };
     let pageControls = null;
+    let activeToolButton = null;
 
     GROUPS.forEach((group) => {
       const groupEl = document.createElement('div');
@@ -545,10 +573,11 @@
       } else {
         group.buttons.forEach((btn) => {
           const disabled = group.reserved || btn.reserved;
-          groupEl.appendChild(iconButton(btn.icon, btn.title, () => handleAction(btn.action), disabled, btn.action));
+          if (btn.menu) groupEl.appendChild(menuButton(btn));
+          else groupEl.appendChild(iconButton(btn.icon, btn.title, () => handleAction(btn.action), disabled, btn.action, btn.label));
         });
       }
-      toolbar.appendChild(groupEl);
+      (group.secondary ? pagebar : toolbar).appendChild(groupEl);
     });
 
     const spacer = document.createElement('div');
@@ -569,17 +598,45 @@
     // Priority 5B — same reference-capture pattern as Undo/Redo above.
     const fileGroupEl = toolbar.querySelector('.editor-toolbar-group[data-group="file"]');
     const saveBtn = fileGroupEl ? fileGroupEl.querySelector('[data-action="export"]') : null;
+    const printBtn = fileGroupEl ? fileGroupEl.querySelector('[data-action="print"]') : null;
+    let currentRevision = 0;
+    let savedRevision = 0;
 
     const docTitle = document.createElement('span');
     docTitle.className = 'editor-doc-title';
     docTitle.textContent = t('editor.noDocumentLoaded');
     docTitle.dataset.docTitle = 'true';
     toolbar.appendChild(docTitle);
+    const dirtyIndicator = document.createElement('span');
+    dirtyIndicator.className = 'editor-dirty-indicator';
+    dirtyIndicator.textContent = 'Unsaved changes';
+    dirtyIndicator.hidden = true;
+    toolbar.appendChild(dirtyIndicator);
+
+    function syncDirtyState() {
+      const dirty = currentRevision !== savedRevision;
+      root.dataset.dirty = String(dirty);
+      dirtyIndicator.hidden = !dirty;
+      saveBtn?.classList.toggle('has-unsaved-changes', dirty);
+      if (saveBtn) saveBtn.setAttribute('aria-label', dirty ? 'Save edited PDF — unsaved changes' : 'Save edited PDF');
+    }
+
+    window.addEventListener('editor:historyChange', (e) => {
+      currentRevision = Number(e.detail.revision) || 0;
+      syncDirtyState();
+    });
+    window.addEventListener('editor:documentSaved', () => {
+      savedRevision = currentRevision;
+      syncDirtyState();
+    });
 
     window.addEventListener('editor:zoomChange', (e) => {
-      toolbar.querySelectorAll('[data-zoom-value]').forEach((el) => { el.textContent = Math.round(e.detail.zoom * 100) + '%'; });
+      root.querySelectorAll('[data-zoom-value]').forEach((el) => { el.textContent = Math.round(e.detail.zoom * 100) + '%'; });
     });
     window.addEventListener('editor:documentLoaded', (e) => {
+      currentRevision = 0;
+      savedRevision = 0;
+      syncDirtyState();
       const name = e.detail.fileName || t('editor.untitled');
       docTitle.textContent = e.detail.numPages === 1 ? t('editor.docTitleOne', { name }) : t('editor.docTitleMany', { name, n: e.detail.numPages });
     });
@@ -590,6 +647,7 @@
       pageState.total = e.detail.pageCount;
       const hasDoc = pageState.total > 0;
       if (saveBtn) saveBtn.disabled = !hasDoc; // Priority 5B — reuses this same event, no new tracker
+      if (printBtn) printBtn.disabled = !hasDoc;
       if (!pageControls) return;
       const { firstBtn, prevBtn, input, total, nextBtn, lastBtn } = pageControls;
       if (document.activeElement !== input) input.value = String(pageState.current);
@@ -610,15 +668,15 @@
       }
     }
 
-    function iconButton(iconKey, title, onClick, disabled, action) {
+    function iconButton(iconKey, title, onClick, disabled, action, visibleLabel) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'btn-icon';
+      b.className = 'btn-icon' + (visibleLabel ? ' editor-tool-button' : '');
       b.title = title;
       b.setAttribute('aria-label', title);
       if (action) b.dataset.action = action;
       if (disabled) b.disabled = true;
-      b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false">${ICONS[iconKey] || ''}</svg>`;
+      b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false">${ICONS[iconKey] || ''}</svg>${visibleLabel ? `<span class="editor-tool-label">${visibleLabel}</span>` : ''}`;
       // Always attach the listener, even when starting disabled: a native
       // `disabled` button already blocks click events on its own, and the
       // Page group's buttons flip `disabled` off later (once a document is
@@ -628,7 +686,57 @@
       return b;
     }
 
+    function menuButton(config) {
+      const wrap = document.createElement('div');
+      wrap.className = 'editor-toolbar-menu';
+      const trigger = iconButton(config.icon, config.title, () => {
+        const opening = !wrap.classList.contains('is-open');
+        toolbar.querySelectorAll('.editor-toolbar-menu.is-open').forEach((menu) => menu.classList.remove('is-open'));
+        wrap.classList.toggle('is-open', opening);
+        trigger.setAttribute('aria-expanded', String(opening));
+        if (opening) {
+          const rect = trigger.getBoundingClientRect();
+          menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 210))}px`;
+          menu.style.top = `${rect.bottom + 6}px`;
+        }
+      }, false, null, config.label);
+      trigger.classList.add('editor-menu-trigger');
+      trigger.setAttribute('aria-haspopup', 'menu');
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.insertAdjacentHTML('beforeend', '<span class="editor-menu-caret" aria-hidden="true">▾</span>');
+      const menu = document.createElement('div');
+      menu.className = 'editor-tool-menu-popover';
+      menu.setAttribute('role', 'menu');
+      config.menu.forEach((item) => {
+        const option = iconButton(item.icon, item.title, () => {
+          wrap.classList.remove('is-open');
+          trigger.setAttribute('aria-expanded', 'false');
+          handleAction(item.action);
+        }, false, item.action, item.title);
+        option.setAttribute('role', 'menuitem');
+        menu.appendChild(option);
+      });
+      wrap.append(trigger, menu);
+      return wrap;
+    }
+
+    document.addEventListener('click', (event) => {
+      if (toolbar.contains(event.target) && event.target.closest('.editor-toolbar-menu')) return;
+      toolbar.querySelectorAll('.editor-toolbar-menu.is-open').forEach((menu) => {
+        menu.classList.remove('is-open');
+        menu.querySelector('.editor-menu-trigger')?.setAttribute('aria-expanded', 'false');
+      });
+    });
+
     function handleAction(action) {
+      const toolActions=['text-tool','image-tool','link-tool','whiteout-tool','rectangle-tool','ellipse-tool','line-tool','draw-tool','highlight-tool','strikethrough-tool','form-tool','sign-tool'];
+      if(toolActions.includes(action)){
+        if(activeToolButton) activeToolButton.classList.remove('is-active');
+        const actionButton=toolbar.querySelector(`[data-action="${action}"]`);
+        activeToolButton=actionButton?.closest('.editor-toolbar-menu')?.querySelector('.editor-menu-trigger') || actionButton;
+        activeToolButton?.classList.add('is-active');
+        window.dispatchEvent(new CustomEvent('editor:toolChange',{detail:{tool:action.replace('-tool','')}}));
+      }
       if (action === 'open') fileInput.click();
       if (action === 'toggle-sidebar') window.dispatchEvent(new CustomEvent('editor:requestPanelToggle', { detail: { panel: '.editor-sidebar' } }));
       if (action === 'toggle-inspector') window.dispatchEvent(new CustomEvent('editor:requestPanelToggle', { detail: { panel: '.editor-inspector' } }));
@@ -664,10 +772,34 @@
         revokePendingImageUrl();
         window.EditorObjects.beginPlacement('whiteout', { data: { color: '#ffffff' } });
       }
+      if (action === 'link-tool' && window.EditorObjects) {
+        revokePendingImageUrl();
+        window.EditorObjects.beginPlacement('link',{data:{url:'https://',borderColor:'#2563eb'}});
+      }
+      if (action === 'strikethrough-tool' && window.EditorObjects) {
+        revokePendingImageUrl();
+        window.EditorObjects.beginPlacement('strikethrough',{data:{color:'#dc2626'}});
+      }
+      if (action === 'form-tool' && window.EditorObjects) openFormPicker();
+      if (action === 'find-replace' && window.EditorContent) window.EditorContent.openFindReplace();
       if (action === 'sign-tool') { revokePendingImageUrl(); openSignaturePad(); }
       if (action === 'undo' && window.EditorHistory) window.EditorHistory.undo();
       if (action === 'redo' && window.EditorHistory) window.EditorHistory.redo();
       if (action === 'export' && window.EditorExport) window.EditorExport.exportCurrentDocument();
+      if (action === 'print' && window.EditorExport) window.EditorExport.printCurrentDocument();
+    }
+
+    function openFormPicker(){
+      const overlay=document.createElement('div'); overlay.className='editor-dialog-overlay';
+      const choices=[['form-text','Text field'],['form-multiline','Multiline text'],['form-dropdown','Dropdown'],['form-checkbox','Checkbox'],['form-radio','Radio button']];
+      overlay.innerHTML=`<div class="editor-dialog"><div class="editor-dialog-head"><strong>Add form field</strong><button type="button" data-close aria-label="Close">✕</button></div><div class="editor-choice-grid">${choices.map(([type,label])=>`<button type="button" data-form-type="${type}">${label}</button>`).join('')}</div><p class="editor-dialog-note">Fields are exported as real AcroForm controls.</p></div>`;
+      document.body.appendChild(overlay);
+      const close=()=>overlay.remove(); overlay.querySelector('[data-close]').addEventListener('click',close);
+      overlay.querySelectorAll('[data-form-type]').forEach(button=>button.addEventListener('click',()=>{
+        const type=button.dataset.formType, suffix=Date.now().toString(36);
+        const data={name:`field_${suffix}`,defaultValue:'',options:['Option 1','Option 2'],groupName:`group_${suffix}`,exportValue:'Yes'};
+        close(); window.EditorObjects.beginPlacement(type,{data});
+      }));
     }
   }
 

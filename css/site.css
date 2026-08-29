@@ -1123,14 +1123,14 @@ html.panel-open{ overflow:hidden; }
 .crop-select-layer{ position:absolute; inset:0; z-index:2; cursor:crosshair; }
 .crop-rect{
   position:absolute; box-sizing:border-box;
-  border:2px solid var(--accent-lime, #9CFF00);
-  box-shadow:0 0 0 9999px rgba(0,0,0,0.45), 0 0 14px rgba(156,255,0,0.35);
+  border:2px solid var(--accent-primary);
+  box-shadow:0 0 0 9999px rgba(0,0,0,0.45), 0 0 14px rgba(var(--brand-shadow-rgb),0.35);
   cursor:move;
 }
 .crop-rect[hidden]{ display:none; }
 .crop-handle{
   position:absolute; width:11px; height:11px; border-radius:2px;
-  background:var(--accent-lime, #9CFF00); border:1px solid rgba(0,0,0,0.55);
+  background:var(--accent-primary); border:1px solid rgba(0,0,0,0.55);
 }
 .crop-handle.nw{ left:-6px; top:-6px; cursor:nwse-resize; }
 .crop-handle.n { left:50%; top:-6px; margin-left:-5px; cursor:ns-resize; }

@@ -111,12 +111,16 @@ async function readDocxStructured(arrayBuffer){
   // ---- styles.xml: paragraph/character style properties by id, plus document-wide defaults ----
   const styleById = {}; // { rFonts, sizePt, bold, italic, underline, colorRgb, align, indent, spacing }
   let docDefaults = { rFonts: null, sizePt: null };
+  let docParaDefaults = {};
   if(stylesXml){
     const docDefaultsEl = docxChild(stylesXml.documentElement, "docDefaults");
     if(docDefaultsEl){
       const rPrDefault = docxChild(docDefaultsEl, "rPrDefault");
       const rPr = rPrDefault ? docxChild(rPrDefault, "rPr") : null;
       docDefaults = readRunProps(rPr, {});
+      const pPrDefault = docxChild(docDefaultsEl, "pPrDefault");
+      const pPr = pPrDefault ? docxChild(pPrDefault, "pPr") : null;
+      if(pPr) docParaDefaults = readParaProps(pPr);
     }
     Array.from(stylesXml.getElementsByTagNameNS(DOCX_W_NS, "style")).forEach(styleEl => {
       const id = docxAttr(styleEl, "styleId");
@@ -185,11 +189,11 @@ async function readDocxStructured(arrayBuffer){
     if(rFonts){
       out.rFonts = docxAttr(rFonts, "ascii") || docxAttr(rFonts, "hAnsi") || docxAttr(rFonts, "cs") || out.rFonts;
     }
-    const sz = docxChild(rPrEl, "sz");
+    const sz = docxChild(rPrEl, "sz") || docxChild(rPrEl, "szCs");
     if(sz){ const pt = halfPtToPt(docxAttr(sz, "val")); if(pt) out.sizePt = pt; }
-    const b = docxChild(rPrEl, "b");
+    const b = docxChild(rPrEl, "b") || docxChild(rPrEl, "bCs");
     if(b){ const v = docxAttr(b, "val"); out.bold = v === null || v === "true" || v === "1"; }
-    const i = docxChild(rPrEl, "i");
+    const i = docxChild(rPrEl, "i") || docxChild(rPrEl, "iCs");
     if(i){ const v = docxAttr(i, "val"); out.italic = v === null || v === "true" || v === "1"; }
     const u = docxChild(rPrEl, "u");
     if(u){ const v = docxAttr(u, "val"); out.underline = !!v && v !== "none"; }
@@ -219,6 +223,10 @@ async function readDocxStructured(arrayBuffer){
     if(spacing){
       out.spaceBeforePt = twipToPt(docxAttr(spacing, "before"));
       out.spaceAfterPt = twipToPt(docxAttr(spacing, "after"));
+      const beforeAuto = docxAttr(spacing, "beforeAutospacing");
+      const afterAuto = docxAttr(spacing, "afterAutospacing");
+      if(beforeAuto != null) out.spaceBeforeAuto = beforeAuto === "true" || beforeAuto === "1";
+      if(afterAuto != null) out.spaceAfterAuto = afterAuto === "true" || afterAuto === "1";
       const line = docxAttr(spacing, "line");
       const lineRule = docxAttr(spacing, "lineRule");
       if(line) out.lineSpacing = { value: parseFloat(line), rule: lineRule || "auto" }; // auto: 240ths of a line; exact/atLeast: twips
@@ -240,7 +248,11 @@ async function readDocxStructured(arrayBuffer){
     const rStyleEl = rPrEl ? docxChild(rPrEl, "rStyle") : null;
     const rStyleId = rStyleEl ? docxAttr(rStyleEl, "val") : null;
     let props = Object.assign({}, docDefaults);
-    props = Object.assign(props, resolvedStylePara(paraStyleId).run || {});
+    // A paragraph style owns both pPr and rPr. resolvedStylePara() intentionally
+    // returns only its paragraph properties, so asking that object for `.run`
+    // silently discarded the style's font, size and emphasis. Resolve the run
+    // half of the same style chain directly (including basedOn inheritance).
+    props = Object.assign(props, resolvedStyleRun(paraStyleId));
     props = Object.assign(props, paraDefaultRun || {});
     if(rStyleId) props = Object.assign(props, resolvedStyleRun(rStyleId));
     props = readRunProps(rPrEl, props);
@@ -305,7 +317,7 @@ async function readDocxStructured(arrayBuffer){
     const pStyleId = pStyleEl ? docxAttr(pStyleEl, "val") : null;
     const styleProps = resolvedStylePara(pStyleId);
     const ownProps = pPr ? readParaProps(pPr) : {};
-    const props = Object.assign({}, styleProps, ownProps);
+    const props = Object.assign({}, docParaDefaults, styleProps, ownProps);
     const paraDefaultRPr = pPr ? docxChild(pPr, "rPr") : null;
     const paraDefaultRun = paraDefaultRPr ? readRunProps(paraDefaultRPr, {}) : {};
     const isHeading = !!(pStyleId && /^Heading\d*$/i.test(pStyleId));
@@ -315,6 +327,7 @@ async function readDocxStructured(arrayBuffer){
       align: props.align || null,
       indentLeftPt: props.indentLeftPt || 0, indentRightPt: props.indentRightPt || 0, indentFirstLinePt: props.indentFirstLinePt || 0,
       spaceBeforePt: props.spaceBeforePt || 0, spaceAfterPt: props.spaceAfterPt || 0,
+      spaceBeforeAuto: !!props.spaceBeforeAuto, spaceAfterAuto: !!props.spaceAfterAuto,
       lineSpacing: props.lineSpacing || null,
       tabStopsPt: props.tabStopsPt || null,
       pageBreakBefore: !!props.pageBreakBefore,

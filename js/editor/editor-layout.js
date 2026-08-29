@@ -20,6 +20,7 @@
     if (!root) return;
 
     const body = root.querySelector('.editor-body');
+    const canvas = root.querySelector('.editor-canvas');
     const sidebar = root.querySelector('.editor-sidebar');
     const inspector = root.querySelector('.editor-inspector');
     const sidebarHandle = root.querySelector('[data-resize="sidebar"]');
@@ -31,6 +32,7 @@
     setupOverlayMode(root, body, sidebar, inspector, scrim);
     setupPanelToggles(root, body, scrim);
     setupKeyboardShortcuts(root, sidebar, inspector);
+    setupAdaptiveFit(root, body, canvas, inspector);
   }
 
   /** The one place that decides what "toggle this panel" means: collapse
@@ -61,7 +63,8 @@
   function setupPanelToggles(root, body, scrim) {
     root.querySelectorAll('[data-collapse-target]').forEach((btn) => {
       const targetSel = btn.getAttribute('data-collapse-target');
-      btn.setAttribute('aria-expanded', 'true');
+      const panel = root.querySelector(targetSel);
+      btn.setAttribute('aria-expanded', String(!panel?.classList.contains('is-collapsed')));
       btn.addEventListener('click', () => togglePanel(root, targetSel));
     });
     // The toolbar's View group dispatches this instead of clicking a button
@@ -72,6 +75,23 @@
       root.querySelector('.editor-inspector')?.classList.remove('is-open');
       scrim.classList.remove('is-visible');
     });
+  }
+
+  function setupAdaptiveFit(root, body, canvas, inspector) {
+    let pendingInitialFit = false;
+    window.addEventListener('editor:documentLoaded', () => { pendingInitialFit = true; });
+    window.addEventListener('editor:pageChange', () => {
+      if (!pendingInitialFit) return;
+      pendingInitialFit = false;
+      setTimeout(() => window.ZoomManager?.initialReadable(), 0);
+    });
+    // Selection never opens the inspector implicitly. The canvas keeps all
+    // available width until the user explicitly chooses Properties.
+    if (window.ResizeObserver && canvas) {
+      root.__editorResizeObserver?.disconnect();
+      root.__editorResizeObserver = new ResizeObserver(debounce(() => window.ZoomManager?.refit(), 80));
+      root.__editorResizeObserver.observe(canvas);
+    }
   }
 
   /** Drag-to-resize a side panel. `invert` = handle is on the panel's left edge (inspector). */

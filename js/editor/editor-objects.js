@@ -85,6 +85,9 @@
       pageInfoCache.clear();
       setCrosshair(false);
     });
+    window.addEventListener('editor:zoomChange', () => {
+      setTimeout(() => objects.filter((object) => object.type === 'text').forEach(renderObjectContent), 0);
+    });
   }
 
   function onCanvasClick(e) {
@@ -165,11 +168,20 @@
       e.stopImmediatePropagation();
       return;
     }
-    if ((e.key === 'Delete' || e.key === 'Backspace')) {
-      const active = document.activeElement;
-      if (active && active.isContentEditable) return; // editing text — let the key edit it
-      const selected = objects.find((o) => o.selected);
-      if (selected) { e.preventDefault(); deleteObject(selected.id); }
+    if(/^Arrow(Left|Right|Up|Down)$/.test(e.key)){
+      const active=document.activeElement;
+      if(active && (active.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName))) return;
+      const selected=objects.find(o=>o.selected);
+      if(!selected) return;
+      e.preventDefault();
+      const step=e.shiftKey?1:0.15;
+      const patch={};
+      if(e.key==='ArrowLeft') patch.xPct=clamp(selected.xPct-step,0,100-selected.wPct);
+      if(e.key==='ArrowRight') patch.xPct=clamp(selected.xPct+step,0,100-selected.wPct);
+      if(e.key==='ArrowUp') patch.yPct=clamp(selected.yPct-step,0,100-selected.hPct);
+      if(e.key==='ArrowDown') patch.yPct=clamp(selected.yPct+step,0,100-selected.hPct);
+      patch.data={manualGeometry:true};
+      updateObject(selected.id,patch);
     }
   }
 
@@ -193,10 +205,15 @@
     setCrosshair(true);
   }
 
+  function cancelPlacement(){ pendingPlacement=null; drawState=null; setCrosshair(false); }
+
   function defaultBoxFor(type) {
     if (type === 'text') return { wPct: 22, hPct: 6 };
     if (type === 'highlight') return { wPct: 30, hPct: 6 };
     if (type === 'whiteout') return { wPct: 30, hPct: 10 };
+    if (type === 'link') return { wPct: 28, hPct: 5 };
+    if (type === 'strikethrough') return { wPct: 30, hPct: 4 };
+    if (type && type.indexOf('form-') === 0) return { wPct: type==='form-checkbox'||type==='form-radio'?4:28, hPct: type==='form-multiline'?12:5 };
     return { wPct: 25, hPct: 15 }; // image (usually overridden by caller), rectangle/ellipse/line
   }
 
@@ -217,27 +234,46 @@
 
   // --- CRUD -------------------------------------------------------------
 
-  function addObject({ type, page, xPct, yPct, wPct, hPct, data }) {
+  function addObject({ type, page, xPct, yPct, wPct, hPct, data }, options) {
+    const opts = options || {};
     const before = getState();
-    const obj = { id: 'obj' + (nextId++), type, page, xPct, yPct, wPct, hPct, selected: true, data: Object.assign({}, data) };
-    objects.forEach((o) => { o.selected = false; });
+    const obj = { id: 'obj' + (nextId++), type, page, xPct, yPct, wPct, hPct, selected: opts.select !== false, data: Object.assign({}, data) };
+    if (opts.select !== false) objects.forEach((o) => { o.selected = false; });
     objects.push(obj);
     mountObjectEl(obj);
     syncSelectionDom();
-    window.dispatchEvent(new CustomEvent('editor:objectAdded', { detail: { object: obj } }));
-    commit(before);
+    if (!opts.silent) {
+      window.dispatchEvent(new CustomEvent('editor:objectAdded', { detail: { object: obj } }));
+      commit(before);
+    } else if (opts.notify !== false) window.dispatchEvent(new CustomEvent('editor:objectsChanged'));
     return obj;
   }
 
-  function updateObject(id, patch) {
+  function addObjects(specs) {
+    const list = Array.isArray(specs) ? specs.filter(Boolean) : [];
+    if (!list.length) return [];
+    const before = getState();
+    objects.forEach((object) => { object.selected = false; });
+    const added = list.map((spec) => addObject(Object.assign({}, spec, {data:cloneValue(spec.data || {})}), {silent:true,select:false}));
+    added.forEach((object) => { object.selected = true; });
+    syncSelectionDom();
+    added.forEach((object) => window.dispatchEvent(new CustomEvent('editor:objectAdded', {detail:{object}})));
+    commit(before);
+    return added;
+  }
+
+  function updateObject(id, patch, options) {
     const obj = objects.find((o) => o.id === id);
     if (!obj) return;
     const before = getState();
+    const previousData = obj.data;
+    const dataPatch = patch.data;
     Object.assign(obj, patch);
-    if (patch.data) obj.data = Object.assign({}, obj.data, patch.data);
+    if (dataPatch) obj.data = Object.assign({}, previousData, dataPatch);
     renderObjectContent(obj);
     renderObjectBox(obj);
-    commit(before);
+    if (!options?.silent) commit(before);
+    return obj;
   }
 
   function deleteObject(id) {
@@ -249,6 +285,21 @@
     elById.delete(id);
     objects.splice(idx, 1);
     commit(before);
+  }
+
+  function deleteObjects(ids) {
+    const targets = new Set((ids || []).map(String));
+    if (!targets.size || !objects.some((object) => targets.has(String(object.id)))) return [];
+    const before = getState(), removed = [];
+    objects = objects.filter((object) => {
+      if (!targets.has(String(object.id))) return true;
+      elById.get(object.id)?.remove();
+      elById.delete(object.id);
+      removed.push(object);
+      return false;
+    });
+    commit(before);
+    return removed;
   }
 
   function selectObject(id) {
@@ -293,6 +344,7 @@
     if (!wrap) return; // page not mounted (shouldn't happen — all wrappers exist up front)
     const el = document.createElement('div');
     el.className = 'editor-object';
+    if (obj.type === 'text' && obj.data?.replaceOriginal) el.classList.add('is-source-text');
     el.dataset.id = obj.id;
     el.dataset.type = obj.type;
     HANDLES.forEach((h) => {
@@ -308,6 +360,12 @@
     el.addEventListener('mousedown', (e) => {
       if (e.target.closest('.editor-object-handle')) return; // handles wire their own
       if (e.target.isContentEditable) return; // mid text-edit — let the click place the caret
+      // A newly activated source run enters editing immediately. Once that
+      // edit is committed it becomes a normal movable editor object.
+      if (obj.type === 'text' && obj.data?.replaceOriginal && !obj.data.sourceCommitted) {
+        selectObject(obj.id);
+        return;
+      }
       startDrag(e, obj, 'move');
     });
     if (obj.type === 'text') {
@@ -316,6 +374,9 @@
       // the rendered content intercepting it — which also means content
       // itself never receives any DOM events, dblclick included.
       el.addEventListener('dblclick', (e) => startTextEdit(e, obj));
+      if (obj.data?.replaceOriginal) el.addEventListener('click', (e) => {
+        if (!e.target.isContentEditable && !obj.data.sourceCommitted) startTextEdit(e, obj);
+      });
     }
 
     elById.set(obj.id, el);
@@ -331,6 +392,7 @@
     el.style.top = obj.yPct + '%';
     el.style.width = obj.wPct + '%';
     el.style.height = obj.hPct + '%';
+    el.style.transform = obj.data && obj.data.rotation ? `rotate(${obj.data.rotation}deg)` : '';
   }
 
   function renderObjectContent(obj) {
@@ -338,18 +400,18 @@
     if (!el) return;
     const content = el.querySelector('.editor-object-content');
     const d = obj.data || {};
+    el.classList.toggle('is-source-committed',!!(d.replaceOriginal && d.sourceCommitted));
+    el.classList.toggle('is-reflowed',!!d.reflowApplied);
+    if(d.layoutMode) el.dataset.layoutMode=d.layoutMode;
+    else delete el.dataset.layoutMode;
     if (obj.type === 'text') {
+      const editingInner = content.querySelector('.eo-text-inner[contenteditable="true"]');
+      if (editingInner) { styleTextInner(editingInner, d, el); return; }
       content.innerHTML = '';
       const inner = document.createElement('div');
       inner.className = 'eo-text-inner';
       inner.textContent = d.text != null ? d.text : 'Text';
-      inner.style.fontFamily = d.fontFamily || 'Arial';
-      inner.style.fontSize = (d.fontSize || 16) + 'px';
-      inner.style.fontWeight = d.bold ? '700' : '400';
-      inner.style.fontStyle = d.italic ? 'italic' : 'normal';
-      inner.style.textDecoration = d.underline ? 'underline' : 'none';
-      inner.style.color = d.color || '#000000';
-      inner.style.textAlign = d.align || 'left';
+      styleTextInner(inner, d, el);
       content.appendChild(inner);
     } else if (obj.type === 'image') {
       content.innerHTML = '';
@@ -390,7 +452,47 @@
       box.className = 'eo-whiteout-box';
       box.style.background = d.color || '#ffffff';
       content.appendChild(box);
+    } else if (obj.type === 'strikethrough') {
+      content.innerHTML='<div class="eo-strikethrough-box"></div>';
+    } else if (obj.type === 'link') {
+      content.innerHTML='';
+      const box=document.createElement('div'); box.className='eo-link-box';
+      box.textContent=d.url || 'https://'; content.appendChild(box);
+    } else if (obj.type && obj.type.indexOf('form-')===0) {
+      content.innerHTML='';
+      const field=document.createElement('div'); field.className='eo-form-field';
+      if(obj.type==='form-checkbox') field.textContent='✓';
+      else if(obj.type==='form-radio') field.textContent='●';
+      else if(obj.type==='form-dropdown') field.textContent=(d.options&&d.options[0])||'Select ▾';
+      else field.textContent=d.defaultValue || d.name || (obj.type==='form-multiline'?'Multiline field':'Text field');
+      content.appendChild(field);
     }
+  }
+
+  function styleTextInner(inner, d, el) {
+    inner.style.fontFamily = d.fontFamily || 'Arial';
+    const wrap = el.closest('.editor-canvas-page');
+    const nativeWidth = Number(wrap?.dataset.nativeWidth) || wrap?.getBoundingClientRect().width || 1;
+    const displayScale = (wrap?.getBoundingClientRect().width || nativeWidth) / nativeWidth;
+    inner.style.fontSize = ((d.layoutFontSize || d.fontSize || 16) * displayScale) + 'px';
+    inner.style.fontWeight = d.bold ? '700' : '400';
+    inner.style.fontStyle = d.italic ? 'italic' : 'normal';
+    inner.style.textDecoration = d.underline ? 'underline' : 'none';
+    inner.style.color = d.color || '#000000';
+    inner.style.opacity = d.opacity == null ? '1' : String(d.opacity);
+    inner.style.textAlign = d.align || 'left';
+    inner.style.lineHeight = d.lineHeight || 1.2;
+    inner.style.letterSpacing = ((d.characterSpacing || 0) * displayScale) + 'px';
+    inner.style.wordSpacing = ((d.wordSpacing || 0) * displayScale) + 'px';
+    inner.style.direction = d.direction || 'ltr';
+    inner.style.transformOrigin = 'left top';
+    const horizontalScale = d.layoutHorizontalScale || d.horizontalScale;
+    inner.style.transform = horizontalScale && Math.abs(horizontalScale - 1) > .001
+      ? `scaleX(${horizontalScale})`
+      : '';
+    inner.style.backgroundColor = '';
+    inner.style.whiteSpace = d.layoutMode === 'wrap' ? 'pre-wrap' : 'pre';
+    inner.style.overflowWrap = d.layoutMode === 'wrap' ? 'anywhere' : 'normal';
   }
 
   // --- Drag / resize --------------------------------------------------------
@@ -442,7 +544,16 @@
       // undo step: compare against `start` rather than committing
       // unconditionally.
       const moved = obj.xPct !== start.xPct || obj.yPct !== start.yPct || obj.wPct !== start.wPct || obj.hPct !== start.hPct;
-      if (moved) commit(before);
+      if (moved) {
+        obj.data = Object.assign({}, obj.data, {manualGeometry:true});
+        if (mode === 'resize' && obj.type === 'text') {
+          const layoutData = window.EditorTextLayout?.planWithinBox(obj);
+          if (layoutData) obj.data = Object.assign({}, obj.data, layoutData);
+          renderObjectContent(obj);
+          renderObjectBox(obj);
+        }
+        commit(before);
+      }
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -479,39 +590,85 @@
     const el = elById.get(obj.id);
     const inner = el && el.querySelector('.eo-text-inner');
     if (!inner) return;
-    const before = getState();
+    const textBeforeEdit = obj.data?.text || '';
+    let before = getState();
+    if (obj.data?.replaceOriginal && !obj.data.sourceCommitted) before = before.filter((item) => item.id !== obj.id);
+    let cancelled = false;
+    selectObject(obj.id);
+    el.classList.add('is-editing');
     inner.contentEditable = 'true';
     inner.focus();
-    document.execCommand && document.execCommand('selectAll', false, null);
+    const selection = window.getSelection?.();
+    const pointerX = Number(e.clientX), pointerY = Number(e.clientY);
+    let caretPlaced = false;
+    if (selection && Number.isFinite(pointerX) && Number.isFinite(pointerY)) {
+      const caret = document.caretPositionFromPoint?.(pointerX, pointerY);
+      const range = caret ? document.createRange() : document.caretRangeFromPoint?.(pointerX, pointerY);
+      if (caret && range) {
+        range.setStart(caret.offsetNode, caret.offset);
+        range.collapse(true);
+      }
+      const container = range?.startContainer;
+      if (range && container && (container === inner || inner.contains(container))) {
+        selection.removeAllRanges(); selection.addRange(range); caretPlaced = true;
+      }
+    }
+    if (selection && !caretPlaced) {
+      const range = document.createRange();
+      range.selectNodeContents(inner); range.collapse(false);
+      selection.removeAllRanges(); selection.addRange(range);
+    }
 
     function finish() {
       inner.contentEditable = 'false';
+      el.classList.remove('is-editing');
       inner.removeEventListener('blur', finish);
       inner.removeEventListener('keydown', onKey);
       const text = inner.textContent || '';
-      if (text !== (obj.data.text || '')) {
-        obj.data = Object.assign({}, obj.data, { text });
+      const previousText = textBeforeEdit;
+      const changed = text !== previousText;
+      if (changed) {
+        obj.data = Object.assign({}, obj.data, { text, sourceCommitted:true });
+      }
+      window.dispatchEvent(new CustomEvent('editor:textEditFinished', { detail: { object:obj, changed, cancelled } }));
+      if (changed) {
+        renderObjectContent(obj);
+        renderObjectBox(obj);
         commit(before);
       }
     }
     function onKey(ev) {
-      if (ev.key === 'Escape') { inner.textContent = obj.data.text || ''; inner.blur(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); cancelled = true; inner.textContent = obj.data.text || ''; inner.blur(); }
       if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); inner.blur(); }
     }
     inner.addEventListener('blur', finish);
     inner.addEventListener('keydown', onKey);
   }
 
+  function discardObject(id, options){
+    const idx=objects.findIndex(o=>o.id===id);
+    if(idx===-1) return;
+    elById.get(id)?.remove(); elById.delete(id); objects.splice(idx,1);
+    if (!options?.silent) window.dispatchEvent(new CustomEvent('editor:objectsChanged'));
+  }
+
+  function editText(id,pointer){
+    const obj=objects.find(o=>o.id===id);
+    if(!obj || obj.type!=='text') return;
+    selectObject(id);
+    startTextEdit(Object.assign({stopPropagation:()=>{}},pointer||{}),obj);
+  }
+
   // --- History support --------------------------------------------------
 
   function getState() {
-    return objects.map((o) => ({ id: o.id, type: o.type, page: o.page, xPct: o.xPct, yPct: o.yPct, wPct: o.wPct, hPct: o.hPct, selected: o.selected, data: Object.assign({}, o.data) }));
+    return objects.map((o) => ({ id: o.id, type: o.type, page: o.page, xPct: o.xPct, yPct: o.yPct, wPct: o.wPct, hPct: o.hPct, selected: o.selected, data: cloneValue(o.data || {}) }));
   }
 
   function restoreState(snapshot) {
     elById.forEach((el) => { if (el.parentNode) el.parentNode.removeChild(el); });
     elById.clear();
-    objects = (snapshot || []).map((o) => Object.assign({}, o, { data: Object.assign({}, o.data) }));
+    objects = (snapshot || []).map((o) => Object.assign({}, o, { data: cloneValue(o.data || {}) }));
     let maxN = 0;
     objects.forEach((o) => { const n = parseInt(String(o.id).replace('obj', ''), 10); if (n > maxN) maxN = n; });
     nextId = maxN + 1;
@@ -522,10 +679,22 @@
 
   function getAllObjects() { return objects; }
 
+  function getSelectedObjects() { return objects.filter((object) => object.selected); }
+
+  function cloneValue(value) {
+    if (Array.isArray(value)) return value.map(cloneValue);
+    if (value && typeof value === 'object') {
+      const copy = {};
+      Object.keys(value).forEach((key) => { copy[key] = cloneValue(value[key]); });
+      return copy;
+    }
+    return value;
+  }
+
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
   window.EditorObjects = {
-    init, beginPlacement, getAllObjects, updateObject, deleteObject,
-    getState, restoreState
+    init, beginPlacement, cancelPlacement, addObject, addObjects, getAllObjects, getSelectedObjects, updateObject, deleteObject, deleteObjects,
+    selectObject, deselectAll, editText, discardObject, getState, restoreState
   };
 })();

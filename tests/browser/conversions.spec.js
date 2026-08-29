@@ -48,6 +48,7 @@ async function inspectRenderedPdf(page, bytes) {
       const pdfPage = await pdf.getPage(pageNumber);
       const viewport = pdfPage.getViewport({ scale: 1 });
       const content = await pdfPage.getTextContent();
+      const operatorList = await pdfPage.getOperatorList();
       const items = content.items.filter((item) => item.str.trim()).map((item) => ({
         text: item.str,
         x: item.transform[4],
@@ -66,7 +67,8 @@ async function inspectRenderedPdf(page, bytes) {
         }
       }
       const outOfBounds = items.filter((item) => item.x < 30 || item.x + item.width > viewport.width - 30);
-      pages.push({ text: items.map((item) => item.text).join("\n"), overlaps, outOfBounds });
+      const imageOps = new Set([pdfjsLib.OPS.paintImageXObject, pdfjsLib.OPS.paintImageMaskXObject, pdfjsLib.OPS.paintSolidColorImageMask]);
+      pages.push({ text: items.map((item) => item.text).join("\n"), items, overlaps, outOfBounds, imageCount: operatorList.fnArray.filter((op) => imageOps.has(op)).length });
     }
     await pdf.destroy();
     return { pageCount: pages.length, pages };
@@ -109,16 +111,18 @@ test("Word to PDF: converts a real .docx's text into a decodable PDF", async ({ 
   expect(errors).toEqual([]);
 });
 
-test("Word to PDF: preserves paragraphs, a table, Unicode Hindi, and Kruti Dev text", async ({ page }) => {
+test("Word to PDF: preserves paragraphs, a table, Unicode Hindi, fragmented Kruti Dev runs, and an inline image", async ({ page }) => {
   const errors = captureRuntimeErrors(page);
   await page.goto("/word-to-pdf");
-  const docxBytes = await page.evaluate(async () => {
+  const signatureBase64 = readFileSync(simplePng).toString("base64");
+  const docxBytes = await page.evaluate(async (signaturePng) => {
     await ensureJSZip();
     const zip = new JSZip();
     zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
         <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
         <Default Extension="xml" ContentType="application/xml"/>
+        <Default Extension="png" ContentType="image/png"/>
         <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
         <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
       </Types>`);
@@ -128,11 +132,17 @@ test("Word to PDF: preserves paragraphs, a table, Unicode Hindi, and Kruti Dev t
       </Relationships>`);
     zip.file("word/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-        <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>
+        <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="22"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="200" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
         <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>
+        <w:style w:type="paragraph" w:styleId="NormalWeb"><w:name w:val="Normal Web"/><w:pPr><w:spacing w:before="100" w:after="100" w:line="240" w:lineRule="auto"/></w:pPr><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Mangal"/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>
       </w:styles>`);
+    zip.file("word/_rels/document.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+        <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/signature.png"/>
+      </Relationships>`);
+    zip.file("word/media/signature.png", Uint8Array.from(atob(signaturePng), (c) => c.charCodeAt(0)));
     zip.file("word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-      <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+      <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>
         <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Conversion Quality Report</w:t></w:r></w:p>
         <w:p><w:r><w:t>This is the first paragraph with enough text to verify clean wrapping and readable structure in the generated PDF.</w:t></w:r></w:p>
         <w:p><w:r><w:t>This is a separate second paragraph.</w:t></w:r></w:p>
@@ -140,12 +150,15 @@ test("Word to PDF: preserves paragraphs, a table, Unicode Hindi, and Kruti Dev t
           <w:tr><w:tc><w:p><w:r><w:t>Item</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr>
           <w:tr><w:tc><w:p><w:r><w:t>Readable table row</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>42</w:t></w:r></w:p></w:tc></w:tr>
         </w:tbl>
-        <w:p><w:r><w:rPr><w:rFonts w:ascii="Mangal" w:hAnsi="Mangal"/></w:rPr><w:t>नमस्ते भारत</w:t></w:r></w:p>
-        <w:p><w:r><w:rPr><w:rFonts w:ascii="Kruti Dev 010" w:hAnsi="Kruti Dev 010"/></w:rPr><w:t>lsok esa</w:t></w:r></w:p>
+        <w:p><w:pPr><w:pStyle w:val="NormalWeb"/></w:pPr><w:r><w:rPr><w:rFonts w:cs="Mangal"/></w:rPr><w:t>नमस्ते भारत</w:t></w:r></w:p>
+        <w:p><w:r><w:rPr><w:rFonts w:ascii="Kruti Dev 014" w:hAnsi="Kruti Dev 014"/><w:b/><w:sz w:val="32"/></w:rPr><w:t>ls</w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Kruti Dev 014" w:hAnsi="Kruti Dev 014"/><w:b/><w:sz w:val="32"/></w:rPr><w:t>ok </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Kruti Dev 014" w:hAnsi="Kruti Dev 014"/><w:b/><w:sz w:val="32"/></w:rPr><w:t>esa]</w:t></w:r></w:p>
+        <w:p><w:r><w:rPr><w:rFonts w:ascii="Kruti Dev 014" w:hAnsi="Kruti Dev 014"/><w:sz w:val="32"/></w:rPr><w:t>vf</w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Kruti Dev 014" w:hAnsi="Kruti Dev 014"/><w:sz w:val="32"/></w:rPr><w:t>/</w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Kruti Dev 014" w:hAnsi="Kruti Dev 014"/><w:sz w:val="32"/></w:rPr><w:t>k’kklh vfHk;Urk</w:t></w:r></w:p>
+        <w:p><w:pPr><w:jc w:val="both"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Kruti Dev 014" w:hAnsi="Kruti Dev 014"/><w:sz w:val="32"/></w:rPr><w:t>izkFkhZ fnukad egku d\`ik gksxhA</w:t></w:r></w:p>
+        <w:p><w:r><w:t>Date 25.08.2026</w:t><w:tab/><w:tab/><w:tab/><w:tab/></w:r><w:r><w:drawing><wp:inline><wp:extent cx="762000" cy="254000"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:blipFill><a:blip r:embed="rIdImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
         <w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" w:header="720" w:footer="720"/></w:sectPr>
       </w:body></w:document>`);
     return Array.from(await zip.generateAsync({ type: "uint8array" }));
-  });
+  }, signatureBase64);
   await page.locator("#fi").setInputFiles({ name: "structured-hindi.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: Buffer.from(docxBytes) });
   await page.locator("#go").click();
 
@@ -158,7 +171,12 @@ test("Word to PDF: preserves paragraphs, a table, Unicode Hindi, and Kruti Dev t
   expect(text).toContain("Readable table row");
   expect(text).toContain("नमस्ते भारत");
   expect(text).toContain("सेवा में");
+  expect(text).toContain("अधिशासी अभियन्ता");
+  expect(text).toContain("प्रार्थी दिनांक महान कृपा होगी।");
+  expect(text).not.toMatch(/lsok|izkFkhZ|fnukad|egku d`ik/);
+  expect(rendered.pages.some((p) => p.imageCount > 0)).toBe(true);
   expect(rendered.pages.flatMap((p) => p.overlaps)).toEqual([]);
+  expect(rendered.pages.flatMap((p) => p.outOfBounds)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -201,16 +219,33 @@ test("PDF to Excel: produces a real, ZIP-based .xlsx with the extracted content"
   expect(errors).toEqual([]);
 });
 
-test("Excel to PDF: converts a real .xlsx's first sheet into a decodable PDF", async ({ page }) => {
+test("Excel to PDF: appends every worksheet in workbook order, including an empty sheet", async ({ page }) => {
   const errors = captureRuntimeErrors(page);
   await page.goto("/excel-to-pdf");
-  await page.locator("#fi").setInputFiles(minimalXlsx);
+  const workbookBytes = await page.evaluate(async () => {
+    await ensureXLSX();
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([["FIRST_SHEET"]]),"Alpha");
+    XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([]),"Empty");
+    XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([["LAST_SHEET"]]),"Omega");
+    return Array.from(new Uint8Array(XLSX.write(workbook,{bookType:"xlsx",type:"array"})));
+  });
+  await page.locator("#fi").setInputFiles({ name:"multi-sheet.xlsx", mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer:Buffer.from(workbookBytes) });
   await expect(page.locator("#go")).toBeVisible();
   await page.locator("#go").click();
 
-  const bytes = await downloadBytes(page, 'a.dl-link[download="minimal_converted.pdf"]');
+  const bytes = await downloadBytes(page, 'a.dl-link[download="multi-sheet_converted.pdf"]');
   const result = await PDFDocument.load(bytes);
-  expect(result.getPageCount()).toBeGreaterThanOrEqual(1);
+  expect(result.getPageCount()).toBe(3);
+  const rendered = await inspectRenderedPdf(page,bytes);
+  const text = rendered.pages.map(pdfPage=>pdfPage.text).join("\n");
+  expect(text).toContain("Alpha");
+  expect(text).toContain("FIRST_SHEET");
+  expect(text).toContain("Empty");
+  expect(text).toContain("This worksheet is empty.");
+  expect(text).toContain("Omega");
+  expect(text).toContain("LAST_SHEET");
+  expect(text.indexOf("FIRST_SHEET")).toBeLessThan(text.indexOf("LAST_SHEET"));
   expect(errors).toEqual([]);
 });
 

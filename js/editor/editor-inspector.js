@@ -210,6 +210,9 @@
       if (selected && selected.type === 'image') { renderImageProperties(selected); return; }
       if (selected && (selected.type === 'rectangle' || selected.type === 'ellipse' || selected.type === 'line')) { renderShapeProperties(selected); return; }
       if (selected && selected.type === 'whiteout') { renderWhiteoutProperties(selected); return; }
+      if (selected && selected.type === 'link') { renderLinkProperties(selected); return; }
+      if (selected && selected.type && selected.type.indexOf('form-') === 0) { renderFormProperties(selected); return; }
+      if (selected && (selected.type === 'highlight' || selected.type === 'strikethrough')) { renderMarkupProperties(selected); return; }
       body.innerHTML = `<div class="editor-inspector-placeholder">${t('editor.propertiesPlaceholder')}</div>`;
     }
 
@@ -228,14 +231,16 @@
 
     function renderTextProperties(selected) {
       const d = selected.data || {};
+      const currentFamily = d.fontFamily || 'Arial';
+      const fontChoices = FONT_FAMILIES.includes(currentFamily) ? FONT_FAMILIES : [currentFamily, ...FONT_FAMILIES];
       body.innerHTML = `
         <div class="editor-inspector-doc-info">
           <div class="editor-inspector-row"><span class="editor-inspector-row-label">${t('editor.propText')}</span></div>
           <textarea aria-label="${t('editor.propText')}" data-prop="text" rows="2" style="width:100%;">${escapeHtml(d.text || 'Text')}</textarea>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">${t('editor.propFontFamily')}</span>
-            <select aria-label="${t('editor.propFontFamily')}" data-prop="fontFamily">${FONT_FAMILIES.map((f) =>
-              `<option value="${f}"${(d.fontFamily || 'Arial') === f ? ' selected' : ''}>${f}</option>`).join('')}</select>
+            <select aria-label="${t('editor.propFontFamily')}" data-prop="fontFamily">${fontChoices.map((f) =>
+              `<option value="${escapeHtml(f)}"${currentFamily === f ? ' selected' : ''}>${f === currentFamily && !FONT_FAMILIES.includes(f) ? `Original — ${escapeHtml(f)}` : escapeHtml(f)}</option>`).join('')}</select>
           </div>
           <div class="editor-inspector-row">
             <span class="editor-inspector-row-label">${t('editor.propFontSize')}</span>
@@ -262,6 +267,9 @@
             <select aria-label="${t('editor.propTextAlignment')}" data-prop="align">${['left', 'center', 'right'].map((a) =>
               `<option value="${a}"${(d.align || 'left') === a ? ' selected' : ''}>${capitalize(a)}</option>`).join('')}</select>
           </div>
+          <div class="editor-inspector-row"><span class="editor-inspector-row-label">Line spacing</span><input aria-label="Line spacing" data-prop="lineHeight" type="number" min="0.8" max="3" step="0.1" value="${d.lineHeight||1.2}"></div>
+          <div class="editor-inspector-row"><span class="editor-inspector-row-label">Character spacing</span><input aria-label="Character spacing" data-prop="characterSpacing" type="number" step="0.1" value="${d.characterSpacing||0}"></div>
+          <div class="editor-inspector-row"><span class="editor-inspector-row-label">Opacity</span><input aria-label="Opacity" data-prop="opacity" type="number" min="0" max="1" step="0.05" value="${d.opacity==null?1:d.opacity}"></div>
         </div>`;
 
       body.querySelector('[data-prop="text"]').addEventListener('change', (e) => patchData(selected, { text: e.target.value || 'Text' }));
@@ -275,6 +283,9 @@
       body.querySelector('[data-prop="underline"]').addEventListener('change', (e) => patchData(selected, { underline: e.target.checked }));
       body.querySelector('[data-prop="color"]').addEventListener('change', (e) => patchData(selected, { color: e.target.value }));
       body.querySelector('[data-prop="align"]').addEventListener('change', (e) => patchData(selected, { align: e.target.value }));
+      body.querySelector('[data-prop="lineHeight"]').addEventListener('change', (e) => patchData(selected, { lineHeight: Math.max(.8,Math.min(3,Number(e.target.value)||1.2)) }));
+      body.querySelector('[data-prop="characterSpacing"]').addEventListener('change', (e) => patchData(selected, { characterSpacing: Number(e.target.value)||0 }));
+      body.querySelector('[data-prop="opacity"]').addEventListener('change', (e) => patchData(selected, { opacity: Math.max(0,Math.min(1,Number(e.target.value))) }));
     }
 
     /** Priority 4C: Width/Height here bind to `data.naturalWidth`/
@@ -301,6 +312,7 @@
             <span class="editor-inspector-row-label">${t('editor.propKeepAspectRatio')}</span>
             <input aria-label="${t('editor.propKeepAspectRatio')}" data-prop="keepAspectRatio" type="checkbox" ${d.keepAspectRatio !== false ? 'checked' : ''}>
           </div>
+          <div class="editor-inspector-row"><span class="editor-inspector-row-label">Rotation</span><input aria-label="Rotation" data-prop="rotation" type="number" min="-360" max="360" value="${d.rotation||0}"></div>
         </div>`;
 
       body.querySelector('[data-prop="naturalWidth"]').addEventListener('change', (e) => {
@@ -312,6 +324,33 @@
         patchData(selected, { naturalHeight: Number.isFinite(n) && n > 0 ? n : d.naturalHeight });
       });
       body.querySelector('[data-prop="keepAspectRatio"]').addEventListener('change', (e) => patchData(selected, { keepAspectRatio: e.target.checked }));
+      body.querySelector('[data-prop="rotation"]').addEventListener('change', (e) => patchData(selected, { rotation: Number(e.target.value)||0 }));
+    }
+
+    function renderLinkProperties(selected){
+      const d=selected.data||{};
+      body.innerHTML=`<div class="editor-inspector-doc-info"><div class="editor-inspector-row"><span class="editor-inspector-row-label">Destination URL</span></div><input data-prop="url" type="url" aria-label="Destination URL" value="${escapeHtml(d.url||'https://')}"><div class="status" role="note">Exports as a real PDF link annotation.</div></div>`;
+      body.querySelector('[data-prop="url"]').addEventListener('change',event=>patchData(selected,{url:event.target.value}));
+    }
+
+    function renderFormProperties(selected){
+      const d=selected.data||{}, isDropdown=selected.type==='form-dropdown', isCheck=selected.type==='form-checkbox'||selected.type==='form-radio';
+      body.innerHTML=`<div class="editor-inspector-doc-info">
+        <div class="editor-inspector-row"><span class="editor-inspector-row-label">Field name</span><input data-prop="name" value="${escapeHtml(d.name||selected.id)}"></div>
+        ${!isCheck?`<div class="editor-inspector-row"><span class="editor-inspector-row-label">Default value</span><input data-prop="defaultValue" value="${escapeHtml(d.defaultValue||'')}"></div>`:''}
+        ${isDropdown?`<div class="editor-inspector-row"><span class="editor-inspector-row-label">Options</span></div><textarea data-prop="options" rows="4" aria-label="Dropdown options">${escapeHtml((d.options||[]).join('\n'))}</textarea>`:''}
+        ${isCheck?`<div class="editor-inspector-row"><span class="editor-inspector-row-label">Checked</span><input data-prop="checked" type="checkbox" ${d.checked?'checked':''}></div>`:''}
+      </div>`;
+      body.querySelector('[data-prop="name"]').addEventListener('change',event=>patchData(selected,{name:event.target.value||selected.id}));
+      body.querySelector('[data-prop="defaultValue"]')?.addEventListener('change',event=>patchData(selected,{defaultValue:event.target.value}));
+      body.querySelector('[data-prop="options"]')?.addEventListener('change',event=>patchData(selected,{options:event.target.value.split(/\r?\n/).filter(Boolean)}));
+      body.querySelector('[data-prop="checked"]')?.addEventListener('change',event=>patchData(selected,{checked:event.target.checked}));
+    }
+
+    function renderMarkupProperties(selected){
+      const d=selected.data||{}, prop=selected.type==='highlight'?'fill':'color';
+      body.innerHTML=`<div class="editor-inspector-doc-info"><div class="editor-inspector-row"><span class="editor-inspector-row-label">Color</span><input data-prop="markupColor" type="color" value="${d[prop]||(selected.type==='highlight'?'#ffeb3b':'#dc2626')}"></div></div>`;
+      body.querySelector('[data-prop="markupColor"]').addEventListener('change',event=>patchData(selected,{[prop]:event.target.value}));
     }
 
     /** Priority 4D: one shared renderer for rectangle/ellipse/line —

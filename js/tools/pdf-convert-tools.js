@@ -58,12 +58,25 @@ TOOLS.pdf2word = function(){
       // "image inside table, no surrounding heading" test case that
       // exposed it - every real-bill page happens to have a title
       // paragraph alongside its tables, so this never surfaced before.
-      const pageHasText = pageBlocks.some(blockHasRealText);
+      let pageHasText = pageBlocks.some(blockHasRealText);
+      // If the richer geometry/style pass fails, preserve any text that pdf.js can still
+      // extract instead of replacing an otherwise-editable page with a screenshot.
+      if(!pageHasText){
+        try{
+          const editableFallback = await extractPlainPageParagraphs(pdoc, i);
+          if(editableFallback.some(blockHasRealText)){
+            pageBlocks = editableFallback;
+            pageHasText = true;
+          }
+        }catch(e){ /* a genuinely textless/scanned page still uses the image fallback below */ }
+      }
       let thisPageBlocks = [];
       if(!pageHasText){
         try{
           const canvas = await renderPdfPageCanvas(pdoc, i, 1.6);
-          thisPageBlocks = [{type:"image", pngBase64:canvasToPngBase64(canvas), width:canvas.width, height:canvas.height}];
+          const sourceSize=pageSizesArr[pageSizesArr.length-1];
+          thisPageBlocks = [{type:"image", pngBase64:canvasToPngBase64(canvas), width:canvas.width, height:canvas.height,
+            widthPt:sourceSize.widthPt, heightPt:sourceSize.heightPt, placement:"anchored", xPt:0, yFromTopPt:0, _y:sourceSize.heightPt}];
         }catch(e){ /* nothing extractable and nothing renderable - leave this page out */ }
       } else {
         // Merge real embedded images (logo, QR) into the text flow by
@@ -80,14 +93,12 @@ TOOLS.pdf2word = function(){
         // ordering puts it.
         const pageWidthPt = pageSizesArr[pageSizesArr.length-1].widthPt;
         const pageHeightPt = pageSizesArr[pageSizesArr.length-1].heightPt;
-        const wideThreshold = pageWidthPt * 0.35;
         const pageImages = visuals.images.map(im=>{
-          const wide = im.width >= wideThreshold;
           return {
             type:"image", pngBase64: pdfImageToPngBase64(im.raw),
             width: im.width, height: im.height,
             widthPt: im.width, heightPt: im.height, _y: im.y,
-            placement: wide ? "centered" : "anchored",
+            placement: "anchored",
             xPt: im.x, yFromTopPt: pageHeightPt - (im.y + im.height),
             pageWidthPt, pageHeightPt
           };
@@ -101,8 +112,30 @@ TOOLS.pdf2word = function(){
         const unmatchedImages = embedImagesIntoTableCells(pageBlocks, pageImages);
         thisPageBlocks = pageBlocks.concat(unmatchedImages).sort((a,b)=> (b._y||0) - (a._y||0));
       }
+      const currentPageSize = inferPdfPageLayoutSize(pageSizesArr[pageSizesArr.length-1], thisPageBlocks);
+      pageSizesArr[pageSizesArr.length-1] = currentPageSize;
+      thisPageBlocks.forEach(block=>{ block._pageSize = currentPageSize; });
       pageBlocksList.push(thisPageBlocks);
+      // Release page-local operator/font/image caches once the compact document model is built.
+      // This keeps long conversions bounded without reparsing or rasterizing completed pages.
+      if(typeof page_i.cleanup === "function") page_i.cleanup();
     }
+
+    // Word applies margins per section, not per ordinary page break. Pages with the same paper
+    // geometry therefore share the least restrictive source-derived margins, keeping every
+    // page's coordinate model consistent without creating unnecessary section breaks.
+    const geometryMargins = new Map();
+    pageSizesArr.forEach(size=>{
+      const key=`${Math.round(size.widthPt)}x${Math.round(size.heightPt)}`;
+      const current=geometryMargins.get(key);
+      const values=[size.marginTopPt,size.marginRightPt,size.marginBottomPt,size.marginLeftPt];
+      geometryMargins.set(key,current ? current.map((value,index)=>Math.min(value,values[index])) : values);
+    });
+    pageSizesArr.forEach((size,index)=>{
+      const margins=geometryMargins.get(`${Math.round(size.widthPt)}x${Math.round(size.heightPt)}`);
+      [size.marginTopPt,size.marginRightPt,size.marginBottomPt,size.marginLeftPt]=margins;
+      pageBlocksList[index].forEach(block=>{ block._pageSize=size; });
+    });
 
     // Detect real repeating headers/footers (e.g. a company name at the
     // top of every page, a legal footer at the bottom) - only promoted
@@ -117,7 +150,7 @@ TOOLS.pdf2word = function(){
     let prevPageSize = pageSizesArr[0];
     const blocks = [];
     pageBlocksList.forEach((pb, idx)=>{
-      blocks.push(...pb);
+      blocks.push({type:"pagelayout", blocks:pb, pageSize:pageSizesArr[idx]});
       if(idx < pageBlocksList.length-1){
         const nextSize = pageSizesArr[idx+1];
         // A plain page break can't change paper size/orientation mid
@@ -242,13 +275,43 @@ function wordTokenEffectiveText(token){
   return raw;
 }
 
+function wordLegacyStyleKey(style){
+  if(!style || typeof isKrutiDevFontName !== "function" || !isKrutiDevFontName(style.rFonts)) return null;
+  const color = style.color ? [style.color.r,style.color.g,style.color.b].join(",") : "";
+  return [String(style.rFonts).toLowerCase().replace(/\s+/g,""),style.sizePt||"",!!style.bold,!!style.italic,!!style.underline,!!style.strike,style.vertAlign||"",color].join("|");
+}
+
+/* Word frequently splits one visually-uniform legacy word into several w:r elements (spellcheck,
+   editing history and proofing can all do this). Kruti Dev is a contextual byte encoding: converting
+   each XML run independently corrupts sequences such as `vf` + `/` + `k’kklh`. Join only adjacent
+   text runs that are explicitly Kruti Dev and have the same effective visual style, then convert the
+   complete sequence. Style boundaries, tabs, breaks, images, Unicode Hindi and English remain hard
+   boundaries, so this is general font-aware decoding rather than document-specific replacement. */
+function wordCoalesceLegacyTokens(tokens){
+  const out = [];
+  for(const token of tokens){
+    const key = token.kind === "text" ? wordLegacyStyleKey(token.style) : null;
+    const previous = out[out.length-1];
+    if(key && previous && previous.kind === "text" && previous._legacyKey === key){
+      previous.text += token.text;
+      continue;
+    }
+    const copy = Object.assign({},token);
+    if(key) copy._legacyKey = key;
+    out.push(copy);
+  }
+  return out;
+}
+
 // Noto Sans Devanagari has no italic style (Devanagari has no established italic convention, and
 // Noto doesn't ship one) - Devanagari runs render upright regardless of the source's italic flag.
 // Latin/other-script italic text uses pdf-lib's built-in Helvetica Oblique instead (no extra fetch/
 // embed cost - it's one of the 14 always-available StandardFonts), so real italic is still preserved
 // wherever the document can actually have it.
-function wordPickFont(text, bold, italic, fonts){
-  const hasDevanagari = /[ऀ-ॿ]/.test(text || "");
+function wordPickFont(text, bold, italic, fonts, style){
+  // Keep dates, numbers and punctuation that originated in a legacy Hindi run
+  // in the same embedded family as its converted Devanagari neighbours.
+  const hasDevanagari = /[ऀ-ॿ]/.test(text || "") || !!wordLegacyStyleKey(style);
   if(hasDevanagari) return bold ? fonts.bold : fonts.regular;
   if(bold && italic) return fonts.boldItalic;
   if(italic) return fonts.italic;
@@ -264,7 +327,7 @@ function wordStyleFontSize(style){ return (style && style.sizePt) || 11; }
 // one paragraph-wide string in one font like the previous version of this function did.
 function wordBuildAtoms(paragraph){
   const atoms = [];
-  for(const token of paragraph.tokens){
+  for(const token of wordCoalesceLegacyTokens(paragraph.tokens)){
     if(token.kind === "text"){
       const text = wordTokenEffectiveText(token);
       if(!text) continue;
@@ -290,15 +353,22 @@ function wordWrapParagraph(paragraph, maxWidth, fonts){
   const tabStops = paragraph.tabStopsPt;
   const lines = [];
   let line = [], x = 0, isFirstLine = true;
-  const lineMax = () => Math.max(20, maxWidth - (isFirstLine ? Math.max(0, firstLineIndent) : 0));
-  function pushLine(){
-    const sizes = line.filter(p => p.size).map(p => p.size);
-    lines.push({ pieces: line, maxSize: sizes.length ? Math.max(...sizes) : 11 });
+  const lineMax = () => Math.max(20, maxWidth);
+  function trimTrailingSpaces(){
+    while(line.length && line[line.length-1].kind === "text" && /^\s+$/.test(line[line.length-1].text || "")){
+      const removed = line.pop();
+      x -= removed.width || 0;
+    }
+  }
+  function pushLine(forcedBreak){
+    trimTrailingSpaces();
+    const sizes = line.map(p => p.kind === "image" ? (p.heightPt||11) : (p.size||0)).filter(Boolean);
+    lines.push({ pieces: line, maxSize: sizes.length ? Math.max(...sizes) : 11, forcedBreak:!!forcedBreak });
     line = []; isFirstLine = false; x = 0;
   }
   x = isFirstLine ? Math.max(0, firstLineIndent) : 0;
   for(const atom of atoms){
-    if(atom.kind === "break"){ pushLine(); x = isFirstLine ? Math.max(0, firstLineIndent) : 0; continue; }
+    if(atom.kind === "break"){ pushLine(true); x = isFirstLine ? Math.max(0, firstLineIndent) : 0; continue; }
     if(atom.kind === "pageBreak"){ if(line.length) pushLine(); lines.push({ pageBreak: true }); x = 0; continue; }
     if(atom.kind === "tab"){
       let next;
@@ -309,13 +379,29 @@ function wordWrapParagraph(paragraph, maxWidth, fonts){
       continue;
     }
     if(atom.kind === "image"){
-      if(line.length) pushLine();
-      lines.push({ pieces: [{ kind: "image", relId: atom.relId, widthPt: atom.widthPt, heightPt: atom.heightPt }], maxSize: atom.heightPt || 11 });
-      x = isFirstLine ? Math.max(0, firstLineIndent) : 0;
+      const width = atom.widthPt || 0;
+      if(x + width > lineMax() && line.length){
+        // Font substitution can make the text before a manually tabbed signature a little wider
+        // than Word's source font, advancing the final tab one stop too far. Keep an image after
+        // tabs on that same line by clamping it to the last fitting tab stop, provided it cannot
+        // overlap the actual preceding text; otherwise use an ordinary wrap.
+        const hasTab = line.some(p=>p.kind === "tab");
+        const textEnd = line.filter(p=>p.kind !== "tab").reduce((m,p)=>Math.max(m,(p.x||0)+(p.width||0)),0);
+        let fittingStop = null;
+        if(hasTab){
+          if(tabStops && tabStops.length) fittingStop = tabStops.filter(s=>s+width<=lineMax()).pop();
+          else fittingStop = Math.floor((lineMax()-width)/36)*36;
+        }
+        if(fittingStop != null && fittingStop >= textEnd) x = fittingStop;
+        else pushLine();
+      }
+      line.push({ kind:"image", relId:atom.relId, widthPt:atom.widthPt, heightPt:atom.heightPt, x, width });
+      x += width;
       continue;
     }
+    if(atom.kind === "space" && !line.length) continue;
     const bold = !!(atom.style && atom.style.bold), italic = !!(atom.style && atom.style.italic);
-    const font = wordPickFont(atom.text, bold, italic, fonts);
+    const font = wordPickFont(atom.text, bold, italic, fonts, atom.style);
     const size = wordStyleFontSize(atom.style);
     const width = atom.text ? font.widthOfTextAtSize(atom.text, size) : 0;
     if(atom.kind === "word" && x + width > lineMax() && line.length) pushLine();
@@ -335,7 +421,17 @@ function wordLineHeightPt(paragraph, naturalPt){
   if(!ls) return naturalPt;
   if(ls.rule === "exact") return ls.value / 20;
   if(ls.rule === "atLeast") return Math.max(naturalPt, ls.value / 20);
-  return naturalPt * (ls.value / 240);
+  // naturalPt already includes the font renderer's normal leading. Word's auto value scales
+  // the nominal font size, so multiplying the expanded height again overstates e.g. 1.15 lines.
+  return Math.max(naturalPt, (naturalPt / 1.2) * (ls.value / 240));
+}
+
+function wordParagraphSpacingPt(paragraph, side){
+  const automatic = side === "before" ? paragraph.spaceBeforeAuto : paragraph.spaceAfterAuto;
+  if(!automatic) return side === "before" ? (paragraph.spaceBeforePt || 0) : (paragraph.spaceAfterPt || 0);
+  // Word's HTML-style automatic paragraph spacing is approximately one em; its explicit
+  // before/after value is ignored while the automatic flag is active.
+  return Math.max(1, ...((paragraph.tokens || []).map(token => wordStyleFontSize(token.style))));
 }
 
 function wordMeasureLinesHeight(lines, paragraph){
@@ -397,8 +493,10 @@ async function buildWordPdfBytes(sections, loadMediaBytes){
         const img = imageCache[piece.relId];
         if(img && !dryRun){
           const w = piece.widthPt || img.width, h = piece.heightPt || img.height;
-          const ix = geo.marginLeft + Math.max(0, (geo.maxWidth - w) / 2);
-          page.drawImage(img, { x: ix, y: startY - h, width: w, height: h });
+          const ix = piece.lineX + (piece.x||0);
+          // Inline DrawingML images sit on the current text baseline. Keeping
+          // them in that line also preserves tabs used to position signatures.
+          page.drawImage(img, { x: ix, y: startY - h*0.12, width: w, height: h });
         }
         continue;
       }
@@ -418,12 +516,30 @@ async function buildWordPdfBytes(sections, loadMediaBytes){
   }
 
   function lineStartX(line, paragraph){
-    const contentWidth = line.pieces.reduce((s,p)=> s + (p.width||0), 0);
+    const contentWidth = line.pieces.reduce((m,p)=>Math.max(m,(p.x||0)+(p.width||0)),0);
     const avail = geo.maxWidth - (paragraph.indentLeftPt||0) - (paragraph.indentRightPt||0);
     let x = geo.marginLeft + (paragraph.indentLeftPt||0);
     if(paragraph.align === "center") x += Math.max(0, (avail - contentWidth) / 2);
     else if(paragraph.align === "right" || paragraph.align === "end") x += Math.max(0, avail - contentWidth);
     return x;
+  }
+
+  function positionedLinePieces(line, paragraph, lineX, justify){
+    const pieces = line.pieces.map(p=>Object.assign({},p,{lineX}));
+    if(!justify || !(paragraph.align === "both" || paragraph.align === "distribute")) return pieces;
+    const stretchable = pieces.filter((p,i)=>p.kind === "text" && /^\s+$/.test(p.text||"") && pieces.slice(i+1).some(n=>n.kind === "text" && !/^\s+$/.test(n.text||"")));
+    if(!stretchable.length) return pieces;
+    const used = pieces.reduce((m,p)=>Math.max(m,(p.x||0)+(p.width||0)),0);
+    const available = geo.maxWidth - (paragraph.indentLeftPt||0) - (paragraph.indentRightPt||0);
+    const extra = available-used;
+    if(extra <= 0.25) return pieces;
+    const perSpace = extra/stretchable.length;
+    let shift = 0;
+    for(const piece of pieces){
+      piece.x = (piece.x||0)+shift;
+      if(stretchable.includes(piece)){ piece.width += perSpace; shift += perSpace; }
+    }
+    return pieces;
   }
 
   async function newPage(){
@@ -441,7 +557,7 @@ async function buildWordPdfBytes(sections, loadMediaBytes){
     for(const block of blocks){
       if(block.type !== "paragraph") continue;
       const lines = wordWrapParagraph(block, geo.maxWidth - (block.indentLeftPt||0) - (block.indentRightPt||0), fonts);
-      h += (block.spaceBeforePt||0) + wordMeasureLinesHeight(lines, block) + (block.spaceAfterPt||0);
+      h += wordParagraphSpacingPt(block, "before") + wordMeasureLinesHeight(lines, block) + wordParagraphSpacingPt(block, "after");
     }
     return h;
   }
@@ -455,7 +571,7 @@ async function buildWordPdfBytes(sections, loadMediaBytes){
       if(block.type !== "paragraph") continue;
       const w = geo.maxWidth - (block.indentLeftPt||0) - (block.indentRightPt||0);
       const lines = wordWrapParagraph(block, w, fonts);
-      fy -= (block.spaceBeforePt||0);
+      fy -= wordParagraphSpacingPt(block, "before");
       lines.forEach(line => {
         if(line.pageBreak) return;
         const lh = wordLineHeightPt(block, (line.maxSize||11) * 1.2);
@@ -463,7 +579,7 @@ async function buildWordPdfBytes(sections, loadMediaBytes){
         drawPieceRun(line.pieces.map(p => Object.assign({}, p, { lineX })), fy - lh*0.8);
         fy -= lh;
       });
-      fy -= (block.spaceAfterPt||0);
+      fy -= wordParagraphSpacingPt(block, "after");
     }
   }
 
@@ -473,9 +589,10 @@ async function buildWordPdfBytes(sections, loadMediaBytes){
     if(paragraph.pageBreakBefore){ await newPage(); }
     const w = geo.maxWidth - (paragraph.indentLeftPt||0) - (paragraph.indentRightPt||0);
     const lines = wordWrapParagraph(paragraph, w, fonts);
-    y -= (paragraph.spaceBeforePt||0);
+    y -= wordParagraphSpacingPt(paragraph, "before");
     let first = true;
-    for(const line of lines){
+    for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
+      const line = lines[lineIndex];
       if(line.pageBreak){ await newPage(); first = true; continue; }
       const lh = wordLineHeightPt(paragraph, (line.maxSize||11) * 1.2);
       if(newPageIfNeeded(lh)) await newPage();
@@ -485,11 +602,13 @@ async function buildWordPdfBytes(sections, loadMediaBytes){
         const markerStr = paragraph.listMarker + " ";
         page.drawText(markerStr, { x: geo.marginLeft, y: y - lh*0.8, size: (line.maxSize||11), font: markerFont });
       }
-      drawPieceRun(line.pieces.map(p => Object.assign({}, p, { lineX })), y - lh*0.8);
+      const nextIsPageBreak = lines[lineIndex+1] && lines[lineIndex+1].pageBreak;
+      const justify = !line.forcedBreak && !nextIsPageBreak && lineIndex < lines.length-1;
+      drawPieceRun(positionedLinePieces(line,paragraph,lineX,justify), y - lh*0.8);
       y -= lh;
       first = false;
     }
-    y -= (paragraph.spaceAfterPt||0);
+    y -= wordParagraphSpacingPt(paragraph, "after");
   }
 
   async function drawTable(table){
@@ -1050,7 +1169,8 @@ async function buildExcelPdfBytes(sheet, sheetName){
   catch(e) { range = null; }
   if(!range){
     const page = doc.addPage([cfg.pageWidth,cfg.pageHeight]);
-    page.drawText("This worksheet is empty.",{x:cfg.margin,y:cfg.pageHeight-cfg.margin-14,size:11,font:regularFont,color:rgb(0.2,0.2,0.2)});
+    page.drawText(winAnsiSafe(String(sheetName||"Sheet")).slice(0,90),{x:cfg.margin,y:cfg.pageHeight-cfg.margin-11,size:11,font:boldFont,color:rgb(0.12,0.20,0.13)});
+    page.drawText("This worksheet is empty.",{x:cfg.margin,y:cfg.pageHeight-cfg.margin-cfg.titleHeight-14,size:11,font:regularFont,color:rgb(0.2,0.2,0.2)});
     return doc.save();
   }
 
@@ -1061,7 +1181,8 @@ async function buildExcelPdfBytes(sheet, sheetName){
   for(let c=range.s.c;c<=range.e.c;c++) if(!(colMeta[c] && colMeta[c].hidden)) visibleCols.push(c);
   if(!visibleRows.length || !visibleCols.length){
     const page = doc.addPage([cfg.pageWidth,cfg.pageHeight]);
-    page.drawText("This worksheet has no visible cells.",{x:cfg.margin,y:cfg.pageHeight-cfg.margin-14,size:11,font:regularFont,color:rgb(0.2,0.2,0.2)});
+    page.drawText(winAnsiSafe(String(sheetName||"Sheet")).slice(0,90),{x:cfg.margin,y:cfg.pageHeight-cfg.margin-11,size:11,font:boldFont,color:rgb(0.12,0.20,0.13)});
+    page.drawText("This worksheet has no visible cells.",{x:cfg.margin,y:cfg.pageHeight-cfg.margin-cfg.titleHeight-14,size:11,font:regularFont,color:rgb(0.2,0.2,0.2)});
     return doc.save();
   }
 
@@ -1125,6 +1246,23 @@ async function buildExcelPdfBytes(sheet, sheetName){
   return doc.save();
 }
 
+async function buildExcelWorkbookPdfBytes(workbook){
+  const combined = await PDFDocument.create();
+  for(const sheetName of workbook.SheetNames){
+    const sheetBytes = await buildExcelPdfBytes(workbook.Sheets[sheetName], sheetName);
+    const sheetPdf = await PDFDocument.load(sheetBytes);
+    const pages = await combined.copyPages(sheetPdf, sheetPdf.getPageIndices());
+    pages.forEach(page=>combined.addPage(page));
+  }
+  // A malformed workbook with no sheet entries should still produce a valid, explanatory PDF.
+  if(!combined.getPageCount()){
+    const font = await combined.embedFont(StandardFonts.Helvetica);
+    const page = combined.addPage([EXCEL_PDF_LAYOUT.pageWidth,EXCEL_PDF_LAYOUT.pageHeight]);
+    page.drawText("This workbook contains no worksheets.",{x:EXCEL_PDF_LAYOUT.margin,y:EXCEL_PDF_LAYOUT.pageHeight-EXCEL_PDF_LAYOUT.margin-14,size:11,font,color:rgb(0.2,0.2,0.2)});
+  }
+  return combined.save();
+}
+
 TOOLS.excel2pdf = function(){
   const t = window.I18N ? I18N.t : (k)=>k;
   let file=null;
@@ -1138,7 +1276,7 @@ TOOLS.excel2pdf = function(){
       <div class="tool-upload-wrap">
         ${fileInputHTML(".xlsx,.xls,.csv", false, t("toolExcel2pdf.selectSpreadsheet"))}
       </div>
-      <div class="status" role="note">${t("toolExcel2pdf.onlyFirstSheetNote")}</div>
+      <div class="status" role="note">${t("toolExcel2pdf.allSheetsNote")}</div>
       <p class="tool-privacy-hint">🔒 ${T("workspace.privacyHintFiles")}</p>
       <div class="tool-toolbar" id="excel2pdfToolbar" style="display:none">
         <button class="btn tool-toolbar-primary" id="go">${t("toolWord2pdf.convertToPdf")}</button>
@@ -1162,16 +1300,8 @@ TOOLS.excel2pdf = function(){
     try {
       const bytes = await file.arrayBuffer();
       const wb = XLSX.read(bytes, {type:"array", cellDates:true, cellStyles:true});
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      // Explicit, not silent: a workbook with sheets the user can't see
-      // converted should never look like a complete conversion.
-      if(wb.SheetNames.length > 1 && typeof toast === "function"){
-        const count = wb.SheetNames.length - 1;
-        const names = wb.SheetNames.slice(1).join(", ");
-        toast(t(count === 1 ? "toolExcel2pdf.toastOnlySheetConvertedOne" : "toolExcel2pdf.toastOnlySheetConvertedMany", {sheet: wb.SheetNames[0], count, names}));
-      }
       setStatus(t("toolExcel2pdf.statusGenerating"));
-      outBytes = await buildExcelPdfBytes(sheet,wb.SheetNames[0]);
+      outBytes = await buildExcelWorkbookPdfBytes(wb);
     } catch(e) {
       out.innerHTML = `<div class="status" style="color:var(--rose)">${t("toolExcel2pdf.errCouldNotConvert", {msg: escapeAttr(e.message)})}</div>`;
       return;

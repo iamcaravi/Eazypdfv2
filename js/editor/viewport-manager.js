@@ -149,7 +149,12 @@
       wrap.setAttribute('role', 'img');
       wrap.setAttribute('aria-label', `Page ${n} of ${count}`);
       const info = infos[n - 1];
-      if (info && info.width && info.height) wrap.style.aspectRatio = `${info.width} / ${info.height}`;
+      if (info && info.width && info.height) {
+        wrap.style.aspectRatio = `${info.width} / ${info.height}`;
+        wrap.dataset.nativeWidth = String(info.width);
+        wrap.dataset.nativeHeight = String(info.height);
+        sizeWrapper(wrap, window.ZoomManager.getScale());
+      }
       const canvas = document.createElement('canvas');
       const spinner = document.createElement('span');
       spinner.className = 'spinner';
@@ -315,12 +320,19 @@
   }
 
   function rerenderAtCurrentScale() {
+    const scale = window.ZoomManager.getScale();
     pageWrappers.forEach((w) => {
+      sizeWrapper(w, scale);
       const rect = w.getBoundingClientRect();
       const canvasRect = canvasEl.getBoundingClientRect();
       const isNearViewport = rect.bottom > canvasRect.top - canvasRect.height && rect.top < canvasRect.bottom + canvasRect.height;
       if (isNearViewport) renderWrapper(w, Number(w.dataset.page));
     });
+  }
+
+  function sizeWrapper(wrap, scale) {
+    const width = Number(wrap.dataset.nativeWidth);
+    if (width > 0) wrap.style.width = `${Math.max(1, width * scale)}px`;
   }
 
   function scrollToPage(pageNumber, { smooth = true } = {}) {
