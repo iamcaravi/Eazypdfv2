@@ -1,14 +1,14 @@
 {
   "site": {
     "name": "YOYOPDF",
-    "domain": "https://yoyopdf.in",
+    "domain": "https://yoyopdf.com",
     "language": "en",
     "locale": "en_IN",
     "robots": "index,follow,max-image-preview:large",
     "defaultTitle": "YOYOPDF — Free Online PDF Tools: Merge, Split, Compress & Convert",
     "defaultDescription": "Merge, split, compress, convert and edit files free in your browser, with no sign-up. Document contents stay on your device; practical browser safety limits apply.",
-    "ogImage": "https://yoyopdf.in/assets/og/yoyopdf-default-og.png",
-    "logo": "https://yoyopdf.in/assets/icons/yoyopdf-logo.png",
+    "ogImage": "https://yoyopdf.com/assets/og/yoyopdf-default-og.png",
+    "logo": "https://yoyopdf.com/assets/icons/yoyopdf-logo.png",
     "sameAs": []
   },
   "categories": {

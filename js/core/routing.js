@@ -64,13 +64,13 @@ function toolIdForPath(pathname){
 }
 const HOME_TITLE = document.title;
 const HOME_DESCRIPTION = document.querySelector('meta[name="description"]').content;
-const HOME_CANONICAL = 'https://yoyopdf.in/';
+const HOME_CANONICAL = 'https://yoyopdf.com/';
 function setPageMeta(title, description, canonicalPath){
   document.title = title;
   const descTag = document.querySelector('meta[name="description"]');
   if(descTag) descTag.content = description;
   let canonicalTag = document.querySelector('link[rel="canonical"]');
-  if(canonicalTag) canonicalTag.href = 'https://yoyopdf.in' + (canonicalPath==='/' ? '/' : canonicalPath);
+  if(canonicalTag) canonicalTag.href = 'https://yoyopdf.com' + (canonicalPath==='/' ? '/' : canonicalPath);
 }
 /* Carries File objects across a REAL page navigation (see openTool()
    below) - sessionStorage/localStorage can only hold strings, and every
