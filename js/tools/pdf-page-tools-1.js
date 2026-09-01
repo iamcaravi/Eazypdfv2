@@ -1,7 +1,10 @@
 /* ---- MERGE ---- */
 TOOLS.merge = function(){
   const t = window.I18N ? I18N.t : (k)=>k;
-  let files=[];
+  const sourceColors = ["#3B82F6","#8B5CF6","#F5B22D","#EC4899","#06B6D4","#F97316","#6366F1","#F43F5E"];
+  let entries=[]; // {file, docIndex, color}
+  let gridApi=null;
+  let loading=false;
   openPanel(`
     <div class="panel-head"><h3>${t("nav.merge")}</h3></div>
     <div class="panel-body compact tool-workspace merge-workspace" id="mergeBody">
@@ -24,52 +27,118 @@ TOOLS.merge = function(){
       <div class="tool-content-area merge-info-tip">
         <span class="tip-icon" aria-hidden="true">ℹ️</span><span>${t("toolMerge.tip")}</span>
       </div>
+      <div class="merge-page-workspace" id="mergePageWorkspace" style="display:none">
+        <p class="page-grid-hint">${t("toolOrganize.gridHint")}</p>
+        <div class="page-grid tool-content-area" id="mergePageGrid"></div>
+      </div>
       <div class="tool-toolbar" id="mergeToolbar" style="display:none">
         <button class="btn tool-toolbar-primary" id="go" disabled>${t("toolMerge.goBtn")} <span aria-hidden="true">&rarr;</span></button>
       </div>
       <div id="out"></div>
     </div>`);
-  const flistDrag = wireFileCardDrag(()=>files, reordered=>{ files = reordered; refresh(); });
+  const pageGrid = document.getElementById("mergePageGrid");
+  const pageWorkspace = document.getElementById("mergePageWorkspace");
+  const out = document.getElementById("out");
+
+  function entriesForFiles(reorderedFiles){
+    const remaining = entries.slice();
+    return reorderedFiles.map(file=>{
+      const index = remaining.findIndex(entry=>entry.file===file);
+      return index>=0 ? remaining.splice(index,1)[0] : null;
+    }).filter(Boolean);
+  }
+  const flistDrag = wireFileCardDrag(()=>entries.map(entry=>entry.file), reorderedFiles=>{
+    entries = entriesForFiles(reorderedFiles);
+    gridApi?.reorderSources(entries.map(entry=>entry.docIndex));
+    refresh();
+  });
   const refresh = ()=>{
-    renderFileList(files, i=>{files.splice(i,1); refresh();});
+    renderFileList(entries.map(entry=>entry.file), i=>{
+      const [removed] = entries.splice(i,1);
+      if(removed) gridApi?.removeSource(removed.docIndex);
+      if(entries.length===0 && gridApi){
+        gridApi.destroy();
+        gridApi=null;
+        pageGrid.innerHTML="";
+      }
+      refresh();
+    });
     document.querySelectorAll("#flist .file-card").forEach((card,i)=>{
       let badge = card.querySelector(".file-card-order");
       if(!badge){ badge = document.createElement("span"); badge.className="file-card-order"; card.prepend(badge); }
       badge.textContent = i+1;
     });
     flistDrag.rewire();
-    document.getElementById("go").disabled = files.length<2;
-    document.getElementById("mergeToolbar").style.display = files.length ? "flex" : "none";
-    document.getElementById("mergeFileToolbar").style.display = files.length ? "flex" : "none";
+    document.getElementById("go").disabled = entries.length<2 || loading || !gridApi?.workspace.activePages.length;
+    document.getElementById("mergeToolbar").style.display = entries.length ? "flex" : "none";
+    document.getElementById("mergeFileToolbar").style.display = entries.length ? "flex" : "none";
+    pageWorkspace.style.display = entries.length && gridApi ? "block" : "none";
     // Same empty->loaded hint reveal Delete/Reorder/Organize/Rotate/Split
     // all use for their own #gridHint - the sidebar's .tool-hero-desc
     // (hidden once loaded, see the #mergeBody.is-loaded CSS rule) covers
     // the pre-upload description instead, so exactly one description is
     // ever visible at a time.
-    document.getElementById("mergeHint").style.display = files.length ? "block" : "none";
+    document.getElementById("mergeHint").style.display = entries.length ? "block" : "none";
     const countBadge = document.getElementById("mergeFileCount");
-    if(files.length){ countBadge.hidden=false; countBadge.textContent = files.length; } else countBadge.hidden = true;
-    document.getElementById("mergeBody").classList.toggle("is-loaded", files.length>0);
+    if(entries.length){ countBadge.hidden=false; countBadge.textContent = entries.length; } else countBadge.hidden = true;
+    document.getElementById("mergeBody").classList.toggle("is-loaded", entries.length>0);
   };
   document.getElementById("mergeSortBtn").addEventListener("click", ()=>{
-    files = [...files].sort((a,b)=>a.name.localeCompare(b.name));
+    entries = [...entries].sort((a,b)=>a.file.name.localeCompare(b.file.name));
+    gridApi?.reorderSources(entries.map(entry=>entry.docIndex));
     refresh();
   });
   document.getElementById("mergeAddFab").addEventListener("click", ()=>document.getElementById("fi").click());
-  wireDropzone(fs=>{ files = files.concat(fs.filter(f=>f.type==="application/pdf"||f.name.endsWith(".pdf"))); refresh(); });
-  document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
-    const out = document.getElementById("out");
-    out.innerHTML = statusEl(t("toolMerge.statusMerging"));
-    const merged = await PDFDocument.create();
-    for(const f of files){
-      const bytes = await f.arrayBuffer();
-      const src = await loadPdfSafe(bytes);
-      const pages = await merged.copyPages(src, src.getPageIndices());
-      pages.forEach(p=>merged.addPage(p));
+  async function addFiles(files){
+    const pdfFiles = files.filter(file=>file.type==="application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+    if(!pdfFiles.length || loading) return;
+    loading=true;
+    refresh();
+    out.innerHTML = statusEl("Loading PDF pages...");
+    for(let index=0; index<pdfFiles.length; index++){
+      const file = pdfFiles[index];
+      const color = sourceColors[entries.length % sourceColors.length];
+      try{
+        setStatus(`Loading ${file.name}`, false, Math.round((index/pdfFiles.length)*100));
+        const bytes = await file.arrayBuffer();
+        const metadata = {name:file.name, size:file.size, type:file.type, lastModified:file.lastModified};
+        let docIndex;
+        if(!gridApi){
+          gridApi = await buildPageGrid(pageGrid, [{bytes, color, ...metadata}], {
+            mode:"reorder", removable:true, rotatable:true, duplicable:true, multiSelect:true, showSourceLabels:true
+          });
+          docIndex = gridApi.workspace.sources[0].docIndex;
+          gridApi.workspace.subscribe(()=>{
+            document.getElementById("go").disabled = entries.length<2 || loading || !gridApi?.workspace.activePages.length;
+          });
+        } else {
+          docIndex = await gridApi.addSource(bytes, color, metadata);
+        }
+        entries.push({file, docIndex, color});
+        refresh();
+      }catch(error){
+        toast(`Could not add ${file.name}: ${error.message || "invalid PDF"}`);
+      }
     }
+    loading=false;
+    out.innerHTML="";
+    refresh();
+  }
+  wireDropzone(addFiles);
+  document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
+    out.innerHTML = statusEl(t("toolMerge.statusMerging"));
+    const pagesSpec = gridApi.workspace.toPageSpecs();
+    if(!pagesSpec.length){ toast("Keep at least one page to merge"); out.innerHTML=""; return; }
+    const srcDocs = [];
+    for(let index=0; index<entries.length; index++){
+      const entry = entries[index];
+      setStatus(t("toolMerge.statusMerging"), false, Math.round((index/entries.length)*70));
+      srcDocs[entry.docIndex] = await loadPdfSafe(await entry.file.arrayBuffer());
+    }
+    const merged = await gridApi.exportPdf(srcDocs);
     const bytes = await merged.save();
     const blob = new Blob([bytes], {type:"application/pdf"});
-    const outName = suffixedName(files[0], "merged", "pdf");
+    const outName = suffixedName(entries[0].file, "merged", "pdf");
     if(!operation.isCurrent()) return;
     const {url} = downloadBlob(blob, outName);
     const {canvas} = await pdfThumb(bytes);
@@ -224,12 +293,10 @@ TOOLS.split = function(){
     // zoomable dropped - same de-S/M/L-ing as every other standardized
     // page-grid tool (Rotate/Organize); the shared default size is used
     // instead. Its visual toolbar row (Select all + bulk-action bar) is
-    // hidden via #splitBody .page-grid-toolbar in index.html, same
-    // pattern as Extract/Delete/Organize - selection itself is
-    // untouched (click-to-select, Ctrl/Cmd+A, and the Smart panel's own
-    // Odd/Even/Clear buttons all keep working through gridApi directly,
-    // none of them go through that toolbar).
-    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, multiSelect:true});
+    // reduced to the shared history controls via scoped CSS; selection
+    // itself remains available through thumbnail toggles, Ctrl/Cmd+A,
+    // and the Smart panel's Odd/Even/Clear buttons.
+    const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true, duplicable:true, multiSelect:true});
     if(myToken !== loadToken){ builtGridApi.destroy(); return; }
     gridApi = builtGridApi;
     totalPages = gridApi.getPages().length;
@@ -241,6 +308,10 @@ TOOLS.split = function(){
     // grouping UI silently disagreeing with what Split will actually do.
     document.getElementById("pageGrid").addEventListener("dragend", ()=>{
       if(splitMode==="range" && rangeMode==="custom") regroupSplitPages();
+    });
+    gridApi.workspace.subscribe(change=>{
+      if(change.type!=="selection" && splitMode==="range" && rangeMode==="custom") regroupSplitPages();
+      validate();
     });
     renderCustomRanges();
     document.getElementById("sizeInfoBox").innerHTML =
@@ -431,8 +502,8 @@ TOOLS.split = function(){
         n>0 ? (n>1 ? t("toolSplit.pagesSelectedMany",{n}) : t("toolSplit.pagesSelectedOne")) : t("toolSplit.clickOrType");
     }
   }
-  // Re-validate whenever the grid selection changes (Pages/Select relies on it).
-  document.getElementById("pageGrid").addEventListener("click", ()=>setTimeout(validate, 0));
+  // The workspace subscription established after upload re-validates
+  // selection and mutation changes; no DOM-derived page state lives here.
 
   /** Real blank-page detection: renders each page small and measures how
    * much of it is non-white. Pages below the threshold are treated as
@@ -497,35 +568,27 @@ TOOLS.split = function(){
     let groups;
     let mergeOutput = false;
 
-    // The page grid's own hint text promises "hover a page to rotate or
-    // remove it" as a real, effective action - but every mode below used
-    // to build its output purely from raw index arithmetic against
-    // totalPages/customRanges, never once consulting the live grid.
-    // Confirmed by testing: rotating a card 90deg, then splitting in
-    // Range mode, produced an export with EVERY page at 0deg rotation;
-    // removing a card left it in the DOM count at 3 of 4, but the actual
-    // downloaded PDF still had all 4 pages. liveIndexRotation is the
-    // single source of truth every mode below now filters/maps through -
-    // a removed page's original index is simply absent from this map, so
-    // every mode drops it the same way; a rotated page's current
-    // rotation replaces the old hardcoded 0.
-    const liveIndexRotation = new Map();
-    gridApi.getPages().forEach(p=>liveIndexRotation.set(p.index, p.rotation));
+    // Every split mode derives from the same ordered workspace specs.
+    // Repeated source indexes are intentionally preserved: a duplicated
+    // page is a distinct workspace page and must survive split/extract.
+    const activeSpecs = gridApi.workspace.toPageSpecs();
 
     if(splitMode==="range" && rangeMode==="fixed"){
       const n = Math.max(1, parseInt(document.getElementById("splitEveryN").value) || 1);
-      const liveOrdered = Array.from({length:totalPages}, (_,i)=>i).filter(i=>liveIndexRotation.has(i));
       groups = [];
-      for(let i=0;i<liveOrdered.length;i+=n){
-        groups.push(liveOrdered.slice(i, i+n).map(index=>({index, rotation:liveIndexRotation.get(index)})));
+      for(let i=0;i<activeSpecs.length;i+=n){
+        groups.push(activeSpecs.slice(i, i+n));
       }
     } else if(splitMode==="range" && rangeMode==="smart"){
       setStatus(t("toolSplit.statusScanning"), false, 0);
       const blanks = await detectBlankPages(bytes, (done,total)=>setStatus(t("toolSplit.statusScanning"), false, Math.round((done/total)*100)));
       groups = groupsFromBlanks(blanks)
-        .map(g=>g.filter(p=>liveIndexRotation.has(p.index)).map(p=>({index:p.index, rotation:liveIndexRotation.get(p.index)})))
+        .map(group=>{
+          const sourceIndexes = new Set(group.map(page=>page.index));
+          return activeSpecs.filter(page=>sourceIndexes.has(page.index));
+        })
         .filter(g=>g.length>0);
-      if(groups.length===0) groups = [gridApi.getPages()];
+      if(groups.length===0) groups = [activeSpecs];
       if(!blanks.some(Boolean)){
         const statusEl2 = document.getElementById("smartSplitStatus");
         statusEl2.hidden = false;
@@ -533,7 +596,7 @@ TOOLS.split = function(){
       }
     } else if(splitMode==="range"){ // custom
       groups = customRanges
-        .map(r=>Array.from({length:r.to-r.from+1}, (_,i)=>r.from-1+i).filter(index=>liveIndexRotation.has(index)).map(index=>({index, rotation:liveIndexRotation.get(index)})))
+        .map(r=>activeSpecs.filter(page=>page.index>=r.from-1 && page.index<=r.to-1))
         .filter(g=>g.length>0);
       mergeOutput = document.getElementById("mergeRangesChk").checked;
     } else if(splitMode==="size"){
@@ -541,11 +604,11 @@ TOOLS.split = function(){
       const unit = document.getElementById("splitMaxSizeUnit").value;
       const maxBytes = Math.round(rawSize * (unit==="MB" ? 1024*1024 : 1024));
       setStatus(t("toolSplit.statusPacking"), false, 0);
-      groups = await splitBySize(src, maxBytes, (done,total)=>setStatus(t("toolSplit.statusPacking"), false, Math.round((done/total)*100)), liveIndexRotation);
+      groups = await splitBySize(src, maxBytes, (done,total)=>setStatus(t("toolSplit.statusPacking"), false, Math.round((done/total)*100)), activeSpecs);
     } else { // pages
-      let pageIndices;
+      let selectedSpecs;
       if(extractMode==="all"){
-        pageIndices = Array.from({length:totalPages}, (_,i)=>i).filter(i=>liveIndexRotation.has(i));
+        selectedSpecs = activeSpecs;
       } else {
         const text = document.getElementById("pagesToExtract").value.trim();
         // A typed list keeps ascending numeric order (that's what typing
@@ -556,14 +619,14 @@ TOOLS.split = function(){
         // way, a page removed from the grid is excluded even if it was
         // explicitly typed, for the same "removal always means removed"
         // consistency as every other mode above.
-        pageIndices = text
-          ? parsePageList(text, totalPages).filter(i=>liveIndexRotation.has(i))
-          : gridApi.getSelectedPages().map(p=>p.index);
+        selectedSpecs = text
+          ? gridApi.pageSpecsForSourceIndexes(parsePageList(text, totalPages), {inputOrder:true})
+          : gridApi.workspace.toPageSpecs({selectedOnly:true});
       }
       mergeOutput = document.getElementById("mergeExtractedChk").checked;
       groups = mergeOutput
-        ? [pageIndices.map(index=>({index, rotation:liveIndexRotation.get(index) ?? 0}))]
-        : pageIndices.map(index=>[{index, rotation:liveIndexRotation.get(index) ?? 0}]);
+        ? [selectedSpecs]
+        : selectedSpecs.map(page=>[page]);
     }
     if(mergeOutput && groups.length>1){
       groups = [groups.flat()];
@@ -575,7 +638,7 @@ TOOLS.split = function(){
     }
     setStatus(t("toolSplit.statusSplitting"), false, 0);
     if(groups.length===1){
-      const doc = await buildPdfFromPages(src, groups[0]);
+      const doc = await gridApi.exportPdf(src, {pages:groups[0]});
       const b = await doc.save();
       const blob = new Blob([b], {type:"application/pdf"});
       const outName = suffixedName(file, "split", "pdf");
@@ -590,7 +653,7 @@ TOOLS.split = function(){
       const zip = new JSZip();
       for(let i=0;i<groups.length;i++){
         setStatus(t("toolSplit.statusSplitting"), false, Math.round((i/groups.length)*100));
-        const doc = await buildPdfFromPages(src, groups[i]);
+        const doc = await gridApi.exportPdf(src, {pages:groups[i]});
         const b = await doc.save();
         zip.file(`part_${i+1}.pdf`, b);
       }
@@ -964,7 +1027,7 @@ TOOLS.rotate = function(){
     // selected/all' below") - rotateAll() unconditionally hits every
     // page regardless of selection, which silently contradicted that
     // promise before this fix.
-    if(gridApi.getSelected().size > 0) gridApi.rotateSelected(deg);
+    if(gridApi.workspace.selectedPages.length > 0) gridApi.rotateSelected(deg);
     else gridApi.rotateAll(deg);
   });
   document.getElementById("go").addEventListener("click", withToolOperation(document.getElementById("go"), async (_event, operation)=>{
@@ -977,7 +1040,7 @@ TOOLS.rotate = function(){
     // get deleted out from under the export" guard Organize/Delete
     // Pages already use.
     if(pagesSpec.length===0){ toast(t("toolRotate.errAtLeastOne")); out.innerHTML=""; return; }
-    const newDoc = await buildPdfFromPages(src, pagesSpec);
+    const newDoc = await gridApi.exportPdf(src);
     const outBytes=await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "rotated", "pdf");
@@ -1000,10 +1063,8 @@ TOOLS.rotate = function(){
    previously reorder-mode only - see appendCard()'s own comment). */
 TOOLS.deletepages = function(){
   let file=null, gridApi=null, loadToken=0, totalPages=0;
-  // See Extract Pages' identical guard: true only while
-  // applyWantedSelection() is programmatically clicking cards to match a
-  // typed range, so those clicks don't re-enter the thumbnails->text
-  // sync and fight the field the user is actively typing into.
+  // True while a typed range updates model selection so the subscription
+  // does not normalize the field mid-keystroke.
   let suppressClickSync = false;
 
   openPanel(`
@@ -1060,58 +1121,40 @@ TOOLS.deletepages = function(){
     body.classList.add("is-loaded");
   }
 
-  function selected1Based(){ return [...gridApi.getSelected()].map(i=>i+1).sort((a,b)=>a-b); }
+  function selected1Based(){
+    return [...new Set(gridApi.workspace.selectedPages.map(page=>page.sourcePageIndex+1))].sort((a,b)=>a-b);
+  }
+  function deleted1Based(){
+    return gridApi.workspace.pages.filter(page=>page.deleted && Number.isInteger(page.sourcePageIndex))
+      .map(page=>page.sourcePageIndex+1).sort((a,b)=>a-b);
+  }
   function updateGoButton(count){
     goBtn.disabled = count===0;
     goBtn.textContent = count===0 ? "Delete Pages" : `Delete ${count} Page${count===1?"":"s"}`;
   }
   function syncFromThumbnails(){
-    const sel = selected1Based();
-    rangeInput.value = sel.join(",");
-    updateGoButton(sel.length);
+    const pending = [...new Set([...selected1Based(), ...deleted1Based()])].sort((a,b)=>a-b);
+    rangeInput.value = pending.join(",");
+    updateGoButton(pending.length);
   }
   function applyWantedSelection(wanted1Based){
-    const wanted = new Set(wanted1Based);
-    const cur = new Set(selected1Based());
     suppressClickSync = true;
-    pageGrid.querySelectorAll(".page-card").forEach(c=>{
-      const pageNum = parseInt(c.dataset.page)+1;
-      if(wanted.has(pageNum) !== cur.has(pageNum)) c.click();
-    });
+    gridApi.selectSourcePages(wanted1Based.map(pageNum=>pageNum-1));
     suppressClickSync = false;
   }
   rangeInput.addEventListener("input", ()=>{
     if(!gridApi) return;
     const wanted = parsePageRangeInput(rangeInput.value, totalPages);
     applyWantedSelection(wanted);
-    updateGoButton(wanted.length);
+    updateGoButton(new Set([...wanted, ...deleted1Based()]).size);
   });
-  pageGrid.addEventListener("click", e=>{
-    if(suppressClickSync || !gridApi) return;
-    if(e.target.closest(".page-remove")) return; // handled below via gridObserver, not a selection toggle
-    if(e.target.closest(".page-card")) syncFromThumbnails();
-  });
-  // A direct ✕ removes the card entirely (see wireCard()'s .page-remove
-  // handler in buildPageGrid) rather than toggling .selected, so the
-  // click listener above intentionally ignores it - stopPropagation()
-  // on that same handler also means a bubble-phase listener here would
-  // never see the click anyway. Watching for the actual DOM removal
-  // instead is what keeps the range field/button correct regardless of
-  // exactly how a card disappears, without needing any of that.
-  new MutationObserver(muts=>{
-    if(gridApi && muts.some(m=>[...m.removedNodes].some(n=>n.nodeType===1 && n.classList?.contains("page-card")))){
-      syncFromThumbnails();
-    }
-  }).observe(pageGrid, {childList:true, subtree:true});
   document.getElementById("deleteSelectAll").addEventListener("click", ()=>{
     if(!gridApi) return;
     gridApi.selectAll();
-    syncFromThumbnails();
   });
   document.getElementById("deleteClearSel").addEventListener("click", ()=>{
     if(!gridApi) return;
     gridApi.clearSelection();
-    syncFromThumbnails();
   });
 
   wireDropzone(async fs=>{
@@ -1134,6 +1177,12 @@ TOOLS.deletepages = function(){
     const builtGridApi = await buildPageGrid(pageGrid, bytes, {mode:"select", removable:true});
     if(myToken !== loadToken){ builtGridApi.destroy(); return; }
     gridApi = builtGridApi;
+    // Selection, direct deletion and Undo/Redo all flow through this one
+    // model subscription; the tool keeps no parallel DOM page state.
+    gridApi.workspace.subscribe(change=>{
+      if(change.type==="selection" && suppressClickSync) return;
+      syncFromThumbnails();
+    });
     totalPages = gridApi.getPages().length;
     syncFromThumbnails();
     showWorkspace();
@@ -1142,15 +1191,9 @@ TOOLS.deletepages = function(){
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
-    const del = gridApi.getSelected();
-    // getPages() is already in ascending original order (mode:"select"
-    // never reorders cards) - filtering out the deleted ones keeps that
-    // order and each kept page's existing rotation, then
-    // buildPdfFromPages() (shared with Reorder/Extract/Split/Organize/
-    // Rotate) does the actual copy, same as every other page-grid tool.
-    const keepSpec = gridApi.getPages().filter(p=>!del.has(p.index));
+    const keepSpec = gridApi.workspace.toPageSpecs({excludeSelected:true});
     if(keepSpec.length===0){ toast("At least one page must remain"); out.innerHTML=""; return; }
-    const newDoc = await buildPdfFromPages(doc, keepSpec);
+    const newDoc = await gridApi.exportPdf(doc, {excludeSelected:true});
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "pages_removed", "pdf");
@@ -1196,19 +1239,12 @@ function parsePageRangeInput(str, maxPage){
    Same buildPageGrid() thumbnail workspace Reorder/Add Blank Page use
    (mode:"select" - already existed, unchanged here) plus a compact
    page-range text field kept in sync with thumbnail selection in both
-   directions: typing a range selects the matching thumbnails, and
-   clicking thumbnails updates the text field. Both directions reuse
-   gridApi's own existing selection API (getSelected/selectAll/
-   clearSelection) and, for text->thumbnails, the grid's OWN real click
-   handling (via a genuine card.click(), not a class toggled from
-   outside) - buildPageGrid()/wirePageGridDrag() are not modified at all. */
+   directions. Both directions now update/read PDFWorkspaceModel rather
+   than maintaining a second selection state in the tool. */
 TOOLS.extractpages = function(){
   let file=null, gridApi=null, loadToken=0, totalPages=0;
-  // Set only while applyWantedSelection() is programmatically clicking
-  // cards to match a typed range - without this, each of those clicks
-  // would also trigger the thumbnails->text sync below and overwrite
-  // rangeInput.value mid-typing (or mid-batch), fighting the very
-  // input that triggered them.
+  // Set only while a typed range updates model selection, preventing the
+  // model subscription from normalizing the field mid-keystroke.
   let suppressClickSync = false;
 
   openPanel(`
@@ -1265,7 +1301,9 @@ TOOLS.extractpages = function(){
     body.classList.add("is-loaded");
   }
 
-  function selected1Based(){ return [...gridApi.getSelected()].map(i=>i+1).sort((a,b)=>a-b); }
+  function selected1Based(){
+    return [...new Set(gridApi.workspace.selectedPages.map(page=>page.sourcePageIndex+1))].sort((a,b)=>a-b);
+  }
   function updateGoButton(count){
     goBtn.disabled = count===0;
     goBtn.textContent = count===0 ? "Extract Pages" : `Extract ${count} Page${count===1?"":"s"}`;
@@ -1280,13 +1318,8 @@ TOOLS.extractpages = function(){
   // Text field -> thumbnails + button. Deliberately never writes back to
   // rangeInput.value itself (see suppressClickSync above for why).
   function applyWantedSelection(wanted1Based){
-    const wanted = new Set(wanted1Based);
-    const cur = new Set(selected1Based());
     suppressClickSync = true;
-    pageGrid.querySelectorAll(".page-card").forEach(c=>{
-      const pageNum = parseInt(c.dataset.page)+1;
-      if(wanted.has(pageNum) !== cur.has(pageNum)) c.click();
-    });
+    gridApi.selectSourcePages(wanted1Based.map(pageNum=>pageNum-1));
     suppressClickSync = false;
   }
   rangeInput.addEventListener("input", ()=>{
@@ -1295,19 +1328,13 @@ TOOLS.extractpages = function(){
     applyWantedSelection(wanted);
     updateGoButton(wanted.length);
   });
-  pageGrid.addEventListener("click", e=>{
-    if(suppressClickSync || !gridApi) return;
-    if(e.target.closest(".page-card")) syncFromThumbnails();
-  });
   document.getElementById("extractSelectAll").addEventListener("click", ()=>{
     if(!gridApi) return;
     gridApi.selectAll();
-    syncFromThumbnails();
   });
   document.getElementById("extractClearSel").addEventListener("click", ()=>{
     if(!gridApi) return;
     gridApi.clearSelection();
-    syncFromThumbnails();
   });
 
   wireDropzone(async fs=>{
@@ -1328,6 +1355,10 @@ TOOLS.extractpages = function(){
     const builtGridApi = await buildPageGrid(pageGrid, bytes, {mode:"select"});
     if(myToken !== loadToken){ builtGridApi.destroy(); return; }
     gridApi = builtGridApi;
+    gridApi.workspace.subscribe(change=>{
+      if(change.type==="selection" && suppressClickSync) return;
+      syncFromThumbnails();
+    });
     totalPages = gridApi.getPages().length;
     syncFromThumbnails();
     showWorkspace();
@@ -1336,14 +1367,13 @@ TOOLS.extractpages = function(){
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
-    // getSelectedPages() (not a raw index list) - carries each selected
-    // card's existing rotation through buildPdfFromPages() (the same
-    // helper Reorder/Split/Organize/Rotate already use), and is already
+    // Selected workspace specs carry each page's current rotation into
+    // the shared workspace serializer, and are already
     // in ascending original-page order since mode:"select" never
     // reorders cards, so no extra sort is needed.
     const selectedPages = gridApi.getSelectedPages();
     if(selectedPages.length===0){ toast("Select at least one page to keep"); out.innerHTML=""; return; }
-    const newDoc = await buildPdfFromPages(doc, selectedPages);
+    const newDoc = await gridApi.exportPdf(doc, {selectedOnly:true});
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "extracted", "pdf");
@@ -1428,13 +1458,9 @@ TOOLS.reorder = function(){
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
-    // getPages() (not just getOrder()) - carries each card's current
-    // rotation too, and buildPdfFromPages() (the same helper Split/
-    // Organize/Rotate already use) applies it on top of the page's
-    // existing rotation. Using only getOrder() here previously meant a
-    // rotation dialed in on a thumbnail was a purely visual change that
-    // silently vanished from the downloaded file.
-    const newDoc = await buildPdfFromPages(doc, gridApi.getPages());
+    // The shared serializer consumes workspace order, rotation and
+    // deletion state together; no DOM-derived order is rebuilt here.
+    const newDoc = await gridApi.exportPdf(doc);
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "reordered", "pdf");
@@ -1455,8 +1481,7 @@ TOOLS.reorder = function(){
    and buildPageGrid()'s insertBlankPage() (see its own comment) slots a
    real blank card into that exact same grid, wired through the exact
    same rotate/remove/drag machinery every other card already uses. Export
-   goes through buildPdfFromPages() (shared with Reorder Pages/Split/
-   Organize/Rotate), extended there to recognize a blank card's
+   goes through the shared workspace serializer, which recognizes a blank card's
    {blank:true, width, height} entry and insert a real blank PDFPage at
    that exact position instead of copying from the source document. */
 TOOLS.addblank = function(){
@@ -1515,7 +1540,7 @@ TOOLS.addblank = function(){
   // the most common intent, but stays editable for inserting in the
   // middle.
   function syncPosBounds(){
-    const count = document.querySelectorAll("#pageGrid .page-card").length;
+    const count = gridApi ? gridApi.workspace.activePages.length : 0;
     posInput.max = count;
     if(posInput.value==="" || parseInt(posInput.value) > count) posInput.value = count;
   }
@@ -1533,6 +1558,7 @@ TOOLS.addblank = function(){
     const builtGridApi = await buildPageGrid(document.getElementById("pageGrid"), bytes, {mode:"reorder", removable:true, rotatable:true});
     if(myToken !== loadToken){ builtGridApi.destroy(); return; }
     gridApi = builtGridApi;
+    gridApi.workspace.subscribe(syncPosBounds);
     syncPosBounds();
     showWorkspace();
   });
@@ -1553,10 +1579,9 @@ TOOLS.addblank = function(){
     const out=document.getElementById("out"); out.innerHTML=statusEl("Processing...");
     const bytes=await file.arrayBuffer();
     const doc=await loadPdfSafe(bytes);
-    // Same getPages()+buildPdfFromPages() export path Reorder Pages uses -
-    // blank cards flow through automatically via the {blank:true,...}
-    // shape getPages() now emits for them.
-    const newDoc = await buildPdfFromPages(doc, gridApi.getPages());
+    // Blank pages flow through the same workspace serialization path as
+    // reordered, rotated, duplicated and deleted source pages.
+    const newDoc = await gridApi.exportPdf(doc);
     const outBytes = await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
     const outName = suffixedName(file, "with_blank", "pdf");

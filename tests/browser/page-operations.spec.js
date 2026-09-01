@@ -68,6 +68,64 @@ test("delete pages: deleting page 1 of a 3-page PDF leaves a 2-page result", asy
   expect(errors).toEqual([]);
 });
 
+test("shared page workspace: delete can be undone before export", async ({ page }) => {
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/delete-pages");
+  await page.locator("#fi").setInputFiles(multiPagePdf);
+  await expect(page.locator("#pageGrid .page-card")).toHaveCount(3);
+
+  await page.locator("#pageGrid .page-card").first().locator(".page-remove").click();
+  await expect(page.locator('#pageGrid [data-history="undo"]')).toBeEnabled();
+  await expect(page.locator("#pageGrid .page-card:visible")).toHaveCount(2);
+
+  await page.locator('#pageGrid [data-history="undo"]').click();
+  await expect(page.locator("#pageGrid .page-card:visible")).toHaveCount(3);
+  expect(errors).toEqual([]);
+});
+
+test("split workspace: chained duplicate, rotate and reorder survive export", async ({ page }) => {
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/split-pdf");
+  await page.locator("#fi").setInputFiles(multiPagePdf);
+  const firstPage = page.locator("#pageGrid .page-card").first();
+  await firstPage.locator(".page-dup-btn").click();
+  await firstPage.locator(".page-rotate-right").click();
+  await firstPage.locator(".page-move-later").click();
+  await page.locator("#go").click();
+
+  const {bytes} = await downloadAndDecode(page, 'a.dl-link[download="multipage_split.pdf"]');
+  const result = await PDFDocument.load(bytes);
+  expect(result.getPageCount()).toBe(4);
+  expect(result.getPages().map(pdfPage=>pdfPage.getRotation().angle)).toContain(90);
+  expect(errors).toEqual([]);
+});
+
+test("merge workspace: pages from multiple sources can be mixed, edited and exported", async ({ page }) => {
+  const errors = captureRuntimeErrors(page);
+  await page.goto("/merge-pdf");
+  await page.locator("#fi").setInputFiles([validPdf, multiPagePdf]);
+  await expect(page.locator("#mergePageGrid .page-card")).toHaveCount(4);
+
+  const firstMultiPage = page.locator('#mergePageGrid .page-card[data-doc-index="1"]').first();
+  await firstMultiPage.locator(".page-move-earlier").click();
+  await firstMultiPage.locator(".page-dup-btn").click();
+  await page.locator('#mergePageGrid .page-card[data-doc-index="0"]').first().locator(".page-rotate-right").click();
+  await page.locator('#mergePageGrid .page-card[data-doc-index="1"]').last().locator(".page-remove").click();
+
+  await expect(page.locator("#mergePageGrid .page-card:visible")).toHaveCount(4);
+  await expect(page.locator("#mergePageGrid .page-card:visible .page-source-label").first()).toContainText("multipage.pdf");
+  await page.locator('#mergePageGrid [data-history="undo"]').click();
+  await expect(page.locator("#mergePageGrid .page-card:visible")).toHaveCount(5);
+  await page.locator('#mergePageGrid [data-history="redo"]').click();
+
+  await page.locator("#go").click();
+  const {bytes} = await downloadAndDecode(page, 'a.dl-link[download="valid_merged.pdf"]');
+  const result = await PDFDocument.load(bytes);
+  expect(result.getPageCount()).toBe(4);
+  expect(result.getPages().map(pdfPage=>pdfPage.getRotation().angle)).toContain(90);
+  expect(errors).toEqual([]);
+});
+
 test("extract pages: extracting page 1 of a 3-page PDF produces a 1-page result", async ({ page }) => {
   const errors = captureRuntimeErrors(page);
   await page.goto("/extract-pages");

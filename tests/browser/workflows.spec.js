@@ -96,12 +96,12 @@ test("malicious image input recovers, rapid replacement stays current, and image
   expect(errors).toEqual([]);
 });
 
-test("legacy Protect PDF guard produces one verified downloadable result", async ({ page }) => {
+test("AES Protect PDF guard produces one verified downloadable result", async ({ page }) => {
   test.setTimeout(90_000);
   const errors = captureRuntimeErrors(page);
   await page.goto("/protect-pdf");
   await page.locator("#fi").setInputFiles(validPdf);
-  await expect(page.getByText(/Legacy compatibility protection: 40-bit RC4/)).toBeVisible();
+  await expect(page.getByText(/standards-compatible AES-128/)).toBeVisible();
   await page.locator("#protectPw").fill("phase11-test");
   await page.locator("#protectPw2").fill("phase11-test");
 

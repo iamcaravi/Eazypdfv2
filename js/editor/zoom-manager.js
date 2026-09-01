@@ -22,7 +22,7 @@
    ========================================================================== */
 (function () {
   const STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 4]; // 25% .. 400%, per the brief
-  const INITIAL_READABLE_SCALE = 1.75;
+  const INITIAL_READABLE_SCALE = 2;
   let scale = 1;
   let fitMode = null;
   let getContainerSize = () => ({ width: 800, height: 600 });
@@ -40,7 +40,15 @@
   function setScale(next, { snap = false, preserveFit = false } = {}) {
     if (!preserveFit) fitMode = null;
     const clamped = Math.min(STEPS[STEPS.length - 1], Math.max(STEPS[0], next));
-    scale = snap ? nearestStep(clamped) : clamped;
+    const resolved = snap ? nearestStep(clamped) : clamped;
+    // Initial document setup can legitimately ask for the same fitted scale
+    // more than once (page metadata, page-change and ResizeObserver all
+    // converge on the same value). Re-running the render pipeline for an
+    // unchanged scale cancels the just-started page render and creates a
+    // second render against the same canvas. Keep the fit mode update above,
+    // but leave an already-correct viewport alone.
+    if (Math.abs(resolved - scale) < 1e-6) return scale;
+    scale = resolved;
     window.RenderQueue && window.RenderQueue.cancelAll();
     window.PageCache && window.PageCache.clear();
     window.dispatchEvent(new CustomEvent('editor:zoomChange', { detail: { zoom: scale } }));
@@ -73,18 +81,14 @@
     return setScale(Math.min(scaleW, scaleH), { preserveFit: true });
   }
 
-  /** Opening policy for an editing-first workspace. It aims for 175% on
-   *  normal desktop canvases, but never makes the first page wider than the
-   *  measured usable canvas. Height is intentionally allowed to scroll: a
-   *  full-page fit is what made ordinary documents open around 71% and too
-   *  small to edit. CSS sizes remain logical pixels; RenderEngine applies
-   *  devicePixelRatio only to the backing canvas for sharp output. */
+  /** Product opening policy: every document's first authoritative viewport
+   *  is 200%. Page orientation does not change that scale; wide pages use
+   *  the canvas's existing horizontal scrolling. CSS sizes remain logical
+   *  pixels and RenderEngine applies devicePixelRatio only to the backing
+   *  canvas for sharp output. */
   function initialReadable() {
     fitMode = 'initial';
-    const { width: containerW } = getContainerSize();
-    const { width: pageW } = getPageNativeSize();
-    const widthSafeScale = containerW > 0 && pageW > 0 ? containerW / pageW : 1;
-    return setScale(Math.min(INITIAL_READABLE_SCALE, widthSafeScale), { preserveFit: true });
+    return setScale(INITIAL_READABLE_SCALE, { preserveFit: true });
   }
 
   function refit() {

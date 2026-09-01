@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "145";
+const VERSION = "149";
 
 const LIBRARIES = Object.freeze({
   pdfLib: Object.freeze({
@@ -33,6 +33,7 @@ const SCRIPT_ORDER = Object.freeze([
   "js/core/panel.js",
   "js/core/pdf-processing-utils.js",
   "js/core/pdf-crypto.js",
+  "js/core/pdf-sanitize.js",
   "js/core/pptx-export.js",
   "js/core/pdf-canvas-widgets.js",
   "js/tools/misc-tools.js",
@@ -68,7 +69,7 @@ const PROFILE_SCRIPTS = Object.freeze({
   convert: Object.freeze(["js/core/pdf-canvas-widgets.js", "js/core/doc-export-builders.js", "js/core/xlsx-merge.js", "js/core/krutidev-to-unicode.js", "js/core/docx-reader.js", "js/tools/pdf-convert-tools.js"]),
   signing: Object.freeze(["js/core/pdf-canvas-widgets.js", "js/tools/pdf-signing-tools.js"]),
   image: Object.freeze(["js/tools/image-tools.js"]),
-  security: Object.freeze(["js/core/pdf-crypto.js", "js/core/pdf-canvas-widgets.js", "js/tools/pdf-security-tools.js"]),
+  security: Object.freeze(["js/core/pdf-crypto.js", "js/core/pdf-sanitize.js", "js/core/pdf-canvas-widgets.js", "js/tools/pdf-security-tools.js"]),
   editor: Object.freeze([])
 });
 
@@ -81,7 +82,7 @@ const TOOL_PROFILES = Object.freeze({
   pdf2word:"convert", word2pdf:"convert", pdf2excel:"convert", pdf2pptx:"convert", excel2pdf:"convert", mergeexcel:"convert",
   sign:"signing", fillform:"signing",
   imgcompress:"image", imgresize:"image", imgcrop:"image", imgconvert:"image", imgwatermark:"image", imginvert:"image",
-  protect:"security", unlock:"security", repair:"security",
+  protect:"security", unlock:"security", repair:"security", sanitize:"security",
   edit:"editor"
 });
 

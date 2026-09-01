@@ -962,7 +962,7 @@
       "name": "Protect PDF",
       "category": "security",
       "title": "Password Protect PDF Free Online | YOYOPDF",
-      "description": "Add a password to a PDF to restrict opening or editing. Free, browser-based encryption — see the tool for encryption details.",
+      "description": "Encrypt a PDF with standards-compatible AES-128 and optional permission controls. Free, browser-based, and processed locally.",
       "keywords": [
         "password protect pdf",
         "encrypt pdf online",
@@ -973,7 +973,7 @@
       "faqs": [
         {
           "q": "How strong is the encryption?",
-          "a": "Protect PDF uses the PDF format's original Standard Security Handler (40-bit RC4). It's suitable as basic access control, not as strong confidentiality for highly sensitive documents."
+          "a": "Protect PDF uses the PDF Standard Security Handler's AES-128 mode (V4/R4 with AESV2). AES-256 is not advertised because the current browser PDF architecture cannot safely produce and validate that newer revision yet."
         },
         {
           "q": "Is my file uploaded to encrypt it?",
@@ -1071,6 +1071,46 @@
         ]
       },
       "toolId": "protect"
+    },
+    {
+      "slug": "sanitize-pdf",
+      "file": "sanitize-pdf.html",
+      "status": "live",
+      "name": "Sanitize PDF",
+      "category": "security",
+      "title": "Sanitize PDF Metadata & Hidden Content Free | YOYOPDF",
+      "description": "Remove selected PDF metadata, scripts, attachments, forms, annotations and hidden document information locally in your browser before sharing.",
+      "keywords": [
+        "sanitize pdf",
+        "remove pdf metadata",
+        "remove hidden data from pdf",
+        "pdf privacy cleaner"
+      ],
+      "h1": "Sanitize PDF",
+      "shortDesc": "Remove metadata and hidden document content before sharing.",
+      "faqs": [
+        {
+          "q": "Is sanitizing a PDF the same as redacting it?",
+          "a": "No. Sanitization removes selected metadata and hidden document structures. It does not remove visible or searchable sensitive page content; use true redaction for that."
+        },
+        {
+          "q": "Does sanitization turn every page into an image?",
+          "a": "No. YOYOPDF copies the original PDF page content into a clean document structure so normal text, images, layout and selectable content remain intact."
+        },
+        {
+          "q": "Is the PDF uploaded while it is sanitized?",
+          "a": "No. Inspection, cleanup and verification all run locally in your browser."
+        }
+      ],
+      "relatedSlugs": [
+        "protect-pdf",
+        "unlock-pdf",
+        "edit-pdf",
+        "compress-pdf",
+        "organize-pdf",
+        "watermark-pdf"
+      ],
+      "toolId": "sanitize"
     },
     {
       "slug": "compress-pdf",

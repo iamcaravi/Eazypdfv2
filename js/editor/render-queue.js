@@ -43,7 +43,12 @@
 
   function pump() {
     while (active.size < MAX_CONCURRENT && pending.length) {
-      const job = pending.shift();
+      // A cancelled PDF.js task still owns its canvas until task.promise
+      // settles. Do not start its replacement page job concurrently and
+      // let two render tasks write into the same canvas.
+      const index = pending.findIndex((job) => !active.has(job.pageNumber));
+      if (index === -1) break;
+      const job = pending.splice(index, 1)[0];
       startJob(job);
     }
   }
@@ -59,31 +64,27 @@
     active.set(pageNumber, slot);
     try {
       const task = await window.RenderEngine.renderPage(pageNumber, canvas, scale);
-      if (slot.cancelledEarly) {
-        task.cancel();
-        // Priority 3G: this never touched task.promise at all — cancel()
-        // makes it reject (RenderingCancelledException, expected), but with
-        // no .catch anywhere it was a genuine unhandled promise rejection,
-        // silenced only by luck via render-engine.js's global
-        // 'unhandledrejection' listener (which only knows to suppress that
-        // one exception name — anything else from this path would have
-        // gone completely unlogged). Handled locally and precisely instead.
-        task.promise.catch(() => {});
-        active.delete(pageNumber); resolve(); return;
-      }
       slot.task = task;
+      if (slot.cancelledEarly) task.cancel();
+      // Even a cancelled task keeps ownership of this canvas until its
+      // promise settles. Await that boundary before finally releases the
+      // slot and pump() starts a replacement render for the same page.
       await task.promise;
-      active.delete(pageNumber);
-      renderedCount++;
-      emitProgress();
+      if (!slot.cancelledEarly) {
+        renderedCount++;
+        emitProgress();
+      }
       resolve();
     } catch (err) {
-      active.delete(pageNumber);
       // A cancelled render rejects with a RenderingCancelledException — that's
       // expected/normal, not a real error; anything else gets reported.
       if (err && err.name !== 'RenderingCancelledException') reject(err);
       else resolve();
     } finally {
+      // Only the slot that still owns this page may release it. This guards
+      // against an obsolete task deleting a newer page slot after an async
+      // cancellation boundary.
+      if (active.get(pageNumber) === slot) active.delete(pageNumber);
       pump();
     }
   }
@@ -93,10 +94,10 @@
     if (running) {
       if (running.task) running.task.cancel();
       else running.cancelledEarly = true; // task not created yet — mark for startJob to catch
-      active.delete(pageNumber);
     }
-    const idx = pending.findIndex((j) => j.pageNumber === pageNumber);
-    if (idx !== -1) pending.splice(idx, 1);
+    for (let i = pending.length - 1; i >= 0; i--) {
+      if (pending[i].pageNumber === pageNumber) pending.splice(i, 1)[0].resolve();
+    }
   }
 
   function cancelAll() {
@@ -112,8 +113,7 @@
     // reported, since the render loop still ran, but a real regression
     // against "no console errors."
     active.forEach((v) => { if (v.task) v.task.cancel(); else v.cancelledEarly = true; });
-    active.clear();
-    pending.length = 0;
+    pending.splice(0).forEach((job) => job.resolve());
     renderedCount = 0;
     totalRequested = 0;
     emitProgress();

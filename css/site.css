@@ -1694,6 +1694,10 @@ html.panel-open{ overflow:hidden; }
 .page-card .page-num{
   font-size:.72rem; font-weight:700; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;
 }
+.page-source-label{
+  display:block; width:100%; margin-bottom:-4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  text-align:center; font-size:.68rem; font-weight:700; color:var(--ink-soft);
+}
 .page-card.dragging{ opacity:.35; }
 .page-card.drag-over canvas, .page-card.drag-over img{
   border-color:var(--red); box-shadow:0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent);
@@ -1718,7 +1722,7 @@ html.panel-open{ overflow:hidden; }
 .page-grid-hint{ margin:0 0 8px; color:var(--ink-soft); font-size:.82rem; }
 .page-card{ transition:transform var(--t-fast) ease, opacity var(--t-fast) ease; }
 .page-card.removing{ opacity:0; transform:scale(.85); }
-.page-grid-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.page-grid-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; width:100%; margin-bottom:10px; }
 .page-grid-bulkbar{ display:none; align-items:center; gap:8px; flex-wrap:wrap; background:var(--paper-dim); border:1px solid var(--line); border-radius:10px; padding:8px 12px; flex:1 1 auto; }
 .bulkbar-count{ font-size:.8rem; font-weight:700; color:var(--ink-soft); margin-right:4px; }
 .bulkbar-btn{ background:var(--panel-bg); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-family:inherit; font-size:.8rem; font-weight:600; cursor:pointer; color:var(--ink); transition:var(--t-fast); }
@@ -1726,9 +1730,14 @@ html.panel-open{ overflow:hidden; }
 .bulkbar-btn.bulkbar-danger:hover{ background:var(--rose); color:#fff; }
 .page-grid-zoom{ display:flex; align-items:center; gap:6px; font-size:.78rem; color:var(--ink-soft); }
 .page-grid-selectctl{ display:flex; align-items:center; gap:6px; flex:none; }
+.page-grid-history{ display:flex; align-items:center; gap:6px; margin-left:auto; }
+.page-grid-history .bulkbar-btn:disabled{ opacity:.45; cursor:not-allowed; border-color:var(--line); color:var(--ink-soft); }
 .zoom-btn{ width:26px; height:26px; border-radius:6px; border:1px solid var(--line); background:var(--panel-bg); cursor:pointer; font-family:inherit; font-size:.72rem; font-weight:700; color:var(--ink-soft); }
 .zoom-btn.active{ background:var(--red); color:var(--btn-ink); border-color:var(--red); }
-.page-grid-cards{ display:flex; flex-wrap:wrap; gap:16px; }
+.page-grid-cards{ display:flex; flex-wrap:wrap; gap:16px; width:100%; }
+.merge-page-workspace{ width:100%; margin-top:18px; }
+.merge-page-workspace .page-grid-cards{ justify-content:center; }
+.merge-page-workspace .page-grid{ max-height:58vh; }
 /* Reorder Pages only: the shared .page-grid-cards above left-aligns each
    row (flex default), so on a document that doesn't fill an exact
    multiple of "however many 198px cards fit per row" the leftover space
@@ -1754,7 +1763,8 @@ html.panel-open{ overflow:hidden; }
    selected), which would now duplicate the sidebar's own Delete/Clear
    controls. Scoped to #deleteBody only. */
 #deleteBody .page-grid-cards{ justify-content:center; }
-#deleteBody .page-grid-toolbar{ display:none; }
+#deleteBody .page-grid-toolbar{ display:flex; width:100%; }
+#deleteBody .page-grid-selectctl, #deleteBody .page-grid-bulkbar{ display:none !important; }
 /* Rotate PDF: same centering fix as Reorder/Extract/Delete above. Its
    own built-in toolbar (Select all, and now the bulk-bar's Rotate/✕
    Delete once something is selected) is kept VISIBLE, not hidden like
@@ -1772,7 +1782,8 @@ html.panel-open{ overflow:hidden; }
    each card's own hover controls (including duplicate) still work
    one-at-a-time regardless. Scoped to #organizeBody only. */
 #organizeBody .page-grid-cards{ justify-content:center; }
-#organizeBody .page-grid-toolbar{ display:none; }
+#organizeBody .page-grid-toolbar{ display:flex; width:100%; }
+#organizeBody .page-grid-selectctl, #organizeBody .page-grid-bulkbar{ display:none !important; }
 /* Split PDF: same centering fix and same toolbar-hiding as
    Organize/Extract/Delete above - Split's own sidebar (Range/Pages/Size
    mode tabs, the Smart panel's Odd/Even/Clear buttons, the Pages panel's
@@ -1782,7 +1793,8 @@ html.panel-open{ overflow:hidden; }
    Ctrl/Cmd+A still selects all through the grid itself. Scoped to
    #splitBody only. */
 #splitBody .page-grid-cards{ justify-content:center; }
-#splitBody .page-grid-toolbar{ display:none; }
+#splitBody .page-grid-toolbar{ display:flex; width:100%; }
+#splitBody .page-grid-selectctl, #splitBody .page-grid-bulkbar{ display:none !important; }
 /* Split PDF's visual range grouping (Range + Custom mode only): wraps the
    pages belonging to each defined Range in their own dashed, labeled box
    inside the same #pageGrid/.page-grid-cards flex flow the drag-reorder
@@ -1860,6 +1872,10 @@ html.panel-open{ overflow:hidden; }
 .page-thumb-actions button:hover, .page-thumb-actions button:focus-visible{ background:var(--red); color:var(--btn-ink); outline:2px solid var(--paper); outline-offset:1px; }
 .page-card .page-check.page-check-toggle{ display:flex; left:6px; right:auto; background:var(--panel-bg); border:1px solid var(--line); color:var(--ink-soft); }
 .page-card.selected .page-check.page-check-toggle{ background:var(--red); color:var(--btn-ink); border-color:var(--red); }
+@media (max-width:600px){
+  .page-grid-toolbar{ gap:8px; }
+  .page-grid-history{ width:100%; justify-content:flex-end; }
+}
 .status{font-size:0.85rem; color:var(--ink-soft); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 .progress-bar{ color:var(--red); font-weight:600; letter-spacing:1px; }
 /* Global processing state - shared by every tool via statusEl()/setStatus()

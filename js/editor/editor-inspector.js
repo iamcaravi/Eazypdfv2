@@ -210,6 +210,7 @@
       if (selected && selected.type === 'image') { renderImageProperties(selected); return; }
       if (selected && (selected.type === 'rectangle' || selected.type === 'ellipse' || selected.type === 'line')) { renderShapeProperties(selected); return; }
       if (selected && selected.type === 'whiteout') { renderWhiteoutProperties(selected); return; }
+      if (selected && selected.type === 'redaction') { renderRedactionProperties(selected); return; }
       if (selected && selected.type === 'link') { renderLinkProperties(selected); return; }
       if (selected && selected.type && selected.type.indexOf('form-') === 0) { renderFormProperties(selected); return; }
       if (selected && (selected.type === 'highlight' || selected.type === 'strikethrough')) { renderMarkupProperties(selected); return; }
@@ -227,6 +228,23 @@
         <div class="editor-inspector-doc-info">
           <div class="status" role="note">${t('editor.whiteoutNote')}</div>
         </div>`;
+    }
+
+    function renderRedactionProperties(selected) {
+      const d = selected.data || {};
+      body.innerHTML = `
+        <div class="editor-inspector-doc-info">
+          <div class="editor-inspector-row"><span class="editor-inspector-row-label">${t('editor.redactionState')}</span><strong>${t('editor.redactionPending')}</strong></div>
+          <div class="editor-inspector-row"><span class="editor-inspector-row-label">${t('editor.redactionLabel')}</span></div>
+          <input data-prop="redactionLabel" maxlength="120" value="${escapeHtml(d.label || '')}" aria-label="${t('editor.redactionLabel')}">
+          <div class="editor-inspector-row"><span class="editor-inspector-row-label">${t('editor.redactionReason')}</span></div>
+          <textarea data-prop="redactionReason" maxlength="500" rows="3" aria-label="${t('editor.redactionReason')}">${escapeHtml(d.reason || '')}</textarea>
+          <div class="editor-inspector-row"><span class="editor-inspector-row-label">${t('editor.propFillColor')}</span><input data-prop="redactionColor" type="color" value="${d.color || '#000000'}"></div>
+          <div class="status" role="note">${t('editor.redactionPendingNote')}</div>
+        </div>`;
+      body.querySelector('[data-prop="redactionLabel"]').addEventListener('change', (event) => patchData(selected, { label: event.target.value.slice(0, 120) }));
+      body.querySelector('[data-prop="redactionReason"]').addEventListener('change', (event) => patchData(selected, { reason: event.target.value.slice(0, 500) }));
+      body.querySelector('[data-prop="redactionColor"]').addEventListener('change', (event) => patchData(selected, { color: event.target.value }));
     }
 
     function renderTextProperties(selected) {

@@ -217,6 +217,7 @@
     sign: '<path d="M4 18c3-6 5 4 8-2s5 4 8-2" stroke-linecap="round"/>',
     highlight: '<path d="M4 20h16" stroke-linecap="round"/><path d="M6 16l9-9 3 3-9 9H6z" stroke-linejoin="round"/>',
     whiteout: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 8h8v8H8z" fill="currentColor" stroke="none"/>',
+    redaction: '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M6 9h12M6 13h12M6 17h8" stroke-width="3"/>',
     link: '<path d="M10 13a5 5 0 007.1.1l2-2a5 5 0 00-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 00-7.1-.1l-2 2A5 5 0 0012 20l1.1-1.1"/>',
     form: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 14h4"/>',
     search: '<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L20 20"/>',
@@ -252,6 +253,7 @@
     ]},
     { id: 'markup', label: 'Markup', buttons: [
       { icon: 'whiteout', title: t('editor.btnWhiteout'), label: 'Whiteout', action: 'whiteout-tool' },
+      { icon: 'redaction', title: t('editor.btnRedaction'), label: t('editor.btnRedaction'), action: 'redaction-tool' },
       { icon: 'highlight', title: 'Annotation tools', label: 'Annotate', menu: [
         { icon: 'highlight', title: t('editor.btnHighlight'), action: 'highlight-tool' },
         { icon: 'strike', title: 'Strikethrough', action: 'strikethrough-tool' },
@@ -729,7 +731,7 @@
     });
 
     function handleAction(action) {
-      const toolActions=['text-tool','image-tool','link-tool','whiteout-tool','rectangle-tool','ellipse-tool','line-tool','draw-tool','highlight-tool','strikethrough-tool','form-tool','sign-tool'];
+      const toolActions=['text-tool','image-tool','link-tool','whiteout-tool','redaction-tool','rectangle-tool','ellipse-tool','line-tool','draw-tool','highlight-tool','strikethrough-tool','form-tool','sign-tool'];
       if(toolActions.includes(action)){
         if(activeToolButton) activeToolButton.classList.remove('is-active');
         const actionButton=toolbar.querySelector(`[data-action="${action}"]`);
@@ -771,6 +773,10 @@
       if (action === 'whiteout-tool' && window.EditorObjects) {
         revokePendingImageUrl();
         window.EditorObjects.beginPlacement('whiteout', { data: { color: '#ffffff' } });
+      }
+      if (action === 'redaction-tool' && window.EditorObjects) {
+        revokePendingImageUrl();
+        window.EditorObjects.beginPlacement('redaction', { data: { label: '', reason: '', color: '#000000', state: 'pending' } });
       }
       if (action === 'link-tool' && window.EditorObjects) {
         revokePendingImageUrl();

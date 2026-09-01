@@ -181,6 +181,214 @@ async function renderPdfPageCanvas(pdoc, pageNum, scale, timeoutMs=10000){
 }
 
 /**
+ * Browser-first state model shared by every page workspace. PDF parsing,
+ * thumbnail rendering and serialization intentionally stay in the existing
+ * helpers below; this class owns only lightweight page-operation state.
+ * That separation also leaves a stable `extensions` bag for future OCR,
+ * edit and redact layers without coupling those features to today's tools.
+ */
+class PDFWorkspaceModel {
+  constructor({sources=[], pages=[], historyLimit=50} = {}){
+    this.sources = sources.map((source, index)=>({
+      id: source.id || `source-${index+1}`,
+      name: source.name || source.label || `Document ${index+1}`,
+      pageCount: Number(source.pageCount) || 0,
+      docIndex: Number.isInteger(source.docIndex) ? source.docIndex : index,
+      size: Number(source.size) || 0,
+      type: source.type || "application/pdf",
+      lastModified: Number(source.lastModified) || 0,
+      color: source.color || null,
+      extensions: {...(source.extensions || {})}
+    }));
+    this.historyLimit = Math.max(1, Number(historyLimit) || 50);
+    this._undo = [];
+    this._redo = [];
+    this._listeners = new Set();
+    this._nextId = 1;
+    this.pages = pages.map((page, index)=>this._normalizePage(page, index));
+    this._normalizeOrder();
+  }
+
+  _newId(){ return `workspace-page-${this._nextId++}`; }
+  _normalizePage(page, index){
+    const normalized = {
+      id: page.id || this._newId(),
+      sourceId: page.sourceId || this.sources[page.docIndex || 0]?.id || null,
+      docIndex: Number.isInteger(page.docIndex) ? page.docIndex : 0,
+      sourcePageIndex: Number.isInteger(page.sourcePageIndex) ? page.sourcePageIndex : (Number.isInteger(page.index) ? page.index : null),
+      pageIndex: index,
+      order: Number.isFinite(page.order) ? page.order : index,
+      rotation: ((Number(page.rotation) || 0) % 360 + 360) % 360,
+      selected: Boolean(page.selected),
+      deleted: Boolean(page.deleted),
+      duplicateOf: page.duplicateOf || null,
+      blank: Boolean(page.blank),
+      width: page.width == null ? null : Number(page.width),
+      height: page.height == null ? null : Number(page.height),
+      extensions: {...(page.extensions || {})}
+    };
+    const match = /^workspace-page-(\d+)$/.exec(normalized.id);
+    if(match) this._nextId = Math.max(this._nextId, Number(match[1])+1);
+    return normalized;
+  }
+  _clonePages(){ return this.pages.map(page=>({...page, extensions:{...page.extensions}})); }
+  _restore(snapshot){ this.pages = snapshot.map((page, index)=>this._normalizePage(page, index)); this._normalizeOrder(); }
+  _normalizeOrder(){
+    this.pages.sort((a,b)=>a.order-b.order);
+    this.pages.forEach((page, index)=>{ page.order=index; page.pageIndex=index; });
+  }
+  _emit(type){
+    const detail = {type, canUndo:this.canUndo, canRedo:this.canRedo, pages:this.activePages};
+    this._listeners.forEach(listener=>listener(detail));
+  }
+  _mutate(type, change){
+    const before = this._clonePages();
+    const changed = change();
+    if(changed === false) return false;
+    this._normalizeOrder();
+    this._undo.push({type, pages:before});
+    if(this._undo.length > this.historyLimit) this._undo.shift();
+    this._redo.length = 0;
+    this._emit(type);
+    return true;
+  }
+  get activePages(){ return this.pages.filter(page=>!page.deleted); }
+  get selectedPages(){ return this.pages.filter(page=>!page.deleted && page.selected); }
+  get canUndo(){ return this._undo.length > 0; }
+  get canRedo(){ return this._redo.length > 0; }
+  subscribe(listener){ this._listeners.add(listener); return ()=>this._listeners.delete(listener); }
+  page(id){ return this.pages.find(page=>page.id===id) || null; }
+  setSelected(ids, selected=true){
+    const wanted = new Set(ids);
+    this.pages.forEach(page=>{ if(wanted.has(page.id) && !page.deleted) page.selected=Boolean(selected); });
+    this._emit("selection");
+  }
+  selectOnly(ids){
+    const wanted = new Set(ids);
+    this.pages.forEach(page=>{ page.selected=!page.deleted && wanted.has(page.id); });
+    this._emit("selection");
+  }
+  clearSelection(){ this.pages.forEach(page=>{ page.selected=false; }); this._emit("selection"); }
+  reorder(pageIds){
+    const activeIds = this.activePages.map(page=>page.id);
+    if(pageIds.length!==activeIds.length || new Set(pageIds).size!==pageIds.length || pageIds.some(id=>!activeIds.includes(id))) return false;
+    if(pageIds.every((id,index)=>id===activeIds[index])) return false;
+    return this._mutate("reorder", ()=>{
+      const activeById = new Map(this.activePages.map(page=>[page.id,page]));
+      const deleted = this.pages.filter(page=>page.deleted);
+      this.pages = [...pageIds.map(id=>activeById.get(id)), ...deleted];
+      this.pages.forEach((page,index)=>{ page.order=index; });
+    });
+  }
+  reorderSources(docIndexes){
+    const rank = new Map(docIndexes.map((docIndex,index)=>[docIndex,index]));
+    const pageIds = this.activePages.slice().sort((a,b)=>{
+      const sourceOrder = (rank.get(a.docIndex) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.docIndex) ?? Number.MAX_SAFE_INTEGER);
+      return sourceOrder || a.order-b.order;
+    }).map(page=>page.id);
+    return this.reorder(pageIds);
+  }
+  rotatePages(ids, delta){
+    const wanted = new Set(ids);
+    if(!delta || !this.pages.some(page=>wanted.has(page.id) && !page.deleted)) return false;
+    return this._mutate("rotate", ()=>this.pages.forEach(page=>{
+      if(wanted.has(page.id) && !page.deleted) page.rotation=((page.rotation+delta)%360+360)%360;
+    }));
+  }
+  rotateSelected(delta){ return this.rotatePages(this.selectedPages.map(page=>page.id), delta); }
+  deletePages(ids){
+    const wanted = new Set(ids);
+    if(!this.pages.some(page=>wanted.has(page.id) && !page.deleted)) return false;
+    return this._mutate("delete", ()=>this.pages.forEach(page=>{
+      if(wanted.has(page.id)){ page.deleted=true; page.selected=false; }
+    }));
+  }
+  deleteSelected(){ return this.deletePages(this.selectedPages.map(page=>page.id)); }
+  duplicatePages(ids){
+    const wanted = new Set(ids);
+    const duplicated = [];
+    const changed = this._mutate("duplicate", ()=>{
+      const next = [];
+      this.pages.forEach(page=>{
+        next.push(page);
+        if(wanted.has(page.id) && !page.deleted){
+          const copy = this._normalizePage({...page, id:this._newId(), selected:false, duplicateOf:page.id}, next.length);
+          next.push(copy);
+          duplicated.push(copy);
+        }
+      });
+      if(!duplicated.length) return false;
+      this.pages = next;
+      this.pages.forEach((page,index)=>{ page.order=index; });
+    });
+    return changed ? duplicated : [];
+  }
+  duplicateSelected(){ return this.duplicatePages(this.selectedPages.map(page=>page.id)); }
+  addPages(pages){
+    const added = pages.map((page,index)=>this._normalizePage(page, this.pages.length+index));
+    this.pages.push(...added);
+    this._normalizeOrder();
+    this._undo.length = 0;
+    this._redo.length = 0;
+    this._emit("source");
+    return added;
+  }
+  insertPages(pages, activeIndex=this.activePages.length){
+    const added = pages.map((page,index)=>this._normalizePage(page, this.pages.length+index));
+    const nextActive = this.activePages[Math.max(0, activeIndex)];
+    const firstDeletedIndex = this.pages.findIndex(page=>page.deleted);
+    const insertionIndex = nextActive ? this.pages.indexOf(nextActive) : (firstDeletedIndex>=0 ? firstDeletedIndex : this.pages.length);
+    this._mutate("insert", ()=>{
+      this.pages.splice(insertionIndex, 0, ...added);
+      this.pages.forEach((page,index)=>{ page.order=index; });
+    });
+    return added;
+  }
+  removeSource(docIndex){
+    this.pages = this.pages.filter(page=>page.docIndex!==docIndex);
+    this.sources = this.sources.filter(source=>source.docIndex!==docIndex);
+    this._normalizeOrder();
+    this._undo.length = 0;
+    this._redo.length = 0;
+    this._emit("source");
+  }
+  undo(){
+    const entry = this._undo.pop();
+    if(!entry) return false;
+    this._redo.push({type:entry.type, pages:this._clonePages()});
+    this._restore(entry.pages);
+    this._emit("undo");
+    return true;
+  }
+  redo(){
+    const entry = this._redo.pop();
+    if(!entry) return false;
+    this._undo.push({type:entry.type, pages:this._clonePages()});
+    this._restore(entry.pages);
+    this._emit("redo");
+    return true;
+  }
+  toPageSpecs({selectedOnly=false, excludeSelected=false} = {}){
+    let pages = selectedOnly ? this.selectedPages : this.activePages;
+    if(excludeSelected) pages = pages.filter(page=>!page.selected);
+    return pages.map(page=>this.toPageSpec(page));
+  }
+  toPageSpec(page){
+    return page.blank
+      ? {blank:true, width:page.width, height:page.height, rotation:page.rotation}
+      : {index:page.sourcePageIndex, docIndex:page.docIndex, rotation:page.rotation};
+  }
+  pageSpecsForSourceIndexes(indices, {docIndex=0, inputOrder=false} = {}){
+    const wanted = new Set(indices);
+    const matches = this.activePages.filter(page=>!page.blank && page.docIndex===docIndex && wanted.has(page.sourcePageIndex));
+    if(!inputOrder) return matches.map(page=>this.toPageSpec(page));
+    return indices.flatMap(index=>matches.filter(page=>page.sourcePageIndex===index).map(page=>this.toPageSpec(page)));
+  }
+}
+
+window.PDFWorkspace = Object.freeze({Model:PDFWorkspaceModel, buildPdf:buildPdfFromWorkspace});
+
+/**
  * Shared iLovePDF-style page-thumbnail grid, backing Delete Pages,
  * Extract Pages, Reorder Pages, Split, Organize, and Rotate. All flags
  * below default to false, so existing callers (Delete Pages, Extract
@@ -204,24 +412,51 @@ async function renderPdfPageCanvas(pdoc, pageNum, scale, timeoutMs=10000){
  *   (mode "select" already gets click-to-select natively).
  * @param {boolean} [opts.zoomable=false] - adds a Small/Medium/Large
  *   thumbnail-size toggle.
- * @returns {Promise<{getOrder: Function, getSelected: Function,
+ * @param {boolean} [opts.showSourceLabels=false] - shows each source
+ *   filename below its pages in a multi-document workspace.
+ * @returns {Promise<{workspace: PDFWorkspaceModel, getOrder: Function, getSelected: Function,
  *   getPages: Function, getSelectedPages: Function, selectOddEven:
  *   Function, selectAll: Function, clearSelection: Function, rotateAll:
- *   Function}>}
+ *   Function, undo: Function, redo: Function}>}
  */
-async function buildPageGrid(container, bytesOrSources, {mode="reorder", removable=false, rotatable=false, duplicable=false, multiSelect=false, zoomable=false} = {}){
+async function buildPageGrid(container, bytesOrSources, {mode="reorder", removable=false, rotatable=false, duplicable=false, multiSelect=false, zoomable=false, showSourceLabels=false} = {}){
   // Single-file callers (Split/Rotate/DeletePages/ExtractPages/Reorder/
   // AddBlankPage) pass raw bytes, unchanged from before this function
   // supported multi-file sources - normalized to a 1-item sources array so
   // their behavior/output is bit-for-bit identical (docIndex is always 0,
-  // no color border is ever applied). Organize PDF is the only caller that
-  // passes an array of {bytes, color, label} to combine multiple files
-  // into one grid with a colored border per source, iLovePDF-style.
+  // no color border is ever applied). Merge and Organize pass arrays of
+  // source descriptors to combine multiple documents in one workspace.
   const sources = Array.isArray(bytesOrSources) ? bytesOrSources : [{bytes: bytesOrSources}];
-  let pdocs = await Promise.all(sources.map(s=>loadPdfJsSafe({data:s.bytes.slice(0)})));
+  const maxWorkspaceBytes = window.YOYO_RUNTIME?.limits?.maxBatchBytes || (400 * 1024 * 1024);
+  const totalSourceBytes = sources.reduce((sum,source)=>sum+(source.bytes?.byteLength || source.size || 0), 0);
+  if(totalSourceBytes > maxWorkspaceBytes){
+    throw new Error(`These PDFs exceed the ${Math.round(maxWorkspaceBytes/(1024*1024))} MB browser workspace limit.`);
+  }
+  const loadedSources = await Promise.allSettled(sources.map(s=>loadPdfJsSafe({data:s.bytes.slice(0)})));
+  const failedSource = loadedSources.find(result=>result.status==="rejected");
+  if(failedSource){
+    await Promise.allSettled(loadedSources.filter(result=>result.status==="fulfilled").map(result=>result.value.destroy()));
+    throw failedSource.reason;
+  }
+  let pdocs = loadedSources.map(result=>result.value);
   const numPages = pdocs.reduce((sum,p)=>sum+p.numPages, 0);
+  const maxWorkspacePages = window.YOYO_RUNTIME?.limits?.maxPdfPages || 1500;
+  if(numPages > maxWorkspacePages){
+    await Promise.allSettled(pdocs.map(pdoc=>pdoc.destroy()));
+    throw new Error(`These PDFs contain ${numPages} pages in total; the browser workspace limit is ${maxWorkspacePages}.`);
+  }
+  const workspace = new PDFWorkspaceModel({
+    sources: sources.map((source, docIndex)=>({
+      id:`source-${docIndex+1}`, docIndex, name:source.name || source.label, pageCount:pdocs[docIndex].numPages,
+      size:source.size || source.bytes?.byteLength, type:source.type, lastModified:source.lastModified, color:source.color
+    })),
+    pages: pdocs.flatMap((pdoc, docIndex)=>Array.from({length:pdoc.numPages}, (_, sourcePageIndex)=>({
+      sourceId:`source-${docIndex+1}`, docIndex, sourcePageIndex
+    })))
+  });
   const selectionEnabled = mode==="select" || (mode==="reorder" && multiSelect);
   const showBulkBar = selectionEnabled && (rotatable || duplicable || removable);
+  const historyEnabled = mode==="reorder" || removable || rotatable || duplicable;
   container.innerHTML = "";
   container.classList.add("page-grid");
   document.querySelector(".panel-body")?.classList.toggle("has-file", numPages>0);
@@ -260,6 +495,13 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
       <button type="button" class="zoom-btn" data-zoom="l" draggable="false">L</button>`;
     toolbar.appendChild(zoomCtl);
   }
+  let historyCtl = null;
+  if(historyEnabled){
+    historyCtl = document.createElement("div");
+    historyCtl.className = "page-grid-history";
+    historyCtl.innerHTML = `<button type="button" class="bulkbar-btn" data-history="undo" disabled aria-label="Undo page operation">↶ Undo</button><button type="button" class="bulkbar-btn" data-history="redo" disabled aria-label="Redo page operation">↷ Redo</button>`;
+    toolbar.appendChild(historyCtl);
+  }
   if(toolbar.children.length) container.appendChild(toolbar);
 
   const cardsWrap = document.createElement("div");
@@ -269,39 +511,71 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
   const firstVp = (await pdocs[0].getPage(1)).getViewport({scale:1});
   const scale = 260 / firstVp.height;
 
+  const cardById = new Map();
+  function workspaceId(card){ return card?.dataset.workspacePageId || ""; }
+  function updateHistoryControls(){
+    if(!historyCtl) return;
+    historyCtl.querySelector('[data-history="undo"]').disabled = !workspace.canUndo;
+    historyCtl.querySelector('[data-history="redo"]').disabled = !workspace.canRedo;
+  }
+
   function rotateCard(card, delta){
-    const cur = ((parseInt(card.dataset.rotation||"0") + delta) % 360 + 360) % 360;
+    const pageId = workspaceId(card);
+    workspace.rotatePages([pageId], delta);
+    const cur = workspace.page(pageId)?.rotation ?? ((parseInt(card.dataset.rotation||"0") + delta) % 360 + 360) % 360;
     card.dataset.rotation = cur;
+    updateHistoryControls();
     const cv = card.querySelector("canvas");
     if(!cv) return;
     cv.classList.remove("rot-90","rot-180","rot-270");
     if(cur) cv.classList.add("rot-"+cur);
   }
 
-  async function duplicateCard(card){
-    await renderCardCanvas(card); // ensure the source has a real canvas before copying its pixels
-    const clone = card.cloneNode(true);
-    const srcCanvas = card.querySelector("canvas");
-    const dstCanvas = clone.querySelector("canvas");
-    if(srcCanvas && dstCanvas){
-      dstCanvas.width = srcCanvas.width; dstCanvas.height = srcCanvas.height;
-      dstCanvas.getContext("2d").drawImage(srcCanvas,0,0);
-    }
-    clone.classList.remove("selected","dragging","drag-over");
-    syncCheckToggle(clone, false);
-    const lbl = clone.querySelector(".page-num");
-    if(lbl) lbl.textContent += " (copy)";
-    wireCard(clone);
-    card.after(clone);
+  async function duplicateCards(cards){
+    await Promise.all(cards.map(renderCardCanvas)); // copy rendered pixels when available; lazy rendering remains the fallback
+    const copies = workspace.duplicatePages(cards.map(workspaceId));
+    if(!copies.length) return;
+    copies.forEach(copy=>{
+      const card = cardById.get(copy.duplicateOf);
+      if(!card) return;
+      const clone = card.cloneNode(true);
+      const srcCanvas = card.querySelector("canvas");
+      const dstCanvas = clone.querySelector("canvas");
+      if(srcCanvas && dstCanvas){
+        dstCanvas.width = srcCanvas.width; dstCanvas.height = srcCanvas.height;
+        dstCanvas.getContext("2d").drawImage(srcCanvas,0,0);
+      }
+      clone.classList.remove("selected","dragging","drag-over");
+      clone.dataset.workspacePageId = copy.id;
+      clone.dataset.rotation = copy.rotation;
+      syncCheckToggle(clone, false);
+      const lbl = clone.querySelector(".page-num");
+      if(lbl) lbl.textContent += " (copy)";
+      wireCard(clone);
+      card.after(clone);
+      cardById.set(copy.id, clone);
+      evictObserver?.observe(clone);
+    });
     updateBulkBar();
+    updateHistoryControls();
   }
+  function duplicateCard(card){ return duplicateCards([card]); }
 
   // Shared by the toolbar's "Select all" button, the Ctrl+A/Escape
   // shortcuts, and the returned gridApi - one implementation instead of
   // three copies of the same querySelectorAll+classList dance.
   function syncCheckToggle(card, selected){ card.querySelector(".page-check-toggle")?.setAttribute("aria-checked", String(selected)); }
-  function selectAllPages(){ cardsWrap.querySelectorAll(".page-card").forEach(c=>{ c.classList.add("selected"); syncCheckToggle(c, true); }); updateBulkBar(); }
-  function clearAllSelection(){ cardsWrap.querySelectorAll(".page-card.selected").forEach(c=>{ c.classList.remove("selected"); syncCheckToggle(c, false); }); updateBulkBar(); }
+  function selectAllPages(){
+    const cards = [...cardsWrap.querySelectorAll('.page-card')].filter(c=>c.style.display!=="none");
+    workspace.selectOnly(cards.map(workspaceId));
+    cards.forEach(c=>{ c.classList.add("selected"); syncCheckToggle(c, true); });
+    updateBulkBar();
+  }
+  function clearAllSelection(){
+    workspace.clearSelection();
+    cardsWrap.querySelectorAll(".page-card.selected").forEach(c=>{ c.classList.remove("selected"); syncCheckToggle(c, false); });
+    updateBulkBar();
+  }
   if(selectCtl){
     selectCtl.querySelector('[data-act="selectAll"]').addEventListener("click", selectAllPages);
   }
@@ -320,20 +594,92 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
       btn.addEventListener("click", ()=>{
         const act = btn.dataset.act;
         const selected = [...cardsWrap.querySelectorAll(".page-card.selected")];
-        if(act==="rotL") selected.forEach(c=>rotateCard(c,-90));
-        if(act==="rotR") selected.forEach(c=>rotateCard(c,90));
-        if(act==="dup") selected.forEach(c=>duplicateCard(c));
-        if(act==="del") selected.forEach(c=>{ c.classList.add("removing"); setTimeout(()=>c.remove(),160); });
+        if(act==="rotL" || act==="rotR"){
+          const delta = act==="rotL" ? -90 : 90;
+          workspace.rotatePages(selected.map(workspaceId), delta);
+          selected.forEach(c=>syncCardState(c));
+        }
+        if(act==="dup") duplicateCards(selected);
+        if(act==="del") removeCards(selected);
         if(act==="clear"){ clearAllSelection(); return; }
         updateBulkBar();
+        updateHistoryControls();
       });
     });
+  }
+
+  function syncCardState(card){
+    const page = workspace.page(workspaceId(card));
+    if(!page){ card.style.display="none"; return; }
+    card.style.display = page.deleted ? "none" : "";
+    card.classList.toggle("selected", page.selected && !page.deleted);
+    syncCheckToggle(card, page.selected && !page.deleted);
+    card.setAttribute("aria-pressed", String(page.selected && !page.deleted));
+    card.dataset.rotation = String(page.rotation);
+    const canvas = card.querySelector("canvas");
+    if(canvas){
+      canvas.classList.remove("rot-90","rot-180","rot-270");
+      if(page.rotation) canvas.classList.add("rot-"+page.rotation);
+    }
+  }
+
+  function syncWorkspace({reorder=false} = {}){
+    workspace.pages.forEach(page=>{
+      if(!cardById.has(page.id) && !page.blank){
+        const card = appendCard(page.docIndex, page.sourcePageIndex+1, page);
+        if(page.duplicateOf){
+          const label = card.querySelector(".page-num");
+          if(label) label.textContent += " (copy)";
+        }
+      }
+    });
+    if(reorder){
+      const desiredCards = workspace.pages.map(page=>cardById.get(page.id)).filter(Boolean);
+      const modelIds = new Set(workspace.pages.map(page=>page.id));
+      const slotParents = [...cardsWrap.querySelectorAll('.page-card')]
+        .filter(card=>modelIds.has(workspaceId(card)))
+        .map(card=>card.parentElement || cardsWrap);
+      desiredCards.forEach((card,index)=>(slotParents[index] || cardsWrap).appendChild(card));
+    }
+    cardById.forEach(syncCardState);
+    updateBulkBar();
+    updateHistoryControls();
+  }
+
+  function refreshSourceLabels(){
+    if(!showSourceLabels) return;
+    cardById.forEach(card=>{
+      const page = workspace.page(workspaceId(card));
+      if(!page || page.blank) return;
+      const source = workspace.sources.find(item=>item.docIndex===page.docIndex);
+      let badge = card.querySelector(".page-source-label");
+      if(!badge){
+        badge = document.createElement("span");
+        badge.className = "page-source-label";
+        card.querySelector(".page-num")?.before(badge);
+      }
+      const sourceLetter = String.fromCharCode(65 + page.docIndex);
+      badge.textContent = `${sourceLetter} · ${source?.name || `Document ${page.docIndex+1}`}`;
+      badge.title = source?.name || `Document ${page.docIndex+1}`;
+      if(source?.color) badge.style.color = source.color;
+    });
+  }
+
+  function removeCards(cards){
+    const removableCards = cards.filter(card=>workspace.page(workspaceId(card)) && card.style.display!=="none");
+    if(!workspace.deletePages(removableCards.map(workspaceId))) return;
+    removableCards.forEach(card=>{
+      card.classList.add("removing");
+      setTimeout(()=>{ card.classList.remove("removing"); syncCardState(card); },160);
+    });
+    updateHistoryControls();
   }
 
   function wireCard(card){
     if(mode==="select"){
       card.onclick = ()=>{
         const nowSelected = card.classList.toggle("selected");
+        workspace.setSelected([workspaceId(card)], nowSelected);
         card.setAttribute("aria-pressed", String(nowSelected));
         updateBulkBar();
       };
@@ -341,6 +687,7 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
       card.addEventListener("click", e=>{
         if(e.target.closest(".page-thumb-actions,.page-remove,.page-check-toggle")) return;
         const nowSelected = card.classList.toggle("selected");
+        workspace.setSelected([workspaceId(card)], nowSelected);
         syncCheckToggle(card, nowSelected);
         updateBulkBar();
       });
@@ -349,6 +696,7 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
     if(chkToggle) chkToggle.onclick = e=>{
       e.stopPropagation();
       const nowSelected = card.classList.toggle("selected");
+      workspace.setSelected([workspaceId(card)], nowSelected);
       chkToggle.setAttribute("aria-checked", String(nowSelected));
       updateBulkBar();
     };
@@ -363,15 +711,23 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
     if(moveEarlier) moveEarlier.onclick = e=>{
       e.stopPropagation();
       const previous = card.previousElementSibling;
-      if(previous?.classList.contains("page-card")) cardsWrap.insertBefore(card, previous);
+      if(previous?.classList.contains("page-card")){
+        card.parentElement.insertBefore(card, previous);
+        workspace.reorder([...cardsWrap.querySelectorAll('.page-card')].filter(c=>c.style.display!=="none").map(workspaceId));
+        updateHistoryControls();
+      }
     };
     if(moveLater) moveLater.onclick = e=>{
       e.stopPropagation();
       const next = card.nextElementSibling;
-      if(next?.classList.contains("page-card")) cardsWrap.insertBefore(next, card);
+      if(next?.classList.contains("page-card")){
+        card.parentElement.insertBefore(next, card);
+        workspace.reorder([...cardsWrap.querySelectorAll('.page-card')].filter(c=>c.style.display!=="none").map(workspaceId));
+        updateHistoryControls();
+      }
     };
     const rm = card.querySelector(".page-remove");
-    if(rm) rm.onclick = e=>{ e.stopPropagation(); card.classList.add("removing"); setTimeout(()=>card.remove(),160); };
+    if(rm) rm.onclick = e=>{ e.stopPropagation(); removeCards([card]); };
   }
 
   /* Phase 7: renders (or re-renders, after a timeout) exactly one card's
@@ -406,7 +762,7 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
    * call the exact same card-building logic for a file added after the
    * initial grid was built, instead of re-implementing it.
    */
-  function appendCard(docIdx, i){
+  function appendCard(docIdx, i, workspacePage){
     const color = sources[docIdx] && sources[docIdx].color;
     const card = document.createElement("div");
     card.className = "page-card" + (mode==="select" ? " page-card-select" : "");
@@ -414,6 +770,8 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
     card.dataset.docIndex = docIdx;
     card.dataset.rotation = "0";
     card.dataset.rendered = "false";
+    const pageState = workspacePage || workspace.pages.find(page=>page.docIndex===docIdx && page.sourcePageIndex===i-1 && !cardById.has(page.id));
+    card.dataset.workspacePageId = pageState?.id || "";
     card.draggable = mode === "reorder";
     if(mode==="select"){
       // A clickable <div> otherwise has no keyboard affordance at all -
@@ -496,6 +854,7 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
     }
     wireCard(card);
     cardsWrap.appendChild(card);
+    if(pageState) cardById.set(pageState.id, card);
     renderObserver.observe(card);
     if(evictObserver) evictObserver.observe(card);
     return card;
@@ -547,9 +906,26 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
   }, {root:null, rootMargin:"3000px 0px 3000px 0px", threshold:0}) : null;
 
   pdocs.forEach((pdoc, docIdx)=>{
-    for(let i=1;i<=pdoc.numPages;i++) appendCard(docIdx, i);
+    for(let i=1;i<=pdoc.numPages;i++){
+      const pageState = workspace.pages.find(page=>page.docIndex===docIdx && page.sourcePageIndex===i-1);
+      appendCard(docIdx, i, pageState);
+    }
   });
-  if(mode==="reorder") wirePageGridDrag(cardsWrap);
+  refreshSourceLabels();
+  if(mode==="reorder") wirePageGridDrag(cardsWrap, ()=>{
+    workspace.reorder([...cardsWrap.querySelectorAll('.page-card')].filter(c=>c.style.display!=="none").map(workspaceId));
+    updateHistoryControls();
+  });
+
+  if(historyCtl){
+    historyCtl.addEventListener("click", event=>{
+      const action = event.target.closest("[data-history]")?.dataset.history;
+      if(!action) return;
+      const changed = action==="undo" ? workspace.undo() : workspace.redo();
+      if(changed) syncWorkspace({reorder:true});
+    });
+    updateHistoryControls();
+  }
 
   if(zoomable){
     toolbar.querySelectorAll(".zoom-btn").forEach(btn=>{
@@ -568,9 +944,13 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
       if(!document.body.contains(container)){ document.removeEventListener("keydown", keyHandler); return; }
       const active = document.activeElement;
       if(active && /INPUT|TEXTAREA/.test(active.tagName)) return;
-      if((e.key==="Delete"||e.key==="Backspace") && removable){
+      if((e.ctrlKey||e.metaKey) && !e.shiftKey && e.key.toLowerCase()==="z" && historyEnabled){
+        if(workspace.undo()){ e.preventDefault(); syncWorkspace({reorder:true}); }
+      } else if(((e.ctrlKey||e.metaKey) && (e.shiftKey && e.key.toLowerCase()==="z" || e.key.toLowerCase()==="y")) && historyEnabled){
+        if(workspace.redo()){ e.preventDefault(); syncWorkspace({reorder:true}); }
+      } else if((e.key==="Delete"||e.key==="Backspace") && removable){
         const sel = cardsWrap.querySelectorAll(".page-card.selected");
-        if(sel.length){ e.preventDefault(); sel.forEach(c=>{ c.classList.add("removing"); setTimeout(()=>c.remove(),160); }); updateBulkBar(); }
+        if(sel.length){ e.preventDefault(); removeCards([...sel]); updateBulkBar(); }
       } else if(e.key==="a" && (e.ctrlKey||e.metaKey)){
         e.preventDefault();
         selectAllPages();
@@ -578,7 +958,11 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
         clearAllSelection();
       } else if(rotatable && (e.key==="r"||e.key==="R")){
         const sel = cardsWrap.querySelectorAll(".page-card.selected");
-        if(sel.length) sel.forEach(c=>rotateCard(c, e.shiftKey ? -90 : 90));
+        if(sel.length){
+          workspace.rotatePages([...sel].map(workspaceId), e.shiftKey ? -90 : 90);
+          [...sel].forEach(syncCardState);
+          updateHistoryControls();
+        }
       }
     }
     document.addEventListener("keydown", gridKeyHandler);
@@ -600,9 +984,10 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
   unregisterGridCleanup = registerToolCleanup(destroyGrid);
 
   return {
+    workspace,
     destroy: destroyGrid,
-    getOrder(){ return [...cardsWrap.querySelectorAll(".page-card")].map(c=>parseInt(c.dataset.page)); },
-    getSelected(){ return new Set([...cardsWrap.querySelectorAll(".page-card.selected")].map(c=>parseInt(c.dataset.page))); },
+    getOrder(){ return workspace.activePages.map(page=>page.sourcePageIndex); },
+    getSelected(){ return new Set(workspace.selectedPages.map(page=>page.sourcePageIndex)); },
     // Blank cards (see insertBlankPage() below - Add Blank Page's own grid
     // is the only caller that ever creates one) carry no real source page
     // to copy, so they report {blank:true, width, height} instead of
@@ -610,24 +995,35 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
     // Every other card is completely unaffected (dataset.blank is simply
     // absent), so this is a strict addition, not a behavior change, for
     // every existing caller of getPages().
-    getPages(){ return [...cardsWrap.querySelectorAll(".page-card")].map(c=>
-      c.dataset.blank==="true"
-        ? {blank:true, width:parseFloat(c.dataset.blankWidth), height:parseFloat(c.dataset.blankHeight), rotation:parseInt(c.dataset.rotation||"0")}
-        : {index:parseInt(c.dataset.page), rotation:parseInt(c.dataset.rotation||"0"), docIndex:parseInt(c.dataset.docIndex||"0")}
-    ); },
-    getSelectedPages(){ return [...cardsWrap.querySelectorAll(".page-card.selected")].map(c=>({index:parseInt(c.dataset.page), rotation:parseInt(c.dataset.rotation||"0"), docIndex:parseInt(c.dataset.docIndex||"0")})); },
+    getPages(){ return workspace.toPageSpecs(); },
+    getSelectedPages(){ return workspace.toPageSpecs({selectedOnly:true}); },
+    getDeletedPages(){ return workspace.pages.filter(page=>page.deleted).map(page=>workspace.toPageSpec(page)); },
+    selectSourcePages(indices, docIndex=0){
+      const wanted = new Set(indices);
+      workspace.selectOnly(workspace.activePages
+        .filter(page=>!page.blank && page.docIndex===docIndex && wanted.has(page.sourcePageIndex))
+        .map(page=>page.id));
+      syncWorkspace();
+    },
+    pageSpecsForSourceIndexes(indices, options){ return workspace.pageSpecsForSourceIndexes(indices, options); },
+    exportPdf(srcDocs, options){ return buildPdfFromWorkspace(srcDocs, workspace, options); },
     selectOddEven(which){
-      [...cardsWrap.querySelectorAll(".page-card")].forEach((c,pos)=>{
+      [...cardsWrap.querySelectorAll(".page-card")].filter(c=>c.style.display!=="none").forEach((c,pos)=>{
         const isOdd = pos % 2 === 0;
         const on = which==="odd" ? isOdd : !isOdd;
         c.classList.toggle("selected", on);
         syncCheckToggle(c, on);
       });
+      workspace.selectOnly([...cardsWrap.querySelectorAll(".page-card.selected")].map(workspaceId));
       updateBulkBar();
     },
     selectAll: selectAllPages,
     clearSelection: clearAllSelection,
-    rotateAll(delta){ cardsWrap.querySelectorAll(".page-card").forEach(c=>rotateCard(c, delta)); },
+    rotateAll(delta){
+      workspace.rotatePages(workspace.activePages.map(page=>page.id), delta);
+      cardsWrap.querySelectorAll(".page-card").forEach(syncCardState);
+      updateHistoryControls();
+    },
     // Rotate PDF's sidebar "Apply Rotation" button needs this - its own
     // hint text already promises "select several pages and use 'Apply to
     // selected/all' below", but rotateAll() above always rotates
@@ -637,27 +1033,61 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
     // Organize's own bulk-bar rotate buttons already correctly scope to
     // selection independently, via this same rotateCard() - this just
     // exposes the equivalent for Rotate's separate sidebar control.
-    rotateSelected(delta){ cardsWrap.querySelectorAll(".page-card.selected").forEach(c=>rotateCard(c, delta)); },
+    rotateSelected(delta){
+      workspace.rotateSelected(delta);
+      cardsWrap.querySelectorAll(".page-card.selected").forEach(syncCardState);
+      updateHistoryControls();
+    },
+    undo(){ const changed=workspace.undo(); if(changed) syncWorkspace({reorder:true}); return changed; },
+    redo(){ const changed=workspace.redo(); if(changed) syncWorkspace({reorder:true}); return changed; },
     /**
      * Appends another file's pages to the end of the existing grid without
      * disturbing any card already placed/reordered/rotated - the "+ Add
      * more files" case in Organize PDF. Returns the new source's docIndex.
      */
-    async addSource(bytes, color){
+    async addSource(bytes, color, metadata={}){
       const docIdx = pdocs.length;
+      const loadedSourceBytes = workspace.sources.reduce((sum,source)=>sum+source.size, 0);
+      if(loadedSourceBytes + bytes.byteLength > maxWorkspaceBytes){
+        throw new Error(`Adding this PDF would exceed the ${Math.round(maxWorkspaceBytes/(1024*1024))} MB browser workspace limit.`);
+      }
       const pdoc = await loadPdfJsSafe({data:bytes.slice(0)});
+      const loadedPageCount = workspace.sources.reduce((sum,source)=>sum+source.pageCount, 0);
+      if(loadedPageCount + pdoc.numPages > maxWorkspacePages){
+        await pdoc.destroy();
+        throw new Error(`Adding this PDF would exceed the ${maxWorkspacePages}-page browser workspace limit.`);
+      }
       pdocs.push(pdoc);
-      sources.push({bytes, color});
-      for(let i=1;i<=pdoc.numPages;i++) appendCard(docIdx, i);
+      sources.push({bytes, color, ...metadata});
+      const sourceId = `source-${docIdx+1}`;
+      workspace.sources.push({
+        id:sourceId, name:metadata.name || metadata.label || `Document ${docIdx+1}`, pageCount:pdoc.numPages,
+        docIndex:docIdx, size:Number(metadata.size)||bytes.byteLength, type:metadata.type||"application/pdf",
+        lastModified:Number(metadata.lastModified)||0, color:color||null, extensions:{...(metadata.extensions||{})}
+      });
+      const added = workspace.addPages(Array.from({length:pdoc.numPages}, (_,sourcePageIndex)=>({sourceId, docIndex:docIdx, sourcePageIndex})));
+      for(let i=1;i<=pdoc.numPages;i++) appendCard(docIdx, i, added[i-1]);
+      refreshSourceLabels();
+      updateHistoryControls();
       return docIdx;
     },
     /** Removes every card belonging to the given docIndex (a file removed from the sidebar list). */
     removeSource(docIdx){
-      cardsWrap.querySelectorAll(`.page-card[data-doc-index="${docIdx}"]`).forEach(c=>c.remove());
+      cardsWrap.querySelectorAll(`.page-card[data-doc-index="${docIdx}"]`).forEach(c=>{
+        cardById.delete(workspaceId(c));
+        c.remove();
+      });
+      workspace.removeSource(docIdx);
       const removedDocument = pdocs[docIdx];
       pdocs[docIdx] = null;
       removedDocument?.destroy();
       updateBulkBar();
+      updateHistoryControls();
+    },
+    reorderSources(docIndexes){
+      const changed = workspace.reorderSources(docIndexes);
+      if(changed) syncWorkspace({reorder:true});
+      return changed;
     },
     /**
      * Inserts a real, blank page-card at on-screen position `afterIndex`
@@ -711,6 +1141,8 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
       card.dataset.blankHeight = dims.height;
       card.dataset.rotation = "0";
       card.draggable = mode === "reorder";
+      const blankState = workspace.insertPages([{blank:true, width:dims.width, height:dims.height}], afterIndex)[0];
+      card.dataset.workspacePageId = blankState.id;
 
       const thumb = document.createElement("div");
       thumb.className = "page-thumb";
@@ -747,7 +1179,9 @@ async function buildPageGrid(container, bytesOrSources, {mode="reorder", removab
       }
       wireCard(card);
       if(nextCard) cardsWrap.insertBefore(card, nextCard); else cardsWrap.appendChild(card);
+      cardById.set(blankState.id, card);
       updateBulkBar();
+      updateHistoryControls();
       return card;
     }
   };
@@ -804,6 +1238,7 @@ async function buildPdfFromMultiDoc(srcDocs, pagesSpec){
   // then re-assemble in the caller's original order.
   const byDoc = new Map();
   pagesSpec.forEach((spec, pos)=>{
+    if(spec.blank) return;
     const docIdx = spec.docIndex || 0;
     if(!byDoc.has(docIdx)) byDoc.set(docIdx, []);
     byDoc.get(docIdx).push({pos, index:spec.index, rotation:spec.rotation||0});
@@ -817,8 +1252,28 @@ async function buildPdfFromMultiDoc(srcDocs, pagesSpec){
       copiedByPos[entries[i].pos] = p;
     });
   }
-  copiedByPos.forEach(p=>newDoc.addPage(p));
+  pagesSpec.forEach((spec,pos)=>{
+    if(spec.blank){
+      const page = newDoc.addPage([spec.width, spec.height]);
+      if(spec.rotation) page.setRotation(degrees(spec.rotation % 360));
+    } else {
+      newDoc.addPage(copiedByPos[pos]);
+    }
+  });
   return newDoc;
+}
+
+/**
+ * One serialization entry point for every connected page-operation tool.
+ * `srcDocs` may be one PDFDocument or a sparse docIndex-aligned array for
+ * multi-source Organize workspaces. Callers may export the whole active
+ * workspace, only selected pages, everything except selected pages, or a
+ * pre-grouped subset (Split) without rebuilding page state themselves.
+ */
+async function buildPdfFromWorkspace(srcDocs, workspace, {selectedOnly=false, excludeSelected=false, pages=null} = {}){
+  const docs = Array.isArray(srcDocs) ? srcDocs : [srcDocs];
+  const pagesSpec = pages || workspace.toPageSpecs({selectedOnly, excludeSelected});
+  return buildPdfFromMultiDoc(docs, pagesSpec);
 }
 /**
  * Greedily packs a document's pages into groups whose saved byte size
@@ -832,33 +1287,27 @@ async function buildPdfFromMultiDoc(srcDocs, pagesSpec){
  * @returns {Promise<{index:number, rotation:number}[][]>}
  */
 /**
- * @param {Map<number,number>} [liveIndexRotation] - optional index->rotation
- *   map from the live page grid (TOOLS.split) - when given, a page whose
- *   original index isn't a key (removed by the user) is skipped entirely,
- *   and its current on-screen rotation is used instead of 0. Omitted by
- *   any other future caller, which then gets the old "every original
- *   page, no rotation" behavior unchanged.
+ * @param {{index:number,rotation:number}[]} [workspacePages] - ordered
+ *   active page specifications from PDFWorkspaceModel. Repeated indexes
+ *   are preserved so duplicated pages are packed independently.
  */
-async function splitBySize(srcDoc, maxBytes, onProgress, liveIndexRotation){
+async function splitBySize(srcDoc, maxBytes, onProgress, workspacePages){
   const total = srcDoc.getPageCount();
-  const liveIndices = liveIndexRotation
-    ? Array.from({length:total}, (_,i)=>i).filter(i=>liveIndexRotation.has(i))
-    : Array.from({length:total}, (_,i)=>i);
+  const livePages = workspacePages || Array.from({length:total}, (_,index)=>({index, rotation:0}));
   const groups = [];
   let current = [];
-  for(let k=0;k<liveIndices.length;k++){
-    const i = liveIndices[k];
-    const rotation = liveIndexRotation ? liveIndexRotation.get(i) : 0;
-    const candidate = [...current, {index:i, rotation}];
+  for(let k=0;k<livePages.length;k++){
+    const pageSpec = livePages[k];
+    const candidate = [...current, pageSpec];
     const doc = await buildPdfFromPages(srcDoc, candidate);
     const bytes = await doc.save();
     if(bytes.length > maxBytes && current.length > 0){
       groups.push(current);
-      current = [{index:i, rotation}];
+      current = [pageSpec];
     } else {
       current = candidate;
     }
-    if(onProgress) onProgress(k+1, liveIndices.length);
+    if(onProgress) onProgress(k+1, livePages.length);
   }
   if(current.length) groups.push(current);
   return groups;
@@ -882,7 +1331,7 @@ async function splitBySize(srcDoc, maxBytes, onProgress, liveIndexRotation){
    the card will land, addressed at the same target the drop itself
    uses, so what's shown during the drag is exactly what happens on
    release. */
-function wirePageGridDrag(container){
+function wirePageGridDrag(container, onReorder){
   let dragEl = null;
   let rafId = null;
   const indicator = document.createElement("div");
@@ -968,6 +1417,7 @@ function wirePageGridDrag(container){
     const target = resolveDropTarget(e.clientX, e.clientY);
     if(!target || target.card===dragEl) return;
     target.card.parentElement.insertBefore(dragEl, target.before ? target.card : target.card.nextSibling);
+    if(onReorder) onReorder();
   });
 }
 /**

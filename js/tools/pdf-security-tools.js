@@ -26,7 +26,7 @@ async function flattenPdocToPdfBytes(pdoc, onProgress){
   return doc.save();
 }
 
-/* ---- PROTECT PDF (add an open password, 40-bit RC4) ---- */
+/* ---- PROTECT PDF (ISO Standard Security Handler, AES-128/AESV2) ---- */
 TOOLS.protect = function(){
   const t = window.I18N ? I18N.t : (k)=>k;
   let file=null;
@@ -41,16 +41,19 @@ TOOLS.protect = function(){
         ${fileInputHTML("application/pdf", false, t("toolSplit.selectPdfFile"))}
       </div>
       <div class="tool-content-area" id="protectFields" style="display:none">
-        <div class="status" role="note">${t("toolProtect.legacyWarning")}</div>
-        <div class="field"><label for="protectPw">${t("toolProtect.openPasswordLabel")}</label><input type="password" id="protectPw" autocomplete="new-password"></div>
-        <div class="field"><label for="protectPw2">${t("toolProtect.confirmPasswordLabel")}</label><input type="password" id="protectPw2" autocomplete="new-password"></div>
+        <div class="status" role="note">${t("toolProtect.encryptionStrength")}</div>
+        <div class="field"><label for="protectPw">${t("toolProtect.openPasswordLabel")}</label><input type="password" id="protectPw" maxlength="32" autocomplete="new-password"></div>
+        <div class="field"><label for="protectPw2">${t("toolProtect.confirmPasswordLabel")}</label><input type="password" id="protectPw2" maxlength="32" autocomplete="new-password"></div>
+        <div class="field"><label for="protectOwnerPw">${t("toolProtect.ownerPasswordLabel")}</label><input type="password" id="protectOwnerPw" maxlength="32" autocomplete="new-password"><small>${t("toolProtect.ownerPasswordHelp")}</small></div>
         <div class="field">
           <div class="tool-content-area-label">${t("toolProtect.permissionsLabel")}</div>
           <label class="checkbox-row"><input type="checkbox" id="permPrint" checked> ${t("toolProtect.permPrint")}</label>
           <label class="checkbox-row"><input type="checkbox" id="permCopy" checked> ${t("toolProtect.permCopy")}</label>
           <label class="checkbox-row"><input type="checkbox" id="permModify" checked> ${t("toolProtect.permModify")}</label>
           <label class="checkbox-row"><input type="checkbox" id="permAnnotate" checked> ${t("toolProtect.permAnnotate")}</label>
+          <p class="status">${t("toolProtect.permissionsHelp")}</p>
         </div>
+        <div class="status" role="note">${t("toolProtect.signatureDistinction")}</div>
         <div class="status" id="protectError" style="color:var(--rose)" hidden></div>
       </div>
       <p class="tool-privacy-hint">🔒 ${T("workspace.privacyHintPassword")}</p>
@@ -76,8 +79,12 @@ TOOLS.protect = function(){
     const out = document.getElementById("out");
     const errEl = document.getElementById("protectError");
     errEl.hidden = true;
-    const pw = document.getElementById("protectPw").value;
-    const pw2 = document.getElementById("protectPw2").value;
+    const pwInput=document.getElementById("protectPw");
+    const confirmInput=document.getElementById("protectPw2");
+    const ownerInput=document.getElementById("protectOwnerPw");
+    const pw = pwInput.value;
+    const pw2 = confirmInput.value;
+    const ownerPassword=ownerInput.value;
     if(!pw){ errEl.hidden=false; errEl.textContent = t("toolProtect.errEnterPassword"); return; }
     if(pw !== pw2){ errEl.hidden=false; errEl.textContent = t("toolProtect.errPasswordMismatch"); return; }
     const permissions = {
@@ -106,7 +113,7 @@ TOOLS.protect = function(){
       // not PDF 1.5+ compressed object streams. See that file's header.
       const rawBytes = await doc.save({useObjectStreams:false});
       setStatus(t("toolProtect.statusEncrypting"));
-      const protectedBytes = encryptPdfBytes(rawBytes, {userPassword:pw, ownerPassword:pw, permissions});
+      const protectedBytes = await encryptPdfBytes(rawBytes, {userPassword:pw, ownerPassword, permissions});
       // Runtime self-check: independently re-open the result with pdf.js
       // (a mature, separately-implemented decryptor) using the same
       // password. This is the actual correctness guarantee for a hand-
@@ -137,6 +144,7 @@ TOOLS.protect = function(){
     }catch(e){
       out.innerHTML = `<div class="status" style="color:var(--rose)">${escapeAttr(e.message)}</div>`;
     }finally{
+      pwInput.value=""; confirmInput.value=""; ownerInput.value="";
       goBtn.disabled = false;
     }
   }));
@@ -196,7 +204,8 @@ TOOLS.unlock = function(){
       } else {
         needsPassword = false;
         pwField.style.display = "none";
-        statusBox.textContent = t("toolUnlock.statusCouldNotRead");
+        statusBox.textContent = /encrypt|cipher|security handler|unsupported/i.test(`${e?.name||""} ${e?.message||""}`)
+          ? t("toolUnlock.statusUnsupportedEncryption") : t("toolUnlock.statusCouldNotRead");
         goBtn.disabled = true;
       }
     }
@@ -229,7 +238,9 @@ TOOLS.unlock = function(){
     }catch(e){
       out.innerHTML = "";
       errEl.hidden = false;
-      errEl.textContent = (e && e.name === "PasswordException") ? t("toolUnlock.errIncorrectPassword") : t("toolUnlock.errCouldNotOpen");
+      errEl.textContent = (e && e.name === "PasswordException") ? t("toolUnlock.errIncorrectPassword")
+        : (/encrypt|cipher|security handler|unsupported/i.test(`${e?.name||""} ${e?.message||""}`) ? t("toolUnlock.errUnsupportedEncryption") : t("toolUnlock.errCouldNotOpen"));
+      pwInput.value="";
       return;
     }
     try{
@@ -237,7 +248,7 @@ TOOLS.unlock = function(){
       // Fast path: this exact PDF was encrypted with the simple scheme
       // pdf-crypto.js fully understands - decrypt in place and keep every
       // page fully vector/text, not a rasterized copy.
-      const fast = tryDecryptSimplePdfBytes(fileBytes, password);
+      const fast = await tryDecryptSimplePdfBytes(fileBytes, password);
       if(fast && fast.bytes){
         try{
           operation.track(await loadPdfJsSafe({data: fast.bytes.slice(0)})); // self-check: must now open with NO password
@@ -260,6 +271,120 @@ TOOLS.unlock = function(){
       out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
     }catch(e){
       out.innerHTML = `<div class="status" style="color:var(--rose)">${t("toolUnlock.errCouldNotUnlock", {msg: escapeAttr(e.message)})}</div>`;
+    }finally{
+      pwInput.value="";
+    }
+  }));
+};
+
+/* ---- SANITIZE PDF (remove selected hidden/private document structures) ---- */
+TOOLS.sanitize = function(){
+  const t = window.I18N ? I18N.t : (k)=>k;
+  let file=null;
+  const optionIds = [
+    "documentMetadata", "descriptiveMetadata", "actionsAndJavaScript",
+    "attachments", "forms", "annotations", "pagePrivateData",
+  ];
+  openPanel(`
+    <div class="panel-head"><h3>${t("tools.sanitize")}</h3></div>
+    <div class="panel-body compact tool-workspace" id="sanitizeBody">
+      <div class="tool-hero">
+        <h2 class="tool-hero-title">${t("tools.sanitize")}</h2>
+        <p class="tool-hero-desc">${t("toolSanitize.heroDesc")}</p>
+      </div>
+      <div class="tool-upload-wrap">
+        ${fileInputHTML("application/pdf", false, t("toolSplit.selectPdfFile"))}
+      </div>
+      <div class="tool-content-area" id="sanitizeFields" style="display:none">
+        <div class="status" id="sanitizeInspection" role="status"></div>
+        <fieldset class="field sanitize-options">
+          <legend class="tool-content-area-label">${t("toolSanitize.cleanupCategories")}</legend>
+          <label class="checkbox-row sanitize-master"><input type="checkbox" id="sanitizeAll" checked> <strong>${t("toolSanitize.removeAll")}</strong></label>
+          <label class="checkbox-row"><input type="checkbox" data-sanitize-option="documentMetadata" checked> ${t("toolSanitize.documentMetadata")}</label>
+          <label class="checkbox-row"><input type="checkbox" data-sanitize-option="descriptiveMetadata" checked> ${t("toolSanitize.descriptiveMetadata")}</label>
+          <label class="checkbox-row"><input type="checkbox" data-sanitize-option="actionsAndJavaScript" checked> ${t("toolSanitize.actions")}</label>
+          <label class="checkbox-row"><input type="checkbox" data-sanitize-option="attachments" checked> ${t("toolSanitize.attachments")}</label>
+          <label class="checkbox-row"><input type="checkbox" data-sanitize-option="forms" checked> ${t("toolSanitize.forms")}</label>
+          <label class="checkbox-row"><input type="checkbox" data-sanitize-option="annotations" checked> ${t("toolSanitize.annotations")}</label>
+          <label class="checkbox-row"><input type="checkbox" data-sanitize-option="pagePrivateData" checked> ${t("toolSanitize.pagePrivateData")}</label>
+        </fieldset>
+        <div class="status" role="note"><strong>${t("toolSanitize.notRedactionTitle")}</strong> ${t("toolSanitize.notRedaction")}</div>
+        <div class="status" role="note">${t("toolSanitize.originalUnchanged")}</div>
+      </div>
+      <p class="tool-privacy-hint">🔒 ${t("toolSanitize.localOnly")}</p>
+      <div class="tool-toolbar" id="sanitizeToolbar" style="display:none">
+        <button class="btn tool-toolbar-primary" id="go">${t("toolSanitize.sanitizeButton")}</button>
+      </div>
+      <div id="out"></div>
+    </div>`);
+
+  const fields = document.getElementById("sanitizeFields");
+  const toolbar = document.getElementById("sanitizeToolbar");
+  const body = document.getElementById("sanitizeBody");
+  const inspection = document.getElementById("sanitizeInspection");
+  const master = document.getElementById("sanitizeAll");
+  const optionInputs = [...document.querySelectorAll("[data-sanitize-option]")];
+  master.addEventListener("change", ()=>optionInputs.forEach(input=>{ input.checked=master.checked; }));
+  optionInputs.forEach(input=>input.addEventListener("change", ()=>{
+    master.checked = optionInputs.every(item=>item.checked);
+    master.indeterminate = !master.checked && optionInputs.some(item=>item.checked);
+  }));
+
+  wireDropzone(async fs=>{
+    file=fs[0];
+    const inspectedFile=file;
+    renderFileList([file], ()=>{
+      file=null; fields.style.display="none"; toolbar.style.display="none"; body.classList.remove("is-loaded");
+    });
+    fields.style.display="block";
+    toolbar.style.display="flex";
+    body.classList.add("is-loaded");
+    inspection.style.color="";
+    goBtn.disabled=false;
+    inspection.textContent=t("toolSanitize.statusInspecting");
+    try{
+      const {report}=await PdfSanitizer.inspectPdf(await inspectedFile.arrayBuffer());
+      if(file!==inspectedFile) return;
+      const hidden = report.metadataFields + report.xmpMetadata + report.documentActions + report.javascriptNameTrees
+        + report.attachmentNameTrees + report.associatedFiles + report.forms + report.annotations + report.pagePrivateEntries;
+      inspection.textContent=t("toolSanitize.inspectionSummary", {pages:report.pageCount, items:hidden});
+    }catch(e){
+      if(file!==inspectedFile) return;
+      inspection.textContent=e.message;
+      inspection.style.color="var(--rose)";
+      document.getElementById("go").disabled=true;
+    }
+  });
+
+  const goBtn=document.getElementById("go");
+  goBtn.addEventListener("click", withToolOperation(goBtn, async (_event, operation)=>{
+    const out=document.getElementById("out");
+    const selected={};
+    optionIds.forEach(id=>{ selected[id]=document.querySelector(`[data-sanitize-option="${id}"]`).checked; });
+    if(!Object.values(selected).some(Boolean)){
+      out.innerHTML=`<div class="status" style="color:var(--rose)">${t("toolSanitize.errChooseCategory")}</div>`;
+      return;
+    }
+    goBtn.disabled=true;
+    out.innerHTML=statusEl(t("toolSanitize.statusSanitizing"));
+    try{
+      const sourceBytes=new Uint8Array(await file.arrayBuffer());
+      const result=await PdfSanitizer.sanitizePdf(sourceBytes, selected, (page,total,stage)=>{
+        if(stage==="verifying") setStatus(t("toolSanitize.statusVerifying"));
+        else setStatus(t("toolSanitize.statusCopying", {page, total}), false, Math.round((page/Math.max(total,1))*85));
+      });
+      if(!operation.isCurrent()) return;
+      const blob=new Blob([result.bytes], {type:"application/pdf"});
+      const outName=suffixedName(file, "sanitized", "pdf");
+      const {url}=downloadBlob(blob, outName);
+      const {canvas}=await pdfThumb(result.bytes);
+      setStatus(t("toolSanitize.done"), true);
+      if(!operation.isCurrent()) return;
+      out.appendChild(resultBox({sizeText:fmtSize(blob.size), sizeGood:true, previewNode:canvas, url, filename:outName}));
+    }catch(e){
+      out.innerHTML=`<div class="status" style="color:var(--rose)">${escapeAttr(e.message)}</div>`;
+    }finally{
+      goBtn.disabled=false;
     }
   }));
 };

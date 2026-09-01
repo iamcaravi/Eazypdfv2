@@ -133,13 +133,14 @@
     const backgroundColor=sampleBackground(pageNumber,item,layout);
     const sourceHit=hit || sourceHits.get(key);
     sourceHit?.style.setProperty('--editor-source-background',backgroundColor);
+    const sourceMetrics=window.EditorTextLayout?.sourceMetrics(item,pageNumber)||{};
     const object=window.EditorObjects.addObject({
       type:'text',page:pageNumber,xPct,yPct,wPct,hPct,
-      data:{text:replacement!=null?replacement:item.text,fontFamily:item.fontFamily,originalFontFamily:item.fontFamily,fontName:item.fontName,fontSize:item.fontSize,originalFontSize:item.fontSize,bold:item.bold,italic:item.italic,color:item.color||'#000000',opacity:item.opacity==null?1:item.opacity,
+      data:Object.assign({text:replacement!=null?replacement:item.text,fontFamily:item.fontFamily,originalFontFamily:item.fontFamily,fontName:item.fontName,fontLoadedName:item.fontLoadedName||'',fontFallbackFamily:item.fontFallbackFamily||item.fontFamily,fontEmbedded:!!item.fontEmbedded,fontSize:item.fontSize,originalFontSize:item.fontSize,bold:item.bold,italic:item.italic,color:item.color||'#000000',opacity:item.opacity==null?1:item.opacity,
         characterSpacing:item.characterSpacing||0,wordSpacing:item.wordSpacing||0,horizontalScale:item.horizontalScale||1,direction:item.direction||'ltr',vertical:!!item.vertical,
         align:item.direction==='rtl'?'right':'left',lineHeight:Math.max(1,(item.ascent||.8)-(item.descent||-.2)),rotation:item.angle||0,transform:item.transform,baseline:item.baseline,baselineOffset:item.baseline-item.y,
         replaceOriginal:true,sourceKey:key,sourceText:item.text,sourceBox:{xPct:item.x/layout.width*100,yPct:item.y/layout.height*100,wPct:Math.max(1,item.width)/layout.width*100,hPct:Math.max(1,item.height)/layout.height*100},backgroundColor,
-        sourceCommitted:programmaticReplacement||!!opts.reflowGenerated,reflowGenerated:!!opts.reflowGenerated,reflowOwner:opts.reflowOwner||null,reflowBaseBox:opts.reflowBaseBox||null}
+        sourceCommitted:programmaticReplacement||!!opts.reflowGenerated,reflowGenerated:!!opts.reflowGenerated,reflowOwner:opts.reflowOwner||null,reflowBaseBox:opts.reflowBaseBox||null},sourceMetrics)
     },{silent:!!opts.silent||transientActivation,select:opts.select!==false,notify:!opts.reflowGenerated});
     sourceObjects.set(key,object.id);
     sourceHit?.classList.add('is-activated');

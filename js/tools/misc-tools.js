@@ -176,7 +176,7 @@ function loadEditorAssets(){
   ["css/editor-workspace.css", "css/pdf-viewer.css", "css/editor-panel.css", "css/editor-inspector.css", "css/editor-viewer-polish.css", "css/editor-objects.css", "css/editor-product.css"].forEach(href=>{
     const l = document.createElement("link");
     l.rel = "stylesheet";
-    l.href = href + "?v=20";
+    l.href = href + "?v=30";
     document.head.appendChild(l);
   });
 
@@ -204,11 +204,12 @@ function loadEditorAssets(){
     "js/editor/editor-content.js",
     "js/editor/editor-history.js",
     "js/editor/editor-commands.js",
+    "js/editor/editor-redaction.js",
     "js/editor/editor-export.js",
   ];
   editorAssetsLoadPromise = files.reduce((p, src) => p.then(() => new Promise((resolve, reject) => {
     const s = document.createElement("script");
-    s.src = src + "?v=20";
+    s.src = src + "?v=30";
     s.onload = resolve;
     s.onerror = () => reject(new Error("Failed to load " + src));
     document.head.appendChild(s);

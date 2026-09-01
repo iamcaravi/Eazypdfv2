@@ -77,6 +77,30 @@
     return rawMeasure(text, data, size) * scale;
   }
 
+  /** Resolve the source run's browser metric correction once, before its
+   *  first editable DOM node is mounted. The same canonical scale is then
+   *  used in edit mode and after commit, avoiding a typography jump when
+   *  reflow used to introduce layoutHorizontalScale only after editing. */
+  function sourceMetrics(source, pageNumber) {
+    const page = pages.get(pageNumber);
+    const canonical = page?.byKey.get(`${pageNumber}:${source?.index}`) || source;
+    const size = Number(canonical?.fontSize) || 12;
+    const calibration = canonical ? metricScale(canonical, canonical, size) : 1;
+    const tolerance = canonical ? Math.max(2, canonical.fontSize * 0.55, canonical.height * 0.45) : 0;
+    const below = page && canonical ? page.items.filter((item) =>
+      item.sourceKey !== canonical.sourceKey && item.y > canonical.y + tolerance &&
+      item.y <= canonical.y + canonical.height * 10
+    ) : [];
+    const edgeTolerance = canonical ? Math.max(1, canonical.fontSize * 0.12) : 0;
+    const rightPeers = below.filter((item) => Math.abs(item.right - canonical.right) <= edgeTolerance).length;
+    const leftPeers = below.filter((item) => Math.abs(item.x - canonical.x) <= edgeTolerance).length;
+    const inferredAlign = rightPeers >= 2 && rightPeers > leftPeers ? 'right' : null;
+    return Object.assign({
+      fontMetricScale:calibration,
+      layoutHorizontalScale:(Number(canonical?.horizontalScale) || 1) * calibration
+    }, inferredAlign ? {align:inferredAlign} : {});
+  }
+
   function verticalOverlap(a, b) {
     return Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
   }
@@ -173,6 +197,7 @@
     const nearestRight = context.right[0] || null;
     const freeWidth = Math.max(source.width, (nearestRight ? nearestRight.x - gap : pageRight) - source.x);
     let width = Math.max(source.width, Math.min(naturalWidth, pageRight - source.x));
+    let x = source.x;
     let height = source.height;
     let layoutMode = 'single';
     let layoutFontSize = size;
@@ -190,7 +215,15 @@
       };
     }
 
-    if (naturalWidth > freeWidth + 0.25) {
+    const preserveSingleTokenMetrics = (context.tableLike || data.align === 'right') && !/\s/u.test(text);
+    if (preserveSingleTokenMetrics && naturalWidth > source.width) {
+      // IDs, account numbers and numeric table values should expand at their
+      // source size instead of silently changing font size/weight. The normal
+      // move/resize controls remain available if the user wants to reposition
+      // the enlarged value inside its visual cell.
+      width = Math.max(source.width, Math.min(naturalWidth, pageRight - source.x));
+      if (data.align === 'right') x = Math.max(margin, source.right - width);
+    } else if (naturalWidth > freeWidth + 0.25) {
       const chain = rowChain(context, source, gap);
       const requiredShift = nearestRight ? naturalWidth + gap - (nearestRight.x - source.x) : 0;
       const chainRight = chain.reduce((right, item) => Math.max(right, item.right), 0);
@@ -248,7 +281,7 @@
 
     return {
       patch: {
-        xPct:pct(source.x,page.width), yPct:pct(source.y,page.height),
+        xPct:pct(x,page.width), yPct:pct(source.y,page.height),
         wPct:pct(width,page.width), hPct:pct(height,page.height),
         data:{layoutMode,layoutFontSize,fontMetricScale:calibration,layoutHorizontalScale:(Number(data.horizontalScale)||1)*calibration,layoutLines:lines,reflowApplied:true}
       },
@@ -300,5 +333,5 @@
     };
   }
 
-  window.EditorTextLayout = { registerPage, clear, plan, planWithinBox };
+  window.EditorTextLayout = { registerPage, clear, sourceMetrics, plan, planWithinBox };
 })();

@@ -191,6 +191,179 @@
     return promise;
   }
 
+  function angleDistance(a, b) {
+    const delta = Math.abs((Number(a) || 0) - (Number(b) || 0)) % 360;
+    return Math.min(delta, 360 - delta);
+  }
+
+  function textAxis(item) {
+    const angle = (Number(item.angle) || 0) * Math.PI / 180;
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    const baseline = Number(item.baseline) || 0;
+    const start = item.x * cos + baseline * sin;
+    return { start, end:start + item.width, line:-item.x * sin + baseline * cos };
+  }
+
+  function samePaintStyle(a, b) {
+    return String(a.color || '#000000').toLowerCase() === String(b.color || '#000000').toLowerCase() &&
+      Math.abs((a.opacity == null ? 1 : a.opacity) - (b.opacity == null ? 1 : b.opacity)) <= 0.08 &&
+      (a.direction || 'ltr') === (b.direction || 'ltr') &&
+      !!a.bold === !!b.bold && !!a.italic === !!b.italic &&
+      Math.max(a.fontSize, b.fontSize) / Math.max(1, Math.min(a.fontSize, b.fontSize)) <= 1.35;
+  }
+
+  function separatorFor(left, right, gap) {
+    if (/\s$/u.test(left.text) || /^\s/u.test(right.text)) return '';
+    if (/^[,.;:!?%\)\]\}]/u.test(right.text) || /[\(\[\{]$/u.test(left.text)) return '';
+    return gap > Math.max(0.75, Math.min(left.fontSize, right.fontSize) * 0.12) ? ' ' : '';
+  }
+
+  function dominantFragment(fragments) {
+    return fragments.reduce((best, item) => {
+      const weight = Math.max(item.width, Array.from(item.text.trim()).length * item.fontSize * 0.45);
+      return !best || weight > best.weight ? {item, weight} : best;
+    }, null).item;
+  }
+
+  function consistentFallback(text, dominant) {
+    if (/[^\u0000-\u00ff]/u.test(text || '')) return 'Noto Sans Devanagari';
+    const source = String(dominant.fontFallbackFamily || dominant.fontFamily || '').toLowerCase();
+    if (/mono|courier/.test(source)) return 'Courier New';
+    if (/serif|times/.test(source) && !/sans/.test(source)) return 'Times New Roman';
+    return 'Arial';
+  }
+
+  let devanagariFallbackPromise = null;
+  function ensureDevanagariFallback() {
+    if (devanagariFallbackPromise || typeof FontFace !== 'function' || !document.fonts) return devanagariFallbackPromise;
+    const base = 'assets/vendor/noto-sans-devanagari/3a06b1c521155492df224d33464b3c7b2852d861/';
+    devanagariFallbackPromise = Promise.all([
+      new FontFace('Noto Sans Devanagari', `url(${new URL(base + 'NotoSansDevanagari-Regular.ttf', document.baseURI)})`, {weight:'400'}).load(),
+      new FontFace('Noto Sans Devanagari', `url(${new URL(base + 'NotoSansDevanagari-Bold.ttf', document.baseURI)})`, {weight:'700'}).load()
+    ]).then((faces) => { faces.forEach((face) => document.fonts.add(face)); }).catch(() => undefined);
+    return devanagariFallbackPromise;
+  }
+
+  function mergeTextFragments(fragments) {
+    if (fragments.length === 1) return fragments[0];
+    const first = fragments[0];
+    const dominant = dominantFragment(fragments);
+    let text = first.text;
+    for (let index = 1; index < fragments.length; index++) {
+      const previous = fragments[index - 1], current = fragments[index];
+      const gap = textAxis(current).start - textAxis(previous).end;
+      text += separatorFor(previous, current, gap) + current.text;
+    }
+    const axes = fragments.map(textAxis);
+    const start = Math.min(...axes.map((axis) => axis.start));
+    const end = Math.max(...axes.map((axis) => axis.end));
+    const identities = new Set(fragments.map((item) => item.fontLoadedName || item.fontFamily || item.fontFallbackFamily).filter(Boolean));
+    const mixedFonts = identities.size > 1;
+    const fallback = mixedFonts ? consistentFallback(text, dominant) : (dominant.fontFallbackFamily || unicodeFallback(text));
+    return Object.assign({}, dominant, {
+      index:first.index,
+      text,
+      x:first.x,
+      y:Math.min(...fragments.map((item) => item.y)),
+      width:Math.max(1, end - start),
+      height:Math.max(...fragments.map((item) => item.height)),
+      baseline:first.baseline,
+      transform:first.transform,
+      fontFamily:mixedFonts ? fallback : dominant.fontFamily,
+      fontLoadedName:mixedFonts ? '' : dominant.fontLoadedName,
+      fontFallbackFamily:fallback,
+      fontEmbedded:mixedFonts ? false : dominant.fontEmbedded,
+      grouped:true,
+      fragmentIndices:fragments.map((item) => item.index),
+      sourceFragments:fragments.map((item) => ({
+        index:item.index, text:item.text, x:item.x, y:item.y, width:item.width, height:item.height,
+        fontFamily:item.fontFamily, fontLoadedName:item.fontLoadedName, fontFallbackFamily:item.fontFallbackFamily
+      }))
+    });
+  }
+
+  /** PDF.js may emit one visible line as many word/glyph items. Build line
+   *  candidates from projected baselines, then merge only close neighbours.
+   *  Repeated large gaps at the same projected position are treated as table
+   *  or column boundaries and remain separate editor objects. */
+  function groupTextItems(items) {
+    const lines = [];
+    items.forEach((item) => {
+      const axis = textAxis(item);
+      let match = null, bestDistance = Infinity;
+      lines.forEach((line) => {
+        if (angleDistance(line.angle, item.angle) > 2) return;
+        const distance = Math.abs(line.coordinate - axis.line);
+        const tolerance = Math.max(1.5, Math.min(line.height, item.height) * 0.38);
+        if (distance <= tolerance && distance < bestDistance) { match = line; bestDistance = distance; }
+      });
+      if (!match) {
+        match = {angle:item.angle, coordinate:axis.line, height:item.height, items:[]};
+        lines.push(match);
+      }
+      match.items.push(item);
+      const count = match.items.length;
+      match.coordinate = (match.coordinate * (count - 1) + axis.line) / count;
+      match.height = Math.max(match.height, item.height);
+    });
+
+    lines.forEach((line) => line.items.sort((a, b) => textAxis(a).start - textAxis(b).start));
+    function isRepeatedBoundary(line, left, right, gap) {
+      const rightAxis = textAxis(right);
+      const boundaryStart = rightAxis.start;
+      const boundaryEnd = rightAxis.end;
+      const size = Math.min(left.fontSize, right.fontSize);
+      if (gap <= Math.max(2, size * 0.8)) return false;
+      let repeats = 0;
+      for (const other of lines) {
+        if (other === line || angleDistance(other.angle, line.angle) > 2) continue;
+        for (let index = 1; index < other.items.length; index++) {
+          const a = other.items[index - 1], b = other.items[index];
+          const otherGap = textAxis(b).start - textAxis(a).end;
+          const otherRight = textAxis(b);
+          if (otherGap > Math.max(2, Math.min(a.fontSize, b.fontSize) * 0.8) &&
+              (Math.abs(otherRight.start - boundaryStart) <= Math.max(4, size * 0.6) ||
+               Math.abs(otherRight.end - boundaryEnd) <= Math.max(4, size * 0.6))) {
+            repeats++;
+            if (repeats >= 2) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    const grouped = [];
+    lines.forEach((line) => {
+      let run = [];
+      line.items.forEach((item) => {
+        // PDF.js inserts a literal single-space item whose width spans the
+        // positioning gap between independent cells/columns. It is not a
+        // visible word separator; retaining it would hide the real boundary
+        // because both neighbouring geometric gaps are then zero.
+        if (/^\s+$/u.test(item.text) && item.width > Math.max(4, item.fontSize * 2.2)) {
+          if (run.length) grouped.push(mergeTextFragments(run));
+          run = [];
+          return;
+        }
+        if (!run.length) { run.push(item); return; }
+        const previous = run[run.length - 1];
+        const gap = textAxis(item).start - textAxis(previous).end;
+        const size = Math.min(previous.fontSize, item.fontSize);
+        const maxGap = Math.max(3, size * 2.2);
+        // Some subset fonts report advances wider than the pixels they draw,
+        // so visually adjacent fragments can have overlapping PDF.js boxes.
+        // Permit bounded overlap on the same baseline; structural spacer
+        // items and repeated column boundaries above still force a split.
+        const canMerge = gap >= -Math.max(2, size * 1.75) && gap <= maxGap &&
+          samePaintStyle(previous, item) && !isRepeatedBoundary(line, previous, item, gap);
+        if (canMerge) run.push(item);
+        else { grouped.push(mergeTextFragments(run)); run = [item]; }
+      });
+      if (run.length) grouped.push(mergeTextFragments(run));
+    });
+    return grouped.sort((a, b) => a.index - b.index);
+  }
+
   async function getPageTextLayout(pageNumber) {
     if (textLayoutCache.has(pageNumber)) return textLayoutCache.get(pageNumber);
     if (!pdfDoc) throw new Error('No document loaded');
@@ -201,7 +374,7 @@
       const util = window.pdfjsLib.Util;
       const paintRuns = await getPageTextPaintRuns(page);
       const paintByItem = alignPaintRuns(content.items, paintRuns);
-      const items = content.items.filter((item) => item.str != null && item.str.length).map((item, index) => {
+      const rawItems = content.items.filter((item) => item.str != null && item.str.length).map((item, index) => {
         const tx = util.transform(viewport.transform, item.transform);
         const fontHeight = Math.max(1, Math.hypot(tx[2], tx[3]));
         const angle = Math.atan2(tx[1], tx[0]) * 180 / Math.PI;
@@ -214,20 +387,26 @@
         const paint = paintByItem[index] || {};
         let fontObject = null;
         try { fontObject = page.commonObjs && page.commonObjs.get(item.fontName); } catch (_) { /* best-effort internal font metadata */ }
-        const fontFamily = fontObject?.loadedName || fontObject?.fallbackName || style.fontFamily || item.fontName || unicodeFallback(item.str);
+        const fontLoadedName = fontObject?.loadedName || '';
+        const fontFallbackFamily = fontObject?.fallbackName || style.fontFamily || item.fontName || unicodeFallback(item.str);
+        const fontFamily = fontLoadedName || fontFallbackFamily;
+        const bold = !!fontObject?.black || !!fontObject?.bold || /bold|black|heavy|semibold/i.test(`${fontFallbackFamily} ${item.fontName || ''}`);
+        const italic = !!fontObject?.italic || /italic|oblique/i.test(`${fontFallbackFamily} ${item.fontName || ''}`);
         return {
           index, text:item.str, x:tx[4], y:baseline-ascent*fontHeight,
           width, height, angle, baseline,
           transform:Array.from(item.transform || []),
           fontSize:fontHeight, fontFamily, fontName:item.fontName || '',
-          bold:!!fontObject?.black || !!fontObject?.bold || /bold|black|heavy|semibold/i.test(`${fontFamily} ${item.fontName || ''}`),
-          italic:!!fontObject?.italic || /italic|oblique/i.test(`${fontFamily} ${item.fontName || ''}`),
+          fontLoadedName, fontFallbackFamily, fontEmbedded:!!fontLoadedName,
+          bold, italic,
           color:paint.color || '#000000', opacity:paint.opacity == null ? 1 : paint.opacity,
           characterSpacing:paint.characterSpacing || 0, wordSpacing:paint.wordSpacing || 0,
           horizontalScale:paint.horizontalScale || 1, textRise:paint.textRise || 0,
           ascent, descent, direction:item.dir || 'ltr', vertical:!!style.vertical
         };
       });
+      const items = groupTextItems(rawItems);
+      if (items.some((item) => item.fontFamily === 'Noto Sans Devanagari')) await ensureDevanagariFallback();
       return {width:viewport.width,height:viewport.height,rotation:viewport.rotation,items};
     })();
     textLayoutCache.set(pageNumber,promise);

@@ -142,6 +142,20 @@
     pagesEl.innerHTML = '';
     pageWrappers = [];
 
+    // Establish the first page's authoritative PDF.js geometry and the
+    // opening zoom while the attached canvas container has its final size,
+    // but before any wrapper or IntersectionObserver can start rendering.
+    // Previously wrappers were created at the previous/default scale and the
+    // initialReadable() refit arrived later through pageChange. That late
+    // zoom cancelled and restarted the first canvas render; a manual Zoom
+    // click appeared to fix the page because it performed the same resize and
+    // rerender after initialization had settled.
+    const firstInfo = infos[0];
+    if (firstInfo && firstInfo.width && firstInfo.height) {
+      window.__currentPageNativeSize = firstInfo;
+      window.ZoomManager.initialReadable();
+    }
+
     for (let n = 1; n <= count; n++) {
       const wrap = document.createElement('div');
       wrap.className = 'editor-canvas-page';

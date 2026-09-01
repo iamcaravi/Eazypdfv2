@@ -16,7 +16,7 @@ const CATEGORIES = [
   ]},
   { id:"security", title:"Security", tools:[
     ["sign","Sign PDF"],["flatten","Flatten PDF"],["fillform","Fill PDF Form"],
-    ["protect","Protect PDF"],["unlock","Unlock PDF"],
+    ["protect","Protect PDF"],["unlock","Unlock PDF"],["sanitize","Sanitize PDF"],
   ]},
   { id:"convert", title:"Convert", tools:[
     ["jpg2pdf","JPG to PDF"],["pdf2jpg","PDF to JPG"],["word2pdf","Word to PDF"],
@@ -95,6 +95,7 @@ const DESCRIPTIONS = {
   protect:"Add a password so only people who know it can open this PDF.",
   unlock:"Remove a password from a PDF you already know the password to.",
   repair:"Recover a PDF that won't open properly or has a broken structure.",
+  sanitize:"Remove metadata, scripts, attachments, forms, and other hidden content before sharing.",
   pdf2pptx:"Turn every page of a PDF into its own PowerPoint slide.",
 };
 const ICONS = {
@@ -140,6 +141,7 @@ const TOOL_ICONS = {
   protect:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="1.5"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`,
   unlock:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="1.5"/><path d="M8 11V7a4 4 0 017.6-1.8"/></svg>`,
   repair:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.6 2.6-2-2 2.6-2.6z"/></svg>`,
+  sanitize:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 3v5c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-3z"/><path d="M8.5 12l2.2 2.2 4.8-5"/></svg>`,
   pdf2pptx:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M9 17V9h2.5a2 2 0 010 4H9"/></svg>`,
 };
 function iconFor(id){

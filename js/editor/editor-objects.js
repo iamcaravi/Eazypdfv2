@@ -54,7 +54,7 @@
   let pendingPlacement = null; // { type, data, wPct, hPct }
   const elById = new Map(); // id -> DOM element
   const pageInfoCache = new Map(); // pageNumber -> {width,height} in PDF points, for image aspect-lock math
-  let drawState = null; // in-progress freehand stroke: { rect, page, points, data }
+  let drawState = null; // in-progress freehand/redaction gesture
   let suppressNextClick = false; // swallows the synthetic click that follows a finished drag-to-draw stroke
 
   function init(rootEl) {
@@ -98,26 +98,24 @@
     const wrap = e.target.closest('.editor-canvas-page');
     if (pendingPlacement) {
       if (!wrap) return;
-      if (pendingPlacement.type === 'draw') return; // draw placement is drag-driven, see onCanvasMouseDown
+      if (pendingPlacement.type === 'draw' || pendingPlacement.type === 'redaction') return; // drag-driven, see onCanvasMouseDown
       placeAt(wrap, e.clientX, e.clientY);
       return;
     }
     if (!e.target.closest('.editor-object')) deselectAll();
   }
 
-  /** Freehand draw ('draw' type) doesn't fit the click-to-place model every
-   *  other type uses — it's a drag gesture that records a path. Only armed
-   *  while pendingPlacement.type === 'draw'; every other placement/select/
-   *  drag interaction still goes through onCanvasClick / startDrag. */
+  /** Freehand drawing and pending-redaction boxes use drag gestures. */
   function onCanvasMouseDown(e) {
-    if (!pendingPlacement || pendingPlacement.type !== 'draw') return;
+    if (!pendingPlacement || (pendingPlacement.type !== 'draw' && pendingPlacement.type !== 'redaction')) return;
     const wrap = e.target.closest('.editor-canvas-page');
     if (!wrap) return;
     e.preventDefault();
     const rect = wrap.getBoundingClientRect();
     const page = Number(wrap.dataset.page);
     const data = pendingPlacement.data;
-    drawState = { rect, page, data, points: [{ x: e.clientX - rect.left, y: e.clientY - rect.top }] };
+    const type = pendingPlacement.type;
+    drawState = { type, rect, page, data, points: [{ x: e.clientX - rect.left, y: e.clientY - rect.top }] };
     pendingPlacement = null;
 
     function onMove(ev) {
@@ -126,10 +124,30 @@
     function onUp() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      finishDraw();
+      if (type === 'redaction') finishRedaction(); else finishDraw();
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+  }
+
+  function finishRedaction() {
+    const { rect, page, points, data } = drawState;
+    drawState = null;
+    setCrosshair(false);
+    if (points.length < 2) return;
+    const start = points[0], end = points[points.length - 1];
+    const left = clamp(Math.min(start.x, end.x), 0, rect.width);
+    const top = clamp(Math.min(start.y, end.y), 0, rect.height);
+    const right = clamp(Math.max(start.x, end.x), 0, rect.width);
+    const bottom = clamp(Math.max(start.y, end.y), 0, rect.height);
+    if (right - left < 4 || bottom - top < 4) return;
+    addObject({
+      type: 'redaction', page,
+      xPct: left / rect.width * 100, yPct: top / rect.height * 100,
+      wPct: (right - left) / rect.width * 100, hPct: (bottom - top) / rect.height * 100,
+      data: Object.assign({ label: '', reason: '', color: '#000000', state: 'pending' }, data)
+    });
+    suppressNextClick = true;
   }
 
   function finishDraw() {
@@ -211,6 +229,7 @@
     if (type === 'text') return { wPct: 22, hPct: 6 };
     if (type === 'highlight') return { wPct: 30, hPct: 6 };
     if (type === 'whiteout') return { wPct: 30, hPct: 10 };
+    if (type === 'redaction') return { wPct: 30, hPct: 10 };
     if (type === 'link') return { wPct: 28, hPct: 5 };
     if (type === 'strikethrough') return { wPct: 30, hPct: 4 };
     if (type && type.indexOf('form-') === 0) return { wPct: type==='form-checkbox'||type==='form-radio'?4:28, hPct: type==='form-multiline'?12:5 };
@@ -452,6 +471,15 @@
       box.className = 'eo-whiteout-box';
       box.style.background = d.color || '#ffffff';
       content.appendChild(box);
+    } else if (obj.type === 'redaction') {
+      content.innerHTML = '';
+      const box = document.createElement('div');
+      box.className = 'eo-redaction-box';
+      box.style.setProperty('--redaction-color', d.color || '#000000');
+      const label = document.createElement('span');
+      label.textContent = d.label || 'PENDING REDACTION';
+      box.appendChild(label);
+      content.appendChild(box);
     } else if (obj.type === 'strikethrough') {
       content.innerHTML='<div class="eo-strikethrough-box"></div>';
     } else if (obj.type === 'link') {
@@ -475,8 +503,14 @@
     const nativeWidth = Number(wrap?.dataset.nativeWidth) || wrap?.getBoundingClientRect().width || 1;
     const displayScale = (wrap?.getBoundingClientRect().width || nativeWidth) / nativeWidth;
     inner.style.fontSize = ((d.layoutFontSize || d.fontSize || 16) * displayScale) + 'px';
-    inner.style.fontWeight = d.bold ? '700' : '400';
-    inner.style.fontStyle = d.italic ? 'italic' : 'normal';
+    // PDF.js loadedName identifies a face that already contains its source
+    // weight/style. Asking the browser to synthesize bold or italic on top of
+    // that face changes the typography as soon as editing begins. Synthetic
+    // styling remains appropriate for standard/new text and user-selected
+    // replacement families.
+    const usesLoadedFace = /^g_d\d+_f\d+/i.test(d.fontLoadedName || '') && d.fontFamily === d.fontLoadedName;
+    inner.style.fontWeight = usesLoadedFace ? '400' : (d.bold ? '700' : '400');
+    inner.style.fontStyle = usesLoadedFace ? 'normal' : (d.italic ? 'italic' : 'normal');
     inner.style.textDecoration = d.underline ? 'underline' : 'none';
     inner.style.color = d.color || '#000000';
     inner.style.opacity = d.opacity == null ? '1' : String(d.opacity);

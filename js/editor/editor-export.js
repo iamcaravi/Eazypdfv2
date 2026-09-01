@@ -154,7 +154,7 @@
       }
       font=fontCache[key];
     }else{
-      key=mapFontKey(d.fontFamily,d.bold,d.italic);
+      key=mapFontKey(d.fontFallbackFamily||d.originalFontFamily||d.fontFamily,d.bold,d.italic);
       if(!fontCache[key]) fontCache[key]=await pdfDoc.embedFont(window.PDFLib.StandardFonts[key]);
       font=fontCache[key];
     }
@@ -365,11 +365,13 @@
       ? await window.loadPdfSafe(original)
       : await PDFLibNS.PDFDocument.load(original);
     const objectList = window.EditorObjects ? window.EditorObjects.getState() : [];
+    const redactions = window.EditorRedaction ? window.EditorRedaction.collect(objectList) : [];
     const pages = pdfDoc.getPages();
     const fontCache = {};
 
     for (const obj of objectList) {
       operation.throwIfStale();
+      if (obj.type === 'redaction') continue; // applied by the irreversible rebuild below
       const page = pages[obj.page - 1];
       if (!page) throw new Error(t('editor.errObjectPageGone', { id: obj.id }));
 
@@ -390,12 +392,29 @@
       error.name = 'AbortError';
       throw error;
     }
-    const outBytes = await pdfDoc.save();
+    // Rebuilding a redacted document into a fresh PDF intentionally does not
+    // carry the original AcroForm catalog across. Flatten first so form
+    // appearances remain visible while no orphan interactive widget can
+    // retain hidden values on a rebuilt page.
+    if (redactions.length) {
+      try { pdfDoc.getForm().flatten(); } catch (_) {}
+    }
+    let outBytes = await pdfDoc.save();
+    let redactionResult = { redactionCount: 0, redactedPages: [] };
+    if (redactions.length) {
+      if (!window.EditorRedaction) throw new Error(t('editor.errRedactionUnavailable'));
+      exportStatus(t('editor.statusApplyingRedactions'));
+      redactionResult = await window.EditorRedaction.buildPermanentPdf(outBytes, redactions, {
+        operation,
+        onProgress(page, total) { exportStatus(t('editor.statusRedactingPage', { page, total })); }
+      });
+      outBytes = redactionResult.bytes;
+    }
     operation.throwIfStale();
     const blob = new Blob([outBytes], { type: 'application/pdf' });
     const fileName = outputFileName();
 
-    return { blob, fileName, byteLength:outBytes.length };
+    return { blob, fileName, byteLength:outBytes.length, redactionCount:redactionResult.redactionCount, redactedPages:redactionResult.redactedPages };
   }
 
   async function performExport(operation) {
@@ -410,8 +429,11 @@
       __fallbackExportUrl = URL.createObjectURL(blob);
       triggerDownload(__fallbackExportUrl, fileName);
     }
-    exportStatus(t('editor.statusSaved', { name: fileName }));
-    window.dispatchEvent(new CustomEvent('editor:documentSaved', {detail:{fileName}}));
+    exportStatus(result.redactionCount
+      ? t('editor.statusRedactionSaved', { name: fileName, count: result.redactionCount })
+      : t('editor.statusSaved', { name: fileName }));
+    window.dispatchEvent(new CustomEvent('editor:documentSaved', {detail:{fileName,redactionCount:result.redactionCount,redactedPages:result.redactedPages}}));
+    if (result.redactionCount) window.dispatchEvent(new CustomEvent('editor:redactionCompleted', { detail: result }));
     return result;
   }
 
@@ -457,6 +479,9 @@
   }
 
   function exportCurrentDocument() {
+    const pending = window.EditorRedaction && window.EditorObjects
+      ? window.EditorRedaction.collect(window.EditorObjects.getState()).length : 0;
+    if (pending && !window.confirm(t('editor.redactionExportWarning', { count: pending }))) return Promise.resolve(null);
     if(exportController){
       return exportController.run(performExport, {busyLabel:t('editor.busySaving'), timeoutMs:120000})
         .catch(reportExportFailure);

@@ -921,7 +921,7 @@ TOOLS.invertpdf = function(){
 const ORGANIZE_FILE_COLORS = ["#3B82F6","#8B5CF6","#F5B22D","#EC4899","#06B6D4","#F97316","#6366F1","#F43F5E"];
 TOOLS.organize = function(){
   const t = window.I18N ? I18N.t : (k)=>k;
-  const entries = []; // {file, color, removed}
+  const entries = []; // {file, color, removed, docIndex}
   let gridApi=null;
   openPanel(`
     <div class="panel-head"><h3>${t("tools.organize")}</h3></div>
@@ -958,6 +958,7 @@ TOOLS.organize = function(){
   const gridHint = document.getElementById("gridHint");
   const body = document.getElementById("organizeBody");
   const pageGridEl = document.getElementById("pageGrid");
+  const outEl = document.getElementById("out");
 
   function showEmptyState(){
     hero.style.display=""; uploadWrap.style.display=""; privacyHint.style.display="";
@@ -980,18 +981,20 @@ TOOLS.organize = function(){
     const multiFile = entries.filter(e=>!e.removed).length > 1;
     filesListEl.innerHTML = entries.map((e, i)=>{
       if(e.removed) return "";
-      const letter = String.fromCharCode(65 + i);
+      const letter = String.fromCharCode(65 + (Number.isInteger(e.docIndex) ? e.docIndex : i));
       const swatchStyle = multiFile ? ` style="background:${e.color};color:#fff"` : "";
-      return `<div class="organize-file-row" data-doc-index="${i}">
+      return `<div class="organize-file-row" data-doc-index="${e.docIndex}">
         <span class="organize-file-swatch"${swatchStyle}>${letter}</span>
         <span class="organize-file-name" title="${escapeAttr(e.file.name)}">${escapeAttr(e.file.name)}</span>
-        <button type="button" class="organize-file-remove" data-doc-index="${i}" aria-label="${escapeAttr(T("workspace.removeFile"))} ${escapeAttr(e.file.name)}">✕</button>
+        <button type="button" class="organize-file-remove" data-doc-index="${e.docIndex}" aria-label="${escapeAttr(T("workspace.removeFile"))} ${escapeAttr(e.file.name)}">✕</button>
       </div>`;
     }).join("");
     filesListEl.querySelectorAll(".organize-file-remove").forEach(btn=>{
       btn.addEventListener("click", ()=>{
         const idx = parseInt(btn.dataset.docIndex);
-        entries[idx].removed = true;
+        const entry = entries.find(item=>item.docIndex===idx && !item.removed);
+        if(!entry) return;
+        entry.removed = true;
         gridApi && gridApi.removeSource(idx);
         renderFilesSidebar();
         if(entries.every(e=>e.removed)){
@@ -1005,8 +1008,9 @@ TOOLS.organize = function(){
     const newSources = [];
     for(const f of fs){
       const color = ORGANIZE_FILE_COLORS[entries.length % ORGANIZE_FILE_COLORS.length];
-      entries.push({file:f, color, removed:false});
-      newSources.push({file:f, color});
+      const entry = {file:f, color, removed:false, docIndex:null};
+      entries.push(entry);
+      newSources.push({file:f, color, entry});
     }
     renderFilesSidebar();
     if(!gridApi){
@@ -1019,8 +1023,8 @@ TOOLS.organize = function(){
       // assigned colors. Adding a 2nd file later via addSource() below
       // always means 2+ files exist by definition, so that path is
       // untouched - see its own call for why.
-      const sources = await Promise.all(newSources.map(async s=>({bytes:await s.file.arrayBuffer(), color:s.color})));
-      const gridSources = sources.length>1 ? sources : sources.map(s=>({...s, color:null}));
+      outEl.innerHTML = statusEl("Loading PDF pages...");
+      let gridSources;
       // zoomable dropped - matches Rotate PDF's own de-S/M/L-ing: every
       // page-grid tool now just uses the shared default size instead of
       // a tool-specific zoom toggle. multiSelect stays on (Organize's
@@ -1032,13 +1036,35 @@ TOOLS.organize = function(){
       // own hint text already documents (Ctrl/Cmd+A select all, Delete
       // to remove, R/Shift+R to rotate), plus each card's own hover
       // controls for one-at-a-time actions including duplicate.
-      gridApi = await buildPageGrid(pageGridEl, gridSources, {mode:"reorder", removable:true, rotatable:true, duplicable:true, multiSelect:true});
+      try{
+        const sources = await Promise.all(newSources.map(async s=>({
+          bytes:await s.file.arrayBuffer(), color:s.color, name:s.file.name, size:s.file.size,
+          type:s.file.type, lastModified:s.file.lastModified
+        })));
+        gridSources = sources.length>1 ? sources : sources.map(s=>({...s, color:null}));
+        gridApi = await buildPageGrid(pageGridEl, gridSources, {mode:"reorder", removable:true, rotatable:true, duplicable:true, multiSelect:true, showSourceLabels:true});
+      }catch(error){
+        newSources.forEach(source=>{ source.entry.removed=true; });
+        renderFilesSidebar();
+        outEl.innerHTML="";
+        toast(`Could not load these PDFs: ${error.message || "invalid PDF"}`);
+        return;
+      }
+      newSources.forEach((source,index)=>{ source.entry.docIndex=index; });
+      renderFilesSidebar();
+      outEl.innerHTML="";
       showWorkspace();
     } else {
       for(const s of newSources){
-        const bytes = await s.file.arrayBuffer();
-        await gridApi.addSource(bytes, s.color);
+        try{
+          const bytes = await s.file.arrayBuffer();
+          s.entry.docIndex = await gridApi.addSource(bytes, s.color, {name:s.file.name, size:s.file.size, type:s.file.type, lastModified:s.file.lastModified});
+        }catch(error){
+          s.entry.removed=true;
+          toast(`Could not add ${s.file.name}: ${error.message || "invalid PDF"}`);
+        }
       }
+      renderFilesSidebar();
     }
   }
 
@@ -1056,15 +1082,14 @@ TOOLS.organize = function(){
     const usedDocIndexes = [...new Set(pagesSpec.map(p=>p.docIndex))];
     const srcDocs = [];
     for(const idx of usedDocIndexes){
-      const bytes = await entries[idx].file.arrayBuffer();
+      const entry = entries.find(item=>item.docIndex===idx && !item.removed);
+      const bytes = await entry.file.arrayBuffer();
       srcDocs[idx] = await loadPdfSafe(bytes);
     }
-    const newDoc = usedDocIndexes.length>1
-      ? await buildPdfFromMultiDoc(srcDocs, pagesSpec)
-      : await buildPdfFromPages(srcDocs[usedDocIndexes[0]], pagesSpec);
+    const newDoc = await gridApi.exportPdf(srcDocs);
     const outBytes=await newDoc.save();
     const blob=new Blob([outBytes],{type:"application/pdf"});
-    const primaryFile = entries[usedDocIndexes[0]].file;
+    const primaryFile = entries.find(item=>item.docIndex===usedDocIndexes[0] && !item.removed).file;
     const outName = usedDocIndexes.length>1 ? "organized.pdf" : suffixedName(primaryFile, "organized", "pdf");
     if(!operation.isCurrent()) return;
     const {url}=downloadBlob(blob,outName);

@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 // Phase 12: real functional coverage for Unlock, Repair, Fill PDF Form,
 // and Sign PDF - previously entirely untested beyond build/SEO smoke
@@ -27,9 +27,9 @@ test("protect then unlock round trip: a PDF encrypted by this app is decrypted b
   test.setTimeout(60_000);
   const errors = captureRuntimeErrors(page);
 
-  // Step 1: encrypt a real PDF with Protect PDF (this app's own 40-bit
-  // RC4 legacy scheme - see pdf-crypto.js) to produce a real encrypted
-  // fixture, rather than hand-constructing one.
+  // Step 1: encrypt a real PDF with Protect PDF's standards-compatible
+  // AESV2 path to produce a real encrypted fixture rather than
+  // hand-constructing one.
   await page.goto("/protect-pdf");
   await page.locator("#fi").setInputFiles(validPdf);
   const password = "phase12-test-pw";
@@ -143,4 +143,69 @@ test("sign PDF: a typed signature is applied and the exported PDF still has one 
   const result = await PDFDocument.load(readFileSync(await download.path()));
   expect(result.getPageCount()).toBe(1);
   expect(errors).toEqual([]);
+});
+
+test("Edit PDF permanent redaction removes affected page objects and preserves unaffected pages", async ({ page }) => {
+  test.setTimeout(90_000);
+  const fixtureDoc = await PDFDocument.create();
+  const font = await fixtureDoc.embedFont(StandardFonts.Helvetica);
+  for (const [secret, visible] of [["SECRET-ALPHA", "VISIBLE-ONE"], ["SECRET-BETA", "VISIBLE-TWO"]]) {
+    const pdfPage = fixtureDoc.addPage([400, 300]);
+    pdfPage.drawText(secret, { x: 40, y: 220, size: 20, font, color: rgb(0, 0, 0) });
+    pdfPage.drawText(visible, { x: 40, y: 80, size: 20, font, color: rgb(0, 0, 0) });
+  }
+  const untouched = fixtureDoc.addPage([400, 300]);
+  untouched.drawText("UNAFFECTED-SEARCHABLE", { x: 40, y: 150, size: 20, font, color: rgb(0, 0, 0) });
+  const sourceBytes = await fixtureDoc.save();
+  const sourcePath = join(mkdtempSync(join(tmpdir(), "yoyopdf-redaction-")), "redaction-source.pdf");
+  writeFileSync(sourcePath, sourceBytes);
+
+  await page.goto("/edit-pdf");
+  await expect(page.locator(".editor-shell")).toBeVisible({ timeout: 20_000 });
+  await page.locator('.editor-toolbar input[type="file"][accept="application/pdf"]').setInputFiles(sourcePath);
+  await expect(page.locator('.editor-canvas[data-state="page"]')).toBeVisible({ timeout: 30_000 });
+  await page.evaluate(() => {
+    for (const pageNumber of [1, 2]) window.EditorObjects.addObject({
+      type: "redaction", page: pageNumber, xPct: 8, yPct: 17, wPct: 55, hPct: 13,
+      data: { label: "REDACTED", reason: "test", color: "#000000", state: "pending" },
+    });
+  });
+  page.once("dialog", dialog => dialog.accept());
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator('[data-action="export"]').click();
+  const download = await downloadPromise;
+  const outputBytes = readFileSync(await download.path());
+
+  const inspection = await page.evaluate(async ({ source, output }) => {
+    async function inspect(bytes) {
+      const doc = await window.loadPdfJsSafe({ data: new Uint8Array(bytes) });
+      const pages = [];
+      try {
+        for (let number = 1; number <= doc.numPages; number++) {
+          const pdfPage = await doc.getPage(number);
+          const text = (await pdfPage.getTextContent()).items.map(item => item.str).join(" ");
+          const viewport = pdfPage.getViewport({ scale: 1 });
+          const canvas = document.createElement("canvas"); canvas.width = viewport.width; canvas.height = viewport.height;
+          const ctx = canvas.getContext("2d"); await pdfPage.render({ canvasContext: ctx, viewport }).promise;
+          const redactionPixel = number < 3 ? Array.from(ctx.getImageData(60, 60, 1, 1).data) : null;
+          const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+          let nonWhitePixels = 0;
+          for (let i = 0; i < pixels.length; i += 4) if (pixels[i] < 245 || pixels[i + 1] < 245 || pixels[i + 2] < 245) nonWhitePixels += 1;
+          pages.push({ text, redactionPixel, nonWhitePixels });
+        }
+      } finally { await doc.destroy(); }
+      return pages;
+    }
+    return { source: await inspect(source), output: await inspect(output) };
+  }, { source: Array.from(sourceBytes), output: Array.from(outputBytes) });
+
+  expect(inspection.source[0].text).toContain("SECRET-ALPHA");
+  expect(inspection.source[1].text).toContain("SECRET-BETA");
+  expect(inspection.output[0].text).not.toContain("SECRET-ALPHA");
+  expect(inspection.output[1].text).not.toContain("SECRET-BETA");
+  expect(inspection.output[2].text).not.toContain("UNAFFECTED-SEARCHABLE");
+  expect(inspection.output[2].nonWhitePixels).toBeGreaterThan(100);
+  expect(inspection.output[0].redactionPixel.slice(0, 3).every(channel => channel < 20)).toBe(true);
+  expect(inspection.output[1].redactionPixel.slice(0, 3).every(channel => channel < 20)).toBe(true);
+  expect(readFileSync(sourcePath)).toEqual(Buffer.from(sourceBytes));
 });
