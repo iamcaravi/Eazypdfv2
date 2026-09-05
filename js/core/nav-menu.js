@@ -206,17 +206,41 @@ function cardHTML(id, name, color, catId, isPopular){
 const toolCategoriesEl = document.getElementById("toolCategories");
 const POPULAR_SET = new Set(POPULAR_IDS);
 
+/* Homepage "Popular PDF Tools" grid order - by estimated search/usage
+   demand. Deliberately kept separate from CATEGORIES' own tool order
+   (which still drives the mega menu, "Convert PDF" dropdown, mobile
+   accordion and search index - see the other CATEGORIES.forEach call
+   sites above) so re-sequencing this one grid can never reorder those
+   other surfaces. Any tool id from CATEGORIES not listed here simply
+   sorts after all of these, in its original CATEGORIES order (stable
+   sort below) - so every tool still renders exactly once, nothing is
+   dropped, only the ones named here are pinned to a specific spot. */
+const HOME_GRID_ORDER = [
+  "pdf2word","jpg2pdf","compress","merge","pdf2jpg","split","word2pdf",
+  "pdf2excel","excel2pdf","pdf2pptx","unlock","protect","rotate","sign",
+  "watermark","extractpages","deletepages","repair","flatten","fillform",
+  "imgcompress","mergeexcel",
+];
+const homeOrderIndex = new Map(HOME_GRID_ORDER.map((id,i)=>[id,i]));
+
 /* Single source of truth: each tool from CATEGORIES is rendered exactly once, tagged with its
    real category (and "popular" too, if applicable) so filtering never has to duplicate a card.
    Names carry a data-i18n tag (see cardHTML) so I18N.applyAll() can relabel them on language
    change without rebuilding the whole grid (which would drop scroll-reveal/hover-fx state). */
 let gridHtml = "";
+const flatTools = [];
 CATEGORIES.forEach(cat=>{
   const meta = CATEGORY_META[cat.id] || {color:"linear-gradient(135deg,#FF7A18,#E8291B)"};
   cat.tools.forEach(([id,name])=>{
-    gridHtml += cardHTML(id, toolName(id, name), meta.color, cat.id, POPULAR_SET.has(id));
+    flatTools.push({ id, name, color:meta.color, catId:cat.id });
   });
 });
+flatTools
+  .slice()
+  .sort((a,b)=>(homeOrderIndex.has(a.id)?homeOrderIndex.get(a.id):Infinity) - (homeOrderIndex.has(b.id)?homeOrderIndex.get(b.id):Infinity))
+  .forEach(t=>{
+    gridHtml += cardHTML(t.id, toolName(t.id, t.name), t.color, t.catId, POPULAR_SET.has(t.id));
+  });
 
 /* AI — future category placeholder, no live tools yet. Rendered from the shared AI_TOOLS list. */
 gridHtml += AI_TOOLS.map(t=>`

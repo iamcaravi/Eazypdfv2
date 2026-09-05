@@ -6,6 +6,7 @@
   "description": "YOYOPDF - browser-first PDF/image tools. Static multi-page site (no app bundle); Vite here only builds/serves the existing HTML/CSS/JS as-is and Vitest runs smoke tests.",
   "scripts": {
     "dev": "python dev-server.py",
+    "dev:netlify": "netlify dev",
     "build": "npm run seo:check && vite build && npm run verify:dist",
     "test": "vitest run",
     "test:browser": "playwright test",
@@ -19,10 +20,14 @@
   "engines": {
     "node": ">=20"
   },
+  "dependencies": {
+    "@netlify/blobs": "8.2.0"
+  },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.62.1",
     "jszip": "3.10.1",
+    "netlify-cli": "17.38.1",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "3.11.174",
     "vite": "5.4.21",

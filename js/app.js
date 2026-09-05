@@ -845,16 +845,17 @@ window.addEventListener("unhandledrejection", (event) => {
   document.getElementById("qdMoreBtnMobile")?.addEventListener("click", ()=>{ closeMobileMenu(); goToAllTools(); });
   homeBtnMobile?.addEventListener("click", ()=>{ closeMobileMenu(); goHome(); });
 
-  // ---- Reduce (not hide) during the fullscreen editor, fully HIDE on a
-  // tool's own upload/landing state (panel open, no file loaded yet) -
-  // iLovePDF never shows its floating nav until you're actually inside a
-  // workspace, so the dock only belongs on the homepage and on a loaded
-  // .tool-workspace. One generic check (.tool-workspace present and
-  // missing .is-loaded) rather than each TOOLS.xxx calling in - every
-  // tool already toggles .is-loaded on its own panel-body for other
-  // reasons (see showWorkspace()/showEmptyState() in each TOOLS.xxx), so
-  // observing that single class from here covers all of them for free.
-  // Driven via GSAP (reducedOpacityTo) + a direct inline visibility
+  // ---- Homepage-only dock: hidden whenever ANY panel is open (a tool's
+  // upload/landing state, its loaded workspace, processing, the result/
+  // download screen, the fullscreen editor, or a non-tool panel like
+  // About/Contact) - not just the narrower "upload state with no file
+  // yet" this used to check. #overlay's own open/closed state already is
+  // exactly "is a panel open" (every TOOLS.xxx()/openPanel() call adds
+  // "open"; closePanel() removes it; a tool's own dedicated page, e.g.
+  // /merge-pdf, calls TOOLS.merge() - and therefore opens the overlay -
+  // immediately on load, not just on an in-page click), so it's reused
+  // directly rather than re-deriving "is this the homepage" some other
+  // way. Driven via GSAP (reducedOpacityTo) + a direct inline visibility
   // write, not a plain CSS class toggle: a CSS class's opacity would get
   // silently beaten by GSAP's own inline opacity style left behind by
   // the entrance tween below (inline always wins over a class) -
@@ -865,27 +866,23 @@ window.addEventListener("unhandledrejection", (event) => {
   // documented in the file header. ----
   const overlayEl = document.getElementById("overlay");
   let reducedOpacityTo = null;
-  function isDockLandingState(){
-    if(!overlayEl || !overlayEl.classList.contains("open")) return false; // homepage: dock always shown
-    const ws = overlayEl.querySelector(".tool-workspace");
-    return !!ws && !ws.classList.contains("is-loaded");
+  function isDockHiddenState(){
+    return !!(overlayEl && overlayEl.classList.contains("open"));
   }
   function syncReducedState(){
-    const isFullscreen = !!(overlayEl && overlayEl.classList.contains("panel-fullscreen"));
-    const hidden = isDockLandingState();
-    dock.classList.toggle("is-reduced", isFullscreen && !hidden);
+    const hidden = isDockHiddenState();
     dock.classList.toggle("is-hidden", hidden);
     dock.style.visibility = hidden ? "hidden" : "visible";
-    const targetOpacity = hidden ? 0 : (isFullscreen ? 0.45 : 1);
+    const targetOpacity = hidden ? 0 : 1;
     if(reducedOpacityTo) reducedOpacityTo(targetOpacity);
     else dock.style.opacity = String(targetOpacity);
     // Mobile swaps the whole rail for the FAB+menu (see the CSS comment
-    // on #quickDockFab) rather than shrinking it - same landing-state
-    // rule has to apply there too, plain CSS since the FAB never had a
-    // GSAP tween owning its opacity to begin with. Closing the menu on
-    // hide covers the "upload finishes while the tool list is still
-    // open" edge case rather than leaving an orphaned open menu behind
-    // an invisible launcher.
+    // on #quickDockFab) rather than shrinking it - same hidden-state rule
+    // has to apply there too, plain CSS since the FAB never had a GSAP
+    // tween owning its opacity to begin with. Closing the menu on hide
+    // covers the "a panel opens while the tool list is still open" edge
+    // case rather than leaving an orphaned open menu behind an invisible
+    // launcher.
     if(fab){
       fab.classList.toggle("is-hidden", hidden);
       if(hidden) closeMobileMenu();
@@ -954,7 +951,7 @@ window.addEventListener("unhandledrejection", (event) => {
   // are also kept off each other's properties the same way.
   if(!window.gsap || MOTION.reduced){
     if(window.gsap){
-      gsap.set(dock, {xPercent:-50, x:0, scale:1, autoAlpha: isDockLandingState() ? 0 : 1});
+      gsap.set(dock, {xPercent:-50, x:0, scale:1, autoAlpha: isDockHiddenState() ? 0 : 1});
       reducedOpacityTo = gsap.quickTo(dock, "opacity", {duration:0.3, ease:"power2.out"});
       syncReducedState();
     }
@@ -964,16 +961,16 @@ window.addEventListener("unhandledrejection", (event) => {
   // Entrance: owns x/scale/autoAlpha, then hands opacity off entirely
   // (see file header) once it completes. Hover-lift takes `y` instead,
   // never `x`, so the two can't fight even though both run soon after.
-  // Reveal target respects the landing-state check up front (not just in
-  // syncReducedState() afterward) so a tool page loaded straight into its
-  // empty upload state never flashes the dock visible before hiding it
-  // again - autoAlpha only animates toward 1 when there's actually
-  // something to reveal.
+  // Reveal target respects the hidden-state check up front (not just in
+  // syncReducedState() afterward) so any non-homepage page loaded
+  // straight into an open panel never flashes the dock visible before
+  // hiding it again - autoAlpha only animates toward 1 when there's
+  // actually something to reveal.
   gsap.set(dock, {xPercent:-50, x:-20, scale:0.96, autoAlpha:0});
   gsap.set(icons, {autoAlpha:0, scale:0.9});
   let hoverYTo = null;
   gsap.to(dock, {
-    x:0, scale:1, autoAlpha: isDockLandingState() ? 0 : 1, duration:0.6, ease:"power3.out",
+    x:0, scale:1, autoAlpha: isDockHiddenState() ? 0 : 1, duration:0.6, ease:"power3.out",
     onComplete:()=>{
       hoverYTo = gsap.quickTo(dock, "y", {duration:0.3, ease:"power2.out"});
       reducedOpacityTo = gsap.quickTo(dock, "opacity", {duration:0.3, ease:"power2.out"});

@@ -283,6 +283,12 @@
     <div class="trust-item"><span class="trust-ico">🛡️</span><span data-i18n="home.trustNoFileUpload">No File Upload</span></div>
     <div class="trust-item"><span class="trust-ico">🔓</span><span data-i18n="home.trustNoSignup">No Sign-Up</span></div>
     <div class="trust-item"><span class="trust-ico">💯</span><span data-i18n="home.trustFree">Free</span></div>
+    <!-- Filled by js/core/ratings.js's mountTrustStripRating() with the
+         real, live overall tool rating (never hardcoded) - see that
+         function's own comment for why this is a 6th .trust-item, not a
+         separate banner. Starts empty so it's harmless if that script is
+         ever removed. -->
+    <div class="trust-item" id="trustStripRating"></div>
   </div>
 </section>
 
@@ -563,29 +569,30 @@
      to sit at the very top and very bottom of the original file, and
      must stay loaded last. -->
 <!-- RUNTIME_SCRIPTS_START -->
-<script defer src="js/core/i18n.js?v=145"></script>
-<script defer src="js/core/motion.js?v=145"></script>
-<script defer src="js/core/nav-menu.js?v=145"></script>
-<script defer src="js/core/hero-upload.js?v=145"></script>
-<script defer src="js/core/routing.js?v=145"></script>
-<script defer src="js/core/quick-actions.js?v=145"></script>
-<script defer src="js/core/panel.js?v=145"></script>
-<script defer src="js/core/pdf-processing-utils.js?v=145"></script>
-<script defer src="js/core/pdf-crypto.js?v=145"></script>
-<script defer src="js/core/pptx-export.js?v=145"></script>
-<script defer src="js/core/pdf-canvas-widgets.js?v=145"></script>
-<script defer src="js/tools/misc-tools.js?v=145"></script>
-<script defer src="js/tools/pdf-page-tools-1.js?v=145"></script>
-<script defer src="js/tools/pdf-page-tools-2.js?v=145"></script>
-<script defer src="js/core/doc-export-builders.js?v=145"></script>
-<script defer src="js/core/xlsx-merge.js?v=145"></script>
-<script defer src="js/core/krutidev-to-unicode.js?v=145"></script>
-<script defer src="js/core/docx-reader.js?v=145"></script>
-<script defer src="js/tools/pdf-convert-tools.js?v=145"></script>
-<script defer src="js/tools/pdf-signing-tools.js?v=145"></script>
-<script defer src="js/tools/image-tools.js?v=145"></script>
-<script defer src="js/tools/pdf-security-tools.js?v=145"></script>
-<script defer src="js/app.js?v=145"></script>
+<script defer src="js/core/i18n.js?v=149"></script>
+<script defer src="js/core/motion.js?v=149"></script>
+<script defer src="js/core/nav-menu.js?v=149"></script>
+<script defer src="js/core/hero-upload.js?v=149"></script>
+<script defer src="js/core/routing.js?v=149"></script>
+<script defer src="js/core/quick-actions.js?v=149"></script>
+<script defer src="js/core/panel.js?v=149"></script>
+<script defer src="js/core/ratings.js?v=149"></script>
+<script defer src="js/core/pdf-processing-utils.js?v=149"></script>
+<script defer src="js/core/pdf-crypto.js?v=149"></script>
+<script defer src="js/core/pptx-export.js?v=149"></script>
+<script defer src="js/core/pdf-canvas-widgets.js?v=149"></script>
+<script defer src="js/tools/misc-tools.js?v=149"></script>
+<script defer src="js/tools/pdf-page-tools-1.js?v=149"></script>
+<script defer src="js/tools/pdf-page-tools-2.js?v=149"></script>
+<script defer src="js/core/doc-export-builders.js?v=149"></script>
+<script defer src="js/core/xlsx-merge.js?v=149"></script>
+<script defer src="js/core/krutidev-to-unicode.js?v=149"></script>
+<script defer src="js/core/docx-reader.js?v=149"></script>
+<script defer src="js/tools/pdf-convert-tools.js?v=149"></script>
+<script defer src="js/tools/pdf-signing-tools.js?v=149"></script>
+<script defer src="js/tools/image-tools.js?v=149"></script>
+<script defer src="js/tools/pdf-security-tools.js?v=149"></script>
+<script defer src="js/app.js?v=149"></script>
 <!-- RUNTIME_SCRIPTS_END -->
 </body>
 </html>

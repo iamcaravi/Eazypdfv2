@@ -226,10 +226,11 @@ function openPanel(html){
    places to keep in sync forever), this clones the ONE real copy that
    already lives in index.html (the "Explore YOYOPDF Tools" section +
    the site footer, both already built and styled) and reuses it as-is.
-   Wrapped in .content-page-tail for the dock-clearance padding below -
-   otherwise #quickDock (position:fixed, bottom:20px) would sit on top
-   of the copyright bar exactly the way it doesn't for shorter panels,
-   which never scrolled that far anyway. */
+   .content-page-tail itself only handles side-margin cancellation now
+   (see its own CSS comment) - it used to also reserve bottom padding for
+   #quickDock, but the dock is homepage-only now (js/app.js's
+   isDockHiddenState()) and never shows inside any panel, so there's
+   nothing left to reserve room for. */
 function contentPageTailHTML(){
   const seo = document.querySelector(".seo-tool-directory");
   const footer = document.querySelector(".site-footer");

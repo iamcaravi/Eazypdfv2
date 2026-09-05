@@ -83,3 +83,6 @@ yoyopdf-deploy*.zip
 # ----- Explicitly KEEP (already tracked) -----
 !.claude/
 !.claude/launch.json
+
+# Local Netlify folder
+.netlify

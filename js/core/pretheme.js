@@ -13,25 +13,27 @@
 var __savedTheme = "light";
 try { __savedTheme = localStorage.getItem("yoyopdf-theme") || "light"; } catch(e) {}
 document.documentElement.setAttribute("data-theme", __savedTheme);
-/* Same root-background value css/site.css's html{} rule already sets,
-   applied here too as a plain inline style PROPERTY on the element
-   (not a stylesheet block - build/verify-dist.js's production check
-   forbids any inline STYLE element, one hashed external stylesheet
-   only) so it's active from the very first parsed byte, with zero
-   network dependency.
-   This used to be load-bearing because this site's cross-document View
-   Transitions (@view-transition{navigation:auto}, since REMOVED from
-   css/site.css) could reveal a destination page before its external
-   stylesheet's render-block resolves - confirmed via a screen
-   recording plus a MutationObserver diagnostic (logging data-theme
-   with performance.now() timestamps into sessionStorage across a real
-   navigation) that data-theme was ALWAYS correct the entire time; the
-   flash was never a wrong theme value, it was the correctly-themed
-   page rendering with default browser (white) styling because
-   css/site.css hadn't loaded yet. Removing cross-document VT means
-   ordinary navigation now render-blocks on css/site.css before
-   painting anything, so that race no longer exists - this line is kept
-   anyway as harmless, zero-network-dependency defense-in-depth (once
-   css/site.css does load, its own html{background:var(--paper)} rule
-   re-applies the same value - one source of truth either way). */
-document.documentElement.style.background = (__savedTheme === "light") ? "#FAFAFA" : "#050505";
+/* REMOVED: an inline `documentElement.style.background` set here to
+   match css/site.css's html{background:var(--paper)} rule for the
+   pre-stylesheet-load instant. That inline property is GONE now because
+   it was the actual root cause of a real bug, not just redundant: once
+   set, a same-property inline style permanently wins the cascade over
+   ANY external stylesheet rule, load order notwithstanding - contrary
+   to this comment's own previous (incorrect) claim that site.css's rule
+   would "re-apply" once loaded. It never does. Concretely: the
+   light/dark toggle (js/core/quick-actions.js) only ever updates the
+   data-theme ATTRIBUTE, which correctly flips every var(--paper)-based
+   background (body, footer, ...) - but with this inline property
+   present, <html>'s own background stayed frozen at whatever color this
+   line set on the ORIGINAL page load, forever, regardless of later
+   toggles. Since browsers paint the viewport's "canvas" (the area below
+   short content, and the overscroll/rubber-band region) using the root
+   element's background specifically, that stale inline value is exactly
+   what showed up as a wrong-theme strip at the bottom of the page after
+   toggling. The original justification for this line (cross-document
+   View Transitions revealing an unstyled destination page before its
+   stylesheet loaded) was already removed from css/site.css - ordinary
+   navigation render-blocks on the stylesheet before painting anything,
+   so the plain CSS rule (html{background:var(--paper)}, driven by the
+   data-theme attribute set synchronously above) is already correct on
+   first paint with no inline duplicate needed. */

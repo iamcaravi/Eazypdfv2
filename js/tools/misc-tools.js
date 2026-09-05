@@ -74,6 +74,11 @@ TOOLS.about = function(){
           <div class="a-stat"><span class="a-stat-ico">${iconFor("protect")}</span><div><strong>${t("about.statPrivateValue")}</strong><small>${t("about.statPrivate")}</small></div></div>
           <div class="a-stat"><span class="a-stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg></span><div><strong>${t("about.statFreeValue")}</strong><small>${t("about.statFree")}</small></div></div>
           <div class="a-stat"><span class="a-stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.8 6 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-6-3.8-9s1.3-6.5 3.8-9z"/></svg></span><div><strong>10</strong><small>${t("about.statLanguages")}</small></div></div>
+          <!-- Filled by js/core/ratings.js's mountAboutStatRating() below,
+               with the same live overall tool rating the homepage strip
+               shows (one shared fetch, see ratingFetchAllShared()) - never
+               hardcoded. Empty a-stat markup is harmless if that never runs. -->
+          <div class="a-stat" id="aboutRatingStat"></div>
         </div>
 
         <div class="about-why-box">
@@ -134,6 +139,7 @@ TOOLS.about = function(){
     </div>`);
   document.getElementById("aboutExploreBtn")?.addEventListener("click", ()=>goHome());
   bindContentPageTail(panel);
+  if(typeof mountAboutStatRating === "function") mountAboutStatRating(document.getElementById("aboutRatingStat"));
 };
 
 /* ---- EDIT ----------------------------------------------------------------

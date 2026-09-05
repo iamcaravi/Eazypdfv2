@@ -28,11 +28,11 @@
   /* Was pure #FFFFFF/#F5FBF0 - a hair of blue keeps the page from
      reading as stark/clinical white while staying "mostly white" per
      the brief (section 18: subtle, not a blue page). */
-  --paper:#FAFAFA;
-  --paper-dim:#F5F5F5;
+  --paper:#F7F9FF;
+  --paper-dim:#EEF4FF;
   --panel-bg:#FFFFFF;
-  --ink:#15171A;
-  --ink-soft:#667085;
+  --ink:#111827;
+  --ink-soft:#64748B;
   /* LIGHT THEME REBRAND (exact #0000FF): --red/--brand-grad/
      --brand-shadow-rgb/--btn-ink/--ochre/--glow-shadow were the site's
      electric-blue (#1677FF) identity here - same technique used for
@@ -56,10 +56,10 @@
      kept different from the primary CTA color on purpose) are also left
      untouched - a separate, pre-existing design decision unrelated to
      the primary brand accent this brief is about. */
-  --red:#0000FF;
-  --red-rgb: 0,0,255;
+  --red:#1D4ED8;
+  --red-rgb: 29,78,216;
   --orange:#FF6A3D;
-  --brand-grad: #0000FF;
+  --brand-grad: #1D4ED8;
   /* Donate/support stays visually distinct from the primary CTA blue
      (same principle dark theme uses purple for) - the palette's own
      deep blue rather than a totally unrelated hue, so it still reads as
@@ -67,15 +67,15 @@
   --teal:#0959C9;
   --teal-rgb:9,89,201;
   --teal-deep:#063E85;
-  --ochre:#0000FF;
+  --ochre:#1D4ED8;
   --rose:#D63A3A;
   --success:#1E9E5A;
   --success-rgb: 30,158,90;
-  --line: #E2E4E8;
+  --line: #E2E8F0;
   --header-bg:#FFFFFF;
   --card-bg:#FFFFFF;
   --radius: 10px;
-  --glow-shadow: 0 0 0 1px rgba(0,0,255,0.28), 0 10px 30px -8px rgba(0,0,255,0.22);
+  --glow-shadow: 0 0 0 1px rgba(29,78,216,0.16), 0 10px 28px -10px rgba(29,78,216,0.18);
   /* Backs every hardcoded `rgba(var(--brand-shadow-rgb),...)` brand-color shadow across
      this file (buttons, cards, hero CTA, workspace actions - ~15 call
      sites) - one value the dark-theme remap below also corrects via the
@@ -83,16 +83,16 @@
      different-colored button. --btn-ink is the primary-button TEXT
      color - white reads correctly on the #0000FF primary per the brief
      ("Button text: #FFFFFF"). */
-  --brand-shadow-rgb: 0,0,255;
+  --brand-shadow-rgb: 29,78,216;
   --btn-ink: #FFFFFF;
   /* Semantic aliases (brief section 21) for new/future code - point at
      the same decisions above rather than duplicating them, so both
      naming conventions stay in sync automatically. */
   --accent-primary: var(--red);
-  --accent-hover: #0000CC;
-  --accent-soft: #EEEEFF;
-  --accent-border: rgba(0,0,255,0.28);
-  --accent-glow: rgba(0,0,255,0.12);
+  --accent-hover: #2563EB;
+  --accent-soft: #EEF4FF;
+  --accent-border: rgba(29,78,216,0.24);
+  --accent-glow: rgba(29,78,216,0.12);
   --surface: var(--card-bg);
   --surface-muted: var(--paper-dim);
   --border: var(--line);
@@ -250,6 +250,18 @@ header.scrolled{
   border-bottom:1px solid var(--line);
   box-shadow:0 6px 18px -14px rgba(17,43,92,0.16), 0 1px 0 0 rgba(var(--brand-shadow-rgb),0.18);
   padding:9px 28px;
+}
+/* Cool Blue + White redesign: the light theme's navbar stays a clean
+   white surface with a hairline border at rest too, not only once
+   .scrolled kicks in - matches the brief's "clean white navbar with a
+   very subtle bottom border/shadow" instead of a transparent bar that
+   only gains a background after scrolling. Scoped to light only so the
+   dark theme's original transparent-until-scrolled behavior is
+   untouched. */
+[data-theme="light"] header{
+  background:var(--header-bg);
+  border-bottom:1px solid var(--line);
+  box-shadow:0 1px 0 0 rgba(17,43,92,0.03);
 }
 .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.25rem; text-decoration:none; cursor:pointer;}
 .brand .brand-text{display:flex; flex-direction:column; line-height:1.15;}
@@ -412,14 +424,11 @@ html.tool-preload{ visibility:hidden; }
   opacity:0; visibility:hidden; pointer-events:none;
 }
 #quickDock.is-ready{ opacity:1; visibility:visible; pointer-events:auto; }
-#quickDock.is-reduced{ opacity:0.45; }
-/* Hidden on a tool's own upload/landing state (panel open, no file
-   loaded yet) - matches iLovePDF, which never shows its own floating
-   nav until you're actually inside a workspace. Declared after
-   .is-ready so it wins the pointer-events tie (both are one ID + one
-   class, same specificity - see initQuickDock's syncDockVisibility for
-   the opacity/visibility half, driven inline since GSAP already owns
-   those two properties on this element). */
+/* Hidden whenever any panel is open - the dock is homepage-only now (see
+   js/app.js's isDockHiddenState()). Declared after .is-ready so it wins
+   the pointer-events tie (both are one ID + one class, same specificity
+   - see syncReducedState() for the opacity/visibility half, driven
+   inline since GSAP already owns those two properties on this element). */
 #quickDock.is-hidden{ pointer-events:none; }
 .qd-icon{
   position:relative; flex:none; width:38px; height:38px; border-radius:11px;
@@ -2094,6 +2103,44 @@ html.panel-open{ overflow:hidden; }
 }
 .continue-card .icon svg{ width:20px; height:20px; }
 .continue-name{ font-size:.85rem; font-weight:600; flex:1; }
+
+/* ===== Rating widget (tool result screen) =====
+   One shared component (js/core/ratings.js's buildRatingWidget()), used
+   today by the tool result screen's "Rate this tool" (.result-rating
+   wraps it there) - the core `.rating-*` classes below carry the actual
+   look. buildRatingWidget() also still supports a "site" rating variant
+   (kept as reusable, working logic, not removed) - it simply has no
+   mount point in the UI right now; the footer's old "Rate YOYOPDF"
+   display was removed as redundant once the overall rating moved into
+   the homepage trust strip and About stats strip (see .trust-ico's
+   #trustStripRating rule and .a-stat's #aboutRatingStat markup). */
+.result-rating{
+  width:100%; margin-top:20px; padding-top:18px; border-top:1px dashed var(--line);
+  display:flex; justify-content:center;
+}
+.rating-widget{ display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; }
+.rating-widget-label{ font-size:.9rem; font-weight:700; color:var(--ink); }
+.rating-stars{ display:flex; gap:2px; }
+/* 40px touch target (not just the glyph's own visual size) so mobile
+   tapping stays comfortable - Part 10's "do not create tiny star hit
+   areas" requirement. */
+.rating-star{
+  width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+  background:none; border:none; border-radius:8px; cursor:pointer; padding:0;
+  font-size:1.5rem; line-height:1; color:var(--ink-soft); transition:color .12s ease, transform .12s ease;
+}
+.rating-star:hover{ transform:scale(1.08); }
+.rating-star:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
+/* Filled state changes BOTH the glyph (☆ -> ★) and the color, so the
+   selected stars are still legible without relying on color alone (Part
+   11's accessibility requirement) - a color-blind or grayscale-display
+   reader still sees which stars are filled. */
+.rating-star.is-filled{ color:#F5A623; }
+.rating-widget.is-submitting .rating-star{ cursor:default; opacity:.6; }
+.rating-summary{ font-size:.85rem; color:var(--ink-soft); font-weight:600; min-height:1.2em; }
+.rating-summary-error{ color:var(--rose); }
+.rating-widget.rating-submitted .rating-widget-label{ color:var(--red); }
+
 .hidden{display:none !important;}
 .visually-hidden{
   position:absolute !important; width:1px !important; height:1px !important; padding:0 !important;
@@ -2494,10 +2541,59 @@ footer{
    features, CTA. (Tool pages / modal / editor CSS above is untouched.)
    ============================================================ */
 
-.tools-section{ max-width:1320px; margin:0 auto; padding:18px 32px 40px; }
-.tools-section .grid{ grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:14px; }
+.tools-section{ max-width:1320px; margin:0 auto; padding:18px 32px 40px; position:relative; }
+/* Cool Blue + White redesign: a full-bleed white band behind the tool
+   grid so it reads as a distinct "content" section against the hero's
+   faint blue-tinted page background above it, per the brief's section-
+   separation system - a decorative ::before, not a markup change, so
+   the existing centered max-width content is untouched. 100vw + the
+   50%/translateX(-50%) pair is the standard trick for a full-viewport-
+   width background from inside a width-capped, centered block; z-index
+   -1 keeps it behind #toolCategories/.section-head without needing to
+   touch their own stacking. Light theme only - dark keeps its original
+   transparent section. */
+[data-theme="light"] .tools-section::before{
+  content:""; position:absolute; z-index:-1; top:0; bottom:0; left:50%; width:100vw;
+  transform:translateX(-50%);
+  background:var(--panel-bg);
+}
+/* Was minmax(150px,1fr)/gap:14px, which auto-filled 7 columns at this
+   section's ~1256px content width. Bumping the track minimum to 175px
+   (gap 14->16) is the minimal change that makes 6 columns the natural
+   auto-fill result instead of 7, while keeping the same fluid
+   auto-fill technique (and its graceful narrower-viewport degradation)
+   rather than hardcoding a fixed repeat(6,...) that could overflow
+   below the section's own max-width. */
+.tools-section .grid{ grid-template-columns:repeat(auto-fill, minmax(175px,1fr)); gap:16px; }
 @media(max-width:1024px){ .tools-section .grid{ grid-template-columns:repeat(4,1fr); } }
 @media(max-width:600px){ .tools-section .grid{ grid-template-columns:repeat(2,1fr); } }
+/* Slightly taller/roomier cards, scoped to this section only (.card is
+   reused sitewide - search results, mega menu, etc. - so an unscoped
+   change would affect surfaces outside the Popular PDF Tools grid).
+   Padding/gap only - icon size, typography and border-radius are
+   untouched per the brief. */
+.tools-section .card{ padding:18px; gap:9px; }
+/* Card height was only equal WITHIN a grid row (CSS Grid stretches a
+   row to its tallest item) - rows lower down could still end up
+   shorter or taller than rows above them because each tool's own
+   description text wraps to a different number of lines (a 1-line
+   description like Compress PDF's next to a 2-line one like Merge
+   Excel's), so the grid visibly read as uneven card sizes when
+   scanning down the page, not just across a row. min-height (not a
+   fixed height) makes every card at least as tall as the longest
+   description in the whole section - 222px measured at the 6-column
+   desktop width, +4px safety margin for other languages' text - so
+   every card matches, while .desc's own flex:1 (unchanged) still lets
+   it grow to fill any extra space rather than clipping or leaving a
+   visibly different box below shorter text. */
+.tools-section .card{ min-height:226px; }
+/* Title bump requested for this grid specifically - was the shared
+   .card .name value (0.92rem, ~16px at this page's 17.5px root
+   font-size), now ~2px larger (1.03rem, ~18px). Scoped to this section
+   only, same reasoning as the padding/min-height rules above: .card is
+   reused elsewhere (search results, mega menu) where this size increase
+   wasn't requested. Family/weight/line-height/color are untouched. */
+.tools-section .card .name{ font-size:1.03rem; }
 .card .icon{
   width:32px; height:32px; border-radius:8px; color:#fff; box-shadow:0 3px 8px -6px rgba(0,0,0,0.3);
 }
@@ -2521,7 +2617,7 @@ footer{
 .section-eyebrow{
   display:inline-flex; align-items:center; gap:6px; font-size:0.78rem; font-weight:700;
   text-transform:uppercase; letter-spacing:0.08em; color:var(--red);
-  background:rgba(232,41,27,0.08); padding:6px 16px; border-radius:20px; margin-bottom:16px;
+  background:rgba(var(--brand-shadow-rgb),0.08); padding:6px 16px; border-radius:20px; margin-bottom:16px;
 }
 .section-head h2{ font-size:clamp(1.6rem, 3vw, 2.2rem); margin:0 0 12px; font-weight:800; letter-spacing:-0.01em; }
 .section-head p{ color:var(--ink-soft); font-size:1.02rem; line-height:1.6; margin:0; }
@@ -3118,9 +3214,22 @@ footer{
 }
 [data-theme="dark"] .trust-item{ color:rgba(255,255,255,0.88); }
 .trust-ico{ font-size:1rem; line-height:1; }
+/* The rating item's icon is a plain "★" glyph, not an emoji like its 5
+   siblings - colored gold so it still reads as "a rating" at a glance
+   next to the colorful emoji rather than a flat, out-of-place glyph. */
+#trustStripRating .trust-ico{ color:#F5A623; }
 
 /* ===== Features ===== */
-.features-section{ max-width:1180px; margin:28px auto 0; padding:10px 28px; }
+.features-section{ max-width:1180px; margin:28px auto 0; padding:28px 28px 36px; position:relative; }
+/* Same full-bleed technique as .tools-section above, using the alt
+   section tint (#EEF4FF) instead of white - gives the feature cards a
+   clearly separate "secondary" band per the brief's section-separation
+   system, without a heavy border. Light theme only. */
+[data-theme="light"] .features-section::before{
+  content:""; position:absolute; z-index:-1; top:0; bottom:0; left:50%; width:100vw;
+  transform:translateX(-50%);
+  background:var(--paper-dim);
+}
 .features-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; perspective:1200px; perspective-origin:center center; }
 @media(max-width:900px){ .features-grid{ grid-template-columns:1fr 1fr; } }
 @media(max-width:520px){ .features-grid{ grid-template-columns:1fr; } }
@@ -3351,16 +3460,21 @@ footer{
 .site-footer{
   position:relative; background:var(--paper-dim); border-top:1px solid var(--line); margin-top:24px;
   padding:20px 28px 0;
-  /* Reserves room for #quickDock below the footer's own visible content
-     WITHOUT inflating the footer's own box - previously this same 90px
-     lived inside .footer-bottom's padding-bottom, which made the
-     tinted footer surface itself balloon well past the copyright line
-     with visible empty tinted space (confirmed live: the footer's own
-     bounding box was ~414px tall against a ~200px-ish reference). A
-     margin sits on the plain page background instead, outside the
-     footer's own surface, so the dock still has its required clearance
-     but the footer itself now ends right after its real content. */
-  margin-bottom:88px;
+  /* REMOVED: an 88px margin-bottom that used to reserve document-flow
+     space below the footer for #quickDock. That was always the wrong
+     tool for a `position:fixed` element - fixed elements are already
+     taken out of the document's normal flow specifically so they don't
+     need layout space reserved for them; they float over whatever
+     content happens to be there. That 88px was real, measurable extra
+     scrollHeight on every single page (confirmed: document.documentElement's
+     own box was ~88px taller than <body>'s actual content on every
+     route), which is exactly the "large empty area after the footer at
+     the absolute bottom of the page" bug - most visible in dark theme,
+     where html's background is now correctly theme-aware (see
+     js/core/pretheme.js) but the extra 88px of otherwise-correct-colored
+     space still read as a gap. #quickDock is also now homepage-only (see
+     js/app.js's isDockHiddenState()), so on every other page this
+     reservation no longer even had a dock to make room for. */
 }
 /* Thin brand-accent hairline at the very top edge, in place of a plain
    flat border - the one deliberate "glow" touch on an otherwise
@@ -3451,10 +3565,10 @@ footer{
 }
 .footer-bottom{
   border-top:1px solid var(--line); max-width:1280px; margin:0 auto;
-  /* Dock clearance now lives on .site-footer's own margin-bottom (see
-     its comment) instead of stacked in here as extra padding - this row
-     is back to a genuinely compact copyright bar, not one padded out
-     to double its real height. */
+  /* Genuinely compact copyright bar - no reserved dock clearance here or
+     on .site-footer (see that rule's own comment for why that
+     reservation was removed entirely). This is the true end of the
+     document on every page. */
   padding:14px 0 18px;
   display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
 }
@@ -3536,11 +3650,13 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
    duplicating that markup. Negative side margins cancel .panel-body's
    own 22px horizontal padding so the footer's background still reaches
    the panel's true edges (matching how it looks on the homepage, where
-   it isn't nested inside a padded container at all); padding-bottom
-   reserves room below the copyright bar for #quickDock (position:fixed,
-   bottom:20px, ~46px tall) so it never sits on top of the last visible
-   line of content - confirmed necessary live, not a guess. */
-.content-page-tail{ margin:8px -22px 0; padding-bottom:90px; }
+   it isn't nested inside a padded container at all). No padding-bottom
+   here any more - it used to reserve room for #quickDock, which no
+   longer shows inside any panel (dock is homepage-only now, see
+   js/app.js's isDockHiddenState()), so that reservation was just excess
+   empty space below every About/Contact/Privacy/Terms/Donate panel's
+   own footer. */
+.content-page-tail{ margin:8px -22px 0; }
 /* ---- Shared hero (About/Contact/Donate/Privacy/Terms all start here) --- */
 .content-page{ max-width:1180px; margin:0 auto; padding:8px 28px 64px; }
 .content-hero{ max-width:680px; margin:0 auto 40px; text-align:center; }

@@ -1336,6 +1336,17 @@ function resultBox({sizeText, sizeGood, previewNode, url, filename}){
   shareRow.querySelectorAll("[data-share]").forEach(btn=>{
     btn.addEventListener("click", ()=>shareOn(btn.dataset.share));
   });
+  // Tool rating: appears only here, after the result/download is ready -
+  // never above the workspace, never interrupting the actual PDF task.
+  // mountToolRating() (js/core/ratings.js) is entirely best-effort: it
+  // never throws and the rating service being slow/unreachable can never
+  // block or hide the download link above it.
+  if(window.__currentToolId && typeof mountToolRating === "function"){
+    const ratingMount = document.createElement("div");
+    ratingMount.className = "result-rating";
+    mountToolRating(ratingMount, window.__currentToolId);
+    box.appendChild(ratingMount);
+  }
   if(continueHtml){
     const section = document.createElement("div");
     section.className = "continue-section";

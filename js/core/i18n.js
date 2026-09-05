@@ -172,6 +172,11 @@
     "workspace.thisFileCannotBeProcessed":"This file cannot be processed.",
     "workspace.thisFileCouldNotBeOpened":"This file could not be opened.",
     "workspace.selectPdfFiles":"Select PDF files", "workspace.addMoreFiles":"Add more files",
+    "rating.rateThisTool":"Rate this tool", "rating.noneYet":"No ratings yet",
+    "rating.summary":"{{average}} / 5 · {{count}} votes", "rating.ratingsWord":"ratings",
+    "rating.thanks":"Thanks for rating!", "rating.unavailable":"Ratings unavailable right now",
+    "rating.submitError":"Unable to submit your rating right now. Please try again.",
+    "rating.starLabel":"{{n}} star{{plural}}", "rating.ratedByUsers":"Rated by {{count}} users",
     "workspace.done":"Done",
     /* Shared privacy-hint sentence - appears near-verbatim in ~29 places
        across 7 tool files (Organize, Flatten, every converter, every

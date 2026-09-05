@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "145";
+const VERSION = "149";
 
 const LIBRARIES = Object.freeze({
   pdfLib: Object.freeze({
@@ -31,6 +31,7 @@ const SCRIPT_ORDER = Object.freeze([
   "js/core/routing.js",
   "js/core/quick-actions.js",
   "js/core/panel.js",
+  "js/core/ratings.js",
   "js/core/pdf-processing-utils.js",
   "js/core/pdf-crypto.js",
   "js/core/pptx-export.js",
@@ -57,6 +58,7 @@ const BASE_SCRIPTS = Object.freeze([
   "js/core/routing.js",
   "js/core/quick-actions.js",
   "js/core/panel.js",
+  "js/core/ratings.js",
   "js/core/pdf-processing-utils.js",
   "js/tools/misc-tools.js",
   "js/app.js"
